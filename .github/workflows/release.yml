@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/release/n10e dist/n10e
+          tar -czf dist/n10e-macos-universal.tar.gz -C dist n10e
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n10e-macos
+          path: dist/n10e-macos-universal.tar.gz
+
+  publish:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: n10e-macos
+          path: dist
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

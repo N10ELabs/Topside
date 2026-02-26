@@ -1,0 +1,18 @@
+{% if projects.len() == 0 %}
+<p class="empty">No projects yet. Create one above.</p>
+{% else %}
+<div class="stack">
+  {% for project in projects %}
+  <article class="project-card">
+    <div class="item-title">{{ project.title }}</div>
+    <div class="task-row">
+      <span>{{ project.id }}</span>
+      <span>{{ project.status }}</span>
+    </div>
+    {% if project.owner.is_some() %}
+    <div class="item-meta">owner: {{ project.owner.clone().unwrap() }}</div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endif %}

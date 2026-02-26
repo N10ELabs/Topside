@@ -1,0 +1,265 @@
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use regex::Regex;
+use serde_yaml::Value;
+use sha2::{Digest, Sha256};
+
+use crate::types::{
+    EntityFrontmatter, EntityType, NoteFrontmatter, ParsedEntity, ProjectFrontmatter,
+    TaskFrontmatter, WikiLink,
+};
+
+fn normalize_newlines(value: &str) -> String {
+    value.replace("\r\n", "\n")
+}
+
+pub fn parse_entity_markdown(content: &str) -> Result<ParsedEntity> {
+    let normalized = normalize_newlines(content);
+    let (frontmatter_raw, body) = split_frontmatter(&normalized)?;
+
+    let yaml_value: Value =
+        serde_yaml::from_str(&frontmatter_raw).context("failed parsing frontmatter YAML")?;
+    let entity_type = yaml_value
+        .get("type")
+        .and_then(Value::as_str)
+        .and_then(EntityType::parse)
+        .context("frontmatter missing valid type")?;
+
+    let mut frontmatter = match entity_type {
+        EntityType::Task => {
+            EntityFrontmatter::Task(serde_yaml::from_str::<TaskFrontmatter>(&frontmatter_raw)?)
+        }
+        EntityType::Project => EntityFrontmatter::Project(serde_yaml::from_str::<
+            ProjectFrontmatter,
+        >(&frontmatter_raw)?),
+        EntityType::Note => {
+            EntityFrontmatter::Note(serde_yaml::from_str::<NoteFrontmatter>(&frontmatter_raw)?)
+        }
+    };
+
+    let computed_revision = compute_revision(&frontmatter_raw, &body);
+    if frontmatter.revision().is_empty() {
+        frontmatter.set_revision(computed_revision.clone());
+    }
+
+    let links = extract_wiki_links(&body);
+
+    Ok(ParsedEntity {
+        frontmatter,
+        body,
+        revision: computed_revision,
+        links,
+    })
+}
+
+pub fn render_entity_markdown(frontmatter: &mut EntityFrontmatter, body: &str) -> Result<String> {
+    let no_revision_yaml = render_frontmatter_yaml(frontmatter, None);
+    let revision = compute_revision(&no_revision_yaml, body);
+    frontmatter.set_revision(revision.clone());
+    let full_yaml = render_frontmatter_yaml(frontmatter, Some(&revision));
+
+    let body = if body.ends_with('\n') {
+        body.to_string()
+    } else {
+        format!("{body}\n")
+    };
+
+    Ok(format!("---\n{full_yaml}---\n{body}"))
+}
+
+pub fn compute_revision(frontmatter_raw: &str, body: &str) -> String {
+    let revision_re = Regex::new(r"(?m)^revision:\s*.*\n?").expect("valid revision regex");
+    let cleaned = revision_re.replace_all(frontmatter_raw, "");
+    let mut hasher = Sha256::new();
+    hasher.update(cleaned.as_bytes());
+    hasher.update(b"\n---\n");
+    hasher.update(body.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+pub fn split_frontmatter(content: &str) -> Result<(String, String)> {
+    if !content.starts_with("---\n") {
+        anyhow::bail!("markdown file missing opening frontmatter delimiter");
+    }
+
+    let rest = &content[4..];
+    let end = rest
+        .find("\n---\n")
+        .context("markdown file missing closing frontmatter delimiter")?;
+
+    let frontmatter = rest[..end].to_string();
+    let body = rest[end + 5..].to_string();
+    Ok((frontmatter, body))
+}
+
+pub fn extract_wiki_links(body: &str) -> Vec<WikiLink> {
+    let re = Regex::new(r"\[\[(task|project|note):([^\]]+)\]\]").expect("valid wiki regex");
+    re.captures_iter(body)
+        .filter_map(|caps| {
+            let kind = caps.get(1)?.as_str();
+            let id = caps.get(2)?.as_str();
+            Some(WikiLink {
+                target_type: EntityType::parse(kind)?,
+                target_id: id.to_string(),
+                raw: caps.get(0)?.as_str().to_string(),
+            })
+        })
+        .collect()
+}
+
+pub fn parse_optional_datetime(value: &str) -> Result<Option<DateTime<Utc>>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let parsed = DateTime::parse_from_rfc3339(trimmed)
+        .with_context(|| format!("invalid RFC3339 datetime: {trimmed}"))?
+        .with_timezone(&Utc);
+    Ok(Some(parsed))
+}
+
+fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&str>) -> String {
+    match frontmatter {
+        EntityFrontmatter::Task(task) => {
+            let mut out = String::new();
+            out.push_str(&format!("id: {}\n", yaml_scalar(&task.id)));
+            out.push_str("type: task\n");
+            out.push_str(&format!("title: {}\n", yaml_scalar(&task.title)));
+            out.push_str(&format!("project_id: {}\n", yaml_scalar(&task.project_id)));
+            out.push_str(&format!("status: {}\n", task.status.as_str()));
+            out.push_str(&format!("priority: {}\n", task.priority.as_str()));
+            out.push_str(&format!("assignee: {}\n", yaml_scalar(&task.assignee)));
+            if let Some(due_at) = task.due_at {
+                out.push_str(&format!("due_at: {}\n", due_at.to_rfc3339()));
+            }
+            render_tags(&mut out, task.tags.as_ref());
+            out.push_str(&format!("created_at: {}\n", task.created_at.to_rfc3339()));
+            out.push_str(&format!("updated_at: {}\n", task.updated_at.to_rfc3339()));
+            if let Some(revision) = revision {
+                out.push_str(&format!("revision: {}\n", yaml_scalar(revision)));
+            }
+            out
+        }
+        EntityFrontmatter::Project(project) => {
+            let mut out = String::new();
+            out.push_str(&format!("id: {}\n", yaml_scalar(&project.id)));
+            out.push_str("type: project\n");
+            out.push_str(&format!("title: {}\n", yaml_scalar(&project.title)));
+            out.push_str(&format!(
+                "status: {}\n",
+                match project.status {
+                    crate::types::ProjectStatus::Active => "active",
+                    crate::types::ProjectStatus::Paused => "paused",
+                    crate::types::ProjectStatus::Archived => "archived",
+                }
+            ));
+            if let Some(owner) = &project.owner {
+                out.push_str(&format!("owner: {}\n", yaml_scalar(owner)));
+            }
+            render_tags(&mut out, project.tags.as_ref());
+            out.push_str(&format!(
+                "created_at: {}\n",
+                project.created_at.to_rfc3339()
+            ));
+            out.push_str(&format!(
+                "updated_at: {}\n",
+                project.updated_at.to_rfc3339()
+            ));
+            if let Some(revision) = revision {
+                out.push_str(&format!("revision: {}\n", yaml_scalar(revision)));
+            }
+            out
+        }
+        EntityFrontmatter::Note(note) => {
+            let mut out = String::new();
+            out.push_str(&format!("id: {}\n", yaml_scalar(&note.id)));
+            out.push_str("type: note\n");
+            out.push_str(&format!("title: {}\n", yaml_scalar(&note.title)));
+            if let Some(project_id) = &note.project_id {
+                out.push_str(&format!("project_id: {}\n", yaml_scalar(project_id)));
+            }
+            render_tags(&mut out, note.tags.as_ref());
+            out.push_str(&format!("created_at: {}\n", note.created_at.to_rfc3339()));
+            out.push_str(&format!("updated_at: {}\n", note.updated_at.to_rfc3339()));
+            if let Some(revision) = revision {
+                out.push_str(&format!("revision: {}\n", yaml_scalar(revision)));
+            }
+            out
+        }
+    }
+}
+
+fn render_tags(out: &mut String, tags: Option<&Vec<String>>) {
+    if let Some(tags) = tags {
+        if tags.is_empty() {
+            return;
+        }
+        out.push_str("tags:\n");
+        for tag in tags {
+            out.push_str(&format!("  - {}\n", yaml_scalar(tag)));
+        }
+    }
+}
+
+fn yaml_scalar(value: &str) -> String {
+    let encoded = serde_yaml::to_string(value).unwrap_or_else(|_| value.to_string());
+    encoded
+        .trim_start_matches("---\n")
+        .trim_end_matches('\n')
+        .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{TimeZone, Utc};
+
+    use crate::types::{
+        EntityFrontmatter, EntityType, NoteFrontmatter, TaskFrontmatter, TaskPriority, TaskStatus,
+    };
+
+    use super::{parse_entity_markdown, render_entity_markdown};
+
+    #[test]
+    fn round_trip_task_revision() {
+        let mut fm = EntityFrontmatter::Task(TaskFrontmatter {
+            id: "tsk_1".to_string(),
+            entity_type: EntityType::Task,
+            title: "Test".to_string(),
+            project_id: "prj_1".to_string(),
+            status: TaskStatus::Todo,
+            priority: TaskPriority::P2,
+            assignee: "agent:codex".to_string(),
+            due_at: None,
+            tags: Some(vec!["alpha".to_string()]),
+            created_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            updated_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            revision: String::new(),
+        });
+        let rendered = render_entity_markdown(&mut fm, "hello [[note:nte_1]]").unwrap();
+        let parsed = parse_entity_markdown(&rendered).unwrap();
+        assert_eq!(parsed.frontmatter.id(), "tsk_1");
+        assert_eq!(parsed.links.len(), 1);
+    }
+
+    #[test]
+    fn parse_without_revision_fills_computed() {
+        let raw = r#"---
+id: nte_1
+type: note
+title: note one
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+---
+body
+"#;
+        let parsed = parse_entity_markdown(raw).unwrap();
+        assert!(!parsed.revision.is_empty());
+        match parsed.frontmatter {
+            EntityFrontmatter::Note(NoteFrontmatter { revision, .. }) => {
+                assert!(!revision.is_empty());
+            }
+            _ => panic!("expected note"),
+        }
+    }
+}

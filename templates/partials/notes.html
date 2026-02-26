@@ -1,0 +1,18 @@
+{% if notes.len() == 0 %}
+<p class="empty">No notes indexed yet.</p>
+{% else %}
+<div class="stack">
+  {% for note in notes %}
+  <article class="list-item {% if loop.index0 == 0 %}active{% endif %}">
+    <div class="item-title">{{ note.title }}</div>
+    <div class="item-meta">{{ note.path }}</div>
+    <div class="chip-row">
+      <span class="chip">{{ note.id }}</span>
+      {% if note.project_id.is_some() %}
+      <span class="chip">{{ note.project_id.clone().unwrap() }}</span>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}

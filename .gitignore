@@ -1,0 +1,5 @@
+/target
+/.n10e
+/dist
+*.log
+/.claude

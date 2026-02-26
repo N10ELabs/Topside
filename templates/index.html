@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>n10e Dashboard</title>
+  <script src="/htmx"></script>
+  <style>
+    :root {
+      --bg: #0f0d0c;
+      --bg-elev: #151210;
+      --panel: #181411;
+      --panel-soft: #1d1814;
+      --line: #2a231d;
+      --text: #ece3d6;
+      --muted: #9f9589;
+      --accent: #d97706;
+      --accent-soft: rgba(217, 119, 6, 0.2);
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% -10%, #2b1f14 0%, transparent 50%),
+        radial-gradient(circle at 90% -20%, #1e1610 0%, transparent 45%),
+        var(--bg);
+      font-family: "Space Grotesk", "IBM Plex Sans", "Avenir Next", sans-serif;
+    }
+
+    .chrome {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 13, 11, 0.82);
+      backdrop-filter: blur(4px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      letter-spacing: 0.03em;
+    }
+
+    .brand-badge {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      background: linear-gradient(145deg, #f59e0b, #b45309);
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+    }
+
+    .brand-name {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .brand-version {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 2px;
+    }
+
+    .nav {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      padding-bottom: 6px;
+    }
+
+    .nav a.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .statusbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      padding: 11px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(20, 16, 14, 0.9);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 15px;
+    }
+
+    .statusitem {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .statusitem strong { color: var(--text); font-weight: 600; }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--success);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.8);
+    }
+
+    .statusitem.error { color: var(--success); }
+
+    .statusbar .spacer { flex: 1; }
+
+    .ghost-btn {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--panel-soft);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 330px 1fr 350px;
+      min-height: 0;
+      height: calc(100vh - 116px);
+    }
+
+    .rail,
+    .center {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .rail {
+      background: rgba(15, 12, 10, 0.78);
+      border-right: 1px solid var(--line);
+      padding: 14px;
+    }
+
+    .rail.right {
+      border-right: none;
+      border-left: 1px solid var(--line);
+    }
+
+    .center {
+      padding: 14px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel-soft), var(--panel));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 0;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .panelhead {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+    }
+
+    .searchbox {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #12100f;
+      color: var(--text);
+      padding: 11px 12px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .searchbox::placeholder { color: #776d62; }
+
+    .form-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .form-row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #120f0d;
+      color: var(--text);
+      padding: 9px 10px;
+      font: inherit;
+    }
+
+    textarea { min-height: 86px; resize: vertical; }
+
+    button {
+      background: linear-gradient(180deg, #ca6a0a, #a34f08);
+      border-color: #8f4306;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #1c1713;
+      border-color: var(--line);
+      color: var(--muted);
+    }
+
+    button.danger {
+      background: linear-gradient(180deg, #b91c1c, #8b1414);
+      border-color: #6f1111;
+    }
+
+    .split {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      min-height: 0;
+    }
+
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .list-item,
+    .event-item,
+    .task-card,
+    .project-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #14110e;
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .list-item.active {
+      border-color: #7b4a1d;
+      background: linear-gradient(180deg, #2a1a10, #1a140f);
+      box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.16);
+    }
+
+    .item-title {
+      font-weight: 600;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .item-meta,
+    .muted {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #b4aa9d;
+      border: 1px solid #3a3027;
+      border-radius: 8px;
+      padding: 1px 7px;
+      background: #1a1511;
+    }
+
+    .editor {
+      min-height: 220px;
+      max-height: 340px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #0f0d0c;
+      padding: 12px;
+      color: #d8d0c4;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .task-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+    }
+
+    .control-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .actions button {
+      width: auto;
+      min-width: 88px;
+      padding: 7px 12px;
+    }
+
+    .event-item {
+      border-left: 2px solid #3d3127;
+      gap: 4px;
+    }
+
+    .event-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+    }
+
+    .event-kind.agent,
+    .event-kind.system,
+    .event-kind.human {
+      text-transform: lowercase;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .event-kind.agent { color: #60a5fa; }
+    .event-kind.system { color: #4ade80; }
+    .event-kind.human { color: #fbbf24; }
+
+    .event-time { color: #7e7367; }
+
+    .event-body {
+      color: #d0c6b8;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+      padding: 8px;
+    }
+
+    @media (max-width: 1280px) {
+      .workspace { grid-template-columns: 290px 1fr 320px; }
+    }
+
+    @media (max-width: 1080px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      .rail,
+      .center {
+        border: none;
+      }
+      .rail.right {
+        border-top: 1px solid var(--line);
+      }
+      .split {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="chrome">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <h1 class="brand-name">n10e</h1>
+        <span class="brand-version">v0.1.0</span>
+      </div>
+      <nav class="nav">
+        <a class="active" href="#">dashboard</a>
+        <a href="#">search</a>
+        <a href="#">config</a>
+      </nav>
+    </header>
+
+    <div class="statusbar">
+      <div class="statusitem"><span class="dot"></span><span>serving :<strong>{{ server_port }}</strong></span></div>
+      <div class="statusitem"><strong>{{ project_count }}</strong> projects</div>
+      <div class="statusitem"><strong>{{ task_count }}</strong> tasks</div>
+      <div class="statusitem"><strong>{{ note_count }}</strong> notes</div>
+      <div class="statusitem error">0 errors</div>
+      <div class="spacer"></div>
+      <button class="ghost-btn" type="button">reindex</button>
+    </div>
+
+    <div class="workspace">
+      <aside class="rail left">
+        <div class="panelhead">
+          <h2>Knowledge</h2>
+          <span>indexed notes</span>
+        </div>
+        <input class="searchbox" placeholder="search files, tags, paths..." />
+        <div
+          id="notes-panel"
+          hx-get="/partials/notes"
+          hx-trigger="load, every {{ poll_notes_ms }}ms"
+          hx-swap="innerHTML"
+        >
+          {% include "partials/notes.html" %}
+        </div>
+      </aside>
+
+      <main class="center">
+        <section class="panel">
+          <div class="panelhead">
+            <span>workspace/operator-console.md</span>
+            <span>{{ task_count }} tasks | {{ note_count }} notes</span>
+          </div>
+          <div class="editor">---
+# operator workspace
+status: live
+mode: agent-first
+
+Use the forms below to create projects, tasks, and notes.
+
+- tasks require a valid project_id (prj_...)
+- notes can be created with or without project_id
+- updates and archives are tracked in the event log
+
+This center pane will evolve into a richer editor and planning surface.
+</div>
+        </section>
+
+        <section class="panel">
+          <div class="panelhead">
+            <h3>Create Entities</h3>
+            <span>minimal write actions</span>
+          </div>
+
+          <div class="form-grid">
+            <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML">
+              <div class="form-row">
+                <input name="title" placeholder="project title" required>
+                <input name="owner" placeholder="owner (optional)">
+              </div>
+              <div class="actions">
+                <button type="submit">create project</button>
+              </div>
+            </form>
+
+            <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML">
+              <div class="form-row">
+                <input name="title" placeholder="task title" required>
+                <input name="project_id" placeholder="project_id (prj_...)" required>
+              </div>
+              <div class="form-row">
+                <select name="status">
+                  <option value="backlog">backlog</option>
+                  <option value="todo" selected>todo</option>
+                  <option value="in_progress">in_progress</option>
+                  <option value="blocked">blocked</option>
+                  <option value="done">done</option>
+                </select>
+                <select name="priority">
+                  <option value="P0">P0</option>
+                  <option value="P1">P1</option>
+                  <option value="P2" selected>P2</option>
+                  <option value="P3">P3</option>
+                </select>
+              </div>
+              <input name="assignee" placeholder="assignee (agent:codex)">
+              <div class="actions">
+                <button type="submit">create task</button>
+              </div>
+            </form>
+
+            <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML">
+              <div class="form-row">
+                <input name="title" placeholder="note title" required>
+                <input name="project_id" placeholder="project_id (optional)">
+              </div>
+              <textarea name="body" placeholder="markdown body"></textarea>
+              <div class="actions">
+                <button type="submit">create note</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="split">
+          <div class="panel">
+            <div class="panelhead">
+              <h3>Projects</h3>
+              <span>copy id -> task/note</span>
+            </div>
+            <div
+              id="projects-panel"
+              hx-get="/partials/projects"
+              hx-trigger="load, every {{ poll_projects_ms }}ms"
+              hx-swap="innerHTML"
+            >
+              {% include "partials/projects.html" %}
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panelhead">
+              <h3>Task Queue</h3>
+              <span>editable rows</span>
+            </div>
+            <div
+              id="tasks-panel"
+              hx-get="/partials/tasks"
+              hx-trigger="load, every {{ poll_tasks_ms }}ms"
+              hx-swap="innerHTML"
+            >
+              {% include "partials/tasks.html" %}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="rail right">
+        <div class="panelhead">
+          <h2>Event Log</h2>
+          <span>activity stream</span>
+        </div>
+        <div
+          id="activity-panel"
+          hx-get="/partials/activity"
+          hx-trigger="load, every {{ poll_activity_ms }}ms"
+          hx-swap="innerHTML"
+        >
+          {% include "partials/activity.html" %}
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>
