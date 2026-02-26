@@ -1,16 +1,17 @@
 {% if tasks.len() == 0 %}
-<p class="empty">No tasks indexed yet.</p>
+<p class="empty">{% if has_scope %}No tasks in this project yet.{% else %}No tasks indexed yet.{% endif %}</p>
 {% else %}
 <div class="stack">
   {% for task in tasks %}
   <article class="task-card">
     <div class="item-title">{{ task.title }}</div>
     <div class="task-row">
+      <span>{{ task.status.as_str() }}</span>
+      <span>{{ task.priority.as_str() }}</span>
       <span>{{ task.id }}</span>
-      <span>{{ task.project_id }}</span>
     </div>
 
-    <form method="post" action="/tasks/{{ task.id }}" hx-patch="/tasks/{{ task.id }}" hx-target="#tasks-panel" hx-swap="innerHTML" class="form-grid">
+    <form method="post" action="/tasks/{{ task.id }}{{ scope_query }}" hx-patch="/tasks/{{ task.id }}{{ scope_query }}" hx-target="#tasks-panel" hx-swap="innerHTML" class="form-grid">
       <input type="hidden" name="expected_revision" value="{{ task.revision }}">
       <div class="control-grid">
         <select name="status">
@@ -33,7 +34,7 @@
       </div>
     </form>
 
-    <form method="post" action="/archive/{{ task.id }}" hx-post="/archive/{{ task.id }}" hx-target="#tasks-panel" hx-swap="innerHTML">
+    <form method="post" action="/archive/{{ task.id }}{{ scope_query }}" hx-post="/archive/{{ task.id }}{{ scope_query }}" hx-target="#tasks-panel" hx-swap="innerHTML">
       <input type="hidden" name="expected_revision" value="{{ task.revision }}">
       <div class="actions">
         <button class="danger" type="submit">archive</button>

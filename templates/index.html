@@ -7,15 +7,14 @@
   <script src="/htmx"></script>
   <style>
     :root {
-      --bg: #0f0d0c;
-      --bg-elev: #151210;
-      --panel: #181411;
-      --panel-soft: #1d1814;
-      --line: #2a231d;
-      --text: #ece3d6;
-      --muted: #9f9589;
+      --bg: #0e0d0b;
+      --bg-elev: #141210;
+      --panel: #191612;
+      --line: #2d271f;
+      --text: #ece5d7;
+      --muted: #a59a8b;
       --accent: #d97706;
-      --accent-soft: rgba(217, 119, 6, 0.2);
+      --accent-soft: rgba(217, 119, 6, 0.18);
       --success: #22c55e;
       --danger: #ef4444;
     }
@@ -27,13 +26,13 @@
       min-height: 100vh;
       color: var(--text);
       background:
-        radial-gradient(circle at 10% -10%, #2b1f14 0%, transparent 50%),
-        radial-gradient(circle at 90% -20%, #1e1610 0%, transparent 45%),
+        radial-gradient(circle at 8% -15%, #2b1f15 0%, transparent 45%),
+        radial-gradient(circle at 100% -30%, #241911 0%, transparent 40%),
         var(--bg);
       font-family: "Space Grotesk", "IBM Plex Sans", "Avenir Next", sans-serif;
     }
 
-    .chrome {
+    .app {
       min-height: 100vh;
       display: grid;
       grid-template-rows: auto auto 1fr;
@@ -43,9 +42,9 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 20px;
+      padding: 13px 18px;
       border-bottom: 1px solid var(--line);
-      background: rgba(16, 13, 11, 0.82);
+      background: rgba(13, 11, 9, 0.85);
       backdrop-filter: blur(4px);
     }
 
@@ -54,33 +53,32 @@
       align-items: center;
       gap: 12px;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      letter-spacing: 0.03em;
     }
 
     .brand-badge {
       width: 26px;
       height: 26px;
-      border-radius: 8px;
+      border-radius: 7px;
       background: linear-gradient(145deg, #f59e0b, #b45309);
       box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
     }
 
-    .brand-name {
+    .brand-title {
+      margin: 0;
       font-size: 22px;
       font-weight: 700;
-      margin: 0;
+      letter-spacing: 0.02em;
     }
 
     .brand-version {
       color: var(--muted);
       font-size: 12px;
-      margin-left: 2px;
     }
 
     .nav {
       display: flex;
-      gap: 16px;
       align-items: center;
+      gap: 16px;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 14px;
     }
@@ -88,8 +86,8 @@
     .nav a {
       color: var(--muted);
       text-decoration: none;
-      border-bottom: 1px solid transparent;
       padding-bottom: 6px;
+      border-bottom: 1px solid transparent;
     }
 
     .nav a.active {
@@ -99,64 +97,61 @@
 
     .statusbar {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
-      gap: 16px;
-      padding: 11px 20px;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 10px 18px;
       border-bottom: 1px solid var(--line);
-      background: rgba(20, 16, 14, 0.9);
+      background: rgba(19, 16, 13, 0.88);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 15px;
+      font-size: 14px;
+      color: var(--muted);
     }
 
-    .statusitem {
+    .status {
       display: flex;
-      gap: 9px;
       align-items: center;
-      color: var(--muted);
+      gap: 8px;
       white-space: nowrap;
     }
 
-    .statusitem strong { color: var(--text); font-weight: 600; }
+    .status strong { color: var(--text); }
 
     .dot {
-      width: 9px;
-      height: 9px;
+      width: 8px;
+      height: 8px;
       border-radius: 999px;
       background: var(--success);
-      box-shadow: 0 0 12px rgba(34, 197, 94, 0.8);
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
     }
 
-    .statusitem.error { color: var(--success); }
-
-    .statusbar .spacer { flex: 1; }
+    .spacer { flex: 1; }
 
     .ghost-btn {
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 7px 12px;
-      font-family: inherit;
-      font-size: 13px;
+      padding: 6px 10px;
+      background: var(--panel);
       color: var(--muted);
-      background: var(--panel-soft);
+      font: inherit;
     }
 
     .workspace {
-      display: grid;
-      grid-template-columns: 330px 1fr 350px;
       min-height: 0;
-      height: calc(100vh - 116px);
+      height: calc(100vh - 112px);
+      display: grid;
+      grid-template-columns: 300px 1fr 340px;
     }
 
     .rail,
-    .center {
+    .main {
       min-height: 0;
       overflow: auto;
     }
 
     .rail {
-      background: rgba(15, 12, 10, 0.78);
       border-right: 1px solid var(--line);
+      background: rgba(14, 12, 10, 0.78);
       padding: 14px;
     }
 
@@ -165,90 +160,109 @@
       border-left: 1px solid var(--line);
     }
 
-    .center {
+    .main {
       padding: 14px;
       display: grid;
-      grid-template-rows: auto auto 1fr;
       gap: 12px;
+      grid-template-rows: auto auto 1fr;
     }
 
     .panel {
-      background: linear-gradient(180deg, var(--panel-soft), var(--panel));
       border: 1px solid var(--line);
       border-radius: 12px;
+      background: linear-gradient(180deg, #1c1814, #15120f);
       padding: 12px;
       min-height: 0;
-    }
-
-    .panel h2,
-    .panel h3 {
-      margin: 0;
-      font-weight: 600;
-      letter-spacing: 0.01em;
     }
 
     .panelhead {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 10px;
       color: var(--muted);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 13px;
     }
 
-    .searchbox {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #12100f;
+    h2,
+    h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
       color: var(--text);
-      padding: 11px 12px;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 15px;
-      margin-bottom: 10px;
+      letter-spacing: 0.01em;
     }
 
-    .searchbox::placeholder { color: #776d62; }
+    .project-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .project-summary .title {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #4c3a2b;
+      border-radius: 999px;
+      background: #20170f;
+      color: #cfb18e;
+      padding: 2px 8px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      text-transform: lowercase;
+    }
+
+    .forms {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+    }
 
     .form-grid {
       display: grid;
       gap: 8px;
     }
 
-    .form-row {
-      display: grid;
-      gap: 8px;
-      grid-template-columns: 1fr 1fr;
-    }
-
     input,
-    select,
     textarea,
+    select,
     button {
       width: 100%;
-      border-radius: 10px;
       border: 1px solid var(--line);
+      border-radius: 10px;
       background: #120f0d;
       color: var(--text);
       padding: 9px 10px;
       font: inherit;
     }
 
-    textarea { min-height: 86px; resize: vertical; }
-
-    button {
-      background: linear-gradient(180deg, #ca6a0a, #a34f08);
-      border-color: #8f4306;
-      cursor: pointer;
-      font-weight: 600;
+    textarea {
+      min-height: 84px;
+      resize: vertical;
     }
 
-    button.secondary {
-      background: #1c1713;
-      border-color: var(--line);
-      color: var(--muted);
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #ca6a0a, #a34f08);
+      border-color: #8f4306;
+      font-weight: 600;
     }
 
     button.danger {
@@ -256,89 +270,81 @@
       border-color: #6f1111;
     }
 
-    .split {
+    .content-split {
+      min-height: 0;
       display: grid;
       gap: 12px;
       grid-template-columns: 1fr 1fr;
-      min-height: 0;
     }
 
-    .stack {
+    .stack { display: grid; gap: 8px; }
+
+    .project-list { display: grid; gap: 8px; }
+
+    .project-item {
       display: grid;
-      gap: 8px;
-    }
-
-    .list-item,
-    .event-item,
-    .task-card,
-    .project-card {
+      gap: 4px;
+      text-decoration: none;
       border: 1px solid var(--line);
       border-radius: 10px;
-      background: #14110e;
+      background: #16130f;
+      color: var(--text);
+      padding: 10px;
+    }
+
+    .project-item:hover {
+      border-color: #574332;
+      background: #1a1511;
+    }
+
+    .project-item.active {
+      border-color: #7a4d24;
+      background: linear-gradient(180deg, #2a1a10, #19130f);
+      box-shadow: inset 0 0 0 1px var(--accent-soft);
+    }
+
+    .project-title {
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .project-meta {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+    }
+
+    .task-card,
+    .list-item,
+    .event-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #15120f;
       padding: 10px;
       display: grid;
       gap: 6px;
     }
 
     .list-item.active {
-      border-color: #7b4a1d;
-      background: linear-gradient(180deg, #2a1a10, #1a140f);
-      box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.16);
+      border-color: #7a4d24;
+      background: linear-gradient(180deg, #271910, #19130f);
+      box-shadow: inset 0 0 0 1px var(--accent-soft);
     }
 
     .item-title {
       font-weight: 600;
-      font-size: 20px;
-      line-height: 1.2;
+      font-size: 17px;
+      line-height: 1.25;
     }
 
-    .item-meta,
-    .muted {
+    .task-row,
+    .item-meta {
       color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .chip {
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 12px;
-      color: #b4aa9d;
-      border: 1px solid #3a3027;
-      border-radius: 8px;
-      padding: 1px 7px;
-      background: #1a1511;
-    }
-
-    .editor {
-      min-height: 220px;
-      max-height: 340px;
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #0f0d0c;
-      padding: 12px;
-      color: #d8d0c4;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 14px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
-
-    .task-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .control-grid {
@@ -355,12 +361,28 @@
 
     .actions button {
       width: auto;
-      min-width: 88px;
+      min-width: 82px;
       padding: 7px 12px;
     }
 
+    .chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      border: 1px solid #3f3429;
+      border-radius: 8px;
+      background: #1b1612;
+      color: #b8aa99;
+      padding: 1px 7px;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 11px;
+    }
+
     .event-item {
-      border-left: 2px solid #3d3127;
+      border-left: 2px solid #3e3227;
       gap: 4px;
     }
 
@@ -369,27 +391,18 @@
       justify-content: space-between;
       gap: 8px;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 13px;
+      font-size: 12px;
+      color: var(--muted);
     }
 
-    .event-kind.agent,
-    .event-kind.system,
-    .event-kind.human {
-      text-transform: lowercase;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-
-    .event-kind.agent { color: #60a5fa; }
-    .event-kind.system { color: #4ade80; }
-    .event-kind.human { color: #fbbf24; }
-
-    .event-time { color: #7e7367; }
+    .event-kind.agent { color: #60a5fa; text-transform: lowercase; font-weight: 600; }
+    .event-kind.system { color: #4ade80; text-transform: lowercase; font-weight: 600; }
+    .event-kind.human { color: #fbbf24; text-transform: lowercase; font-weight: 600; }
 
     .event-body {
-      color: #d0c6b8;
-      font-size: 14px;
+      color: #d8cfc2;
       line-height: 1.35;
+      font-size: 14px;
     }
 
     .empty {
@@ -397,36 +410,64 @@
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 13px;
       padding: 8px;
+      border: 1px dashed #3a3128;
+      border-radius: 10px;
+      background: #15120f;
     }
 
-    @media (max-width: 1280px) {
-      .workspace { grid-template-columns: 290px 1fr 320px; }
+    .center-empty {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      min-height: 280px;
     }
 
-    @media (max-width: 1080px) {
+    .center-empty .hint {
+      max-width: 460px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 14px;
+    }
+
+    @media (max-width: 1250px) {
+      .workspace {
+        grid-template-columns: 270px 1fr 300px;
+      }
+    }
+
+    @media (max-width: 1060px) {
       .workspace {
         grid-template-columns: 1fr;
         height: auto;
       }
+
       .rail,
-      .center {
+      .rail.right {
         border: none;
       }
+
+      .main {
+        grid-template-rows: auto auto auto;
+      }
+
+      .content-split,
+      .forms {
+        grid-template-columns: 1fr;
+      }
+
       .rail.right {
         border-top: 1px solid var(--line);
-      }
-      .split {
-        grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 <body>
-  <div class="chrome">
+  <div class="app">
     <header class="topbar">
       <div class="brand">
         <div class="brand-badge"></div>
-        <h1 class="brand-name">n10e</h1>
+        <h1 class="brand-title">n10e</h1>
         <span class="brand-version">v0.1.0</span>
       </div>
       <nav class="nav">
@@ -437,76 +478,67 @@
     </header>
 
     <div class="statusbar">
-      <div class="statusitem"><span class="dot"></span><span>serving :<strong>{{ server_port }}</strong></span></div>
-      <div class="statusitem"><strong>{{ project_count }}</strong> projects</div>
-      <div class="statusitem"><strong>{{ task_count }}</strong> tasks</div>
-      <div class="statusitem"><strong>{{ note_count }}</strong> notes</div>
-      <div class="statusitem error">0 errors</div>
+      <div class="status"><span class="dot"></span><span>serving :<strong>{{ server_port }}</strong></span></div>
+      <div class="status"><strong>{{ project_count }}</strong> projects</div>
+      <div class="status"><strong>{{ task_count }}</strong> tasks</div>
+      <div class="status"><strong>{{ note_count }}</strong> notes</div>
+      <div class="status"><span class="pill">project tab</span></div>
       <div class="spacer"></div>
       <button class="ghost-btn" type="button">reindex</button>
     </div>
 
     <div class="workspace">
       <aside class="rail left">
-        <div class="panelhead">
-          <h2>Knowledge</h2>
-          <span>indexed notes</span>
-        </div>
-        <input class="searchbox" placeholder="search files, tags, paths..." />
-        <div
-          id="notes-panel"
-          hx-get="/partials/notes"
-          hx-trigger="load, every {{ poll_notes_ms }}ms"
-          hx-swap="innerHTML"
-        >
-          {% include "partials/notes.html" %}
-        </div>
-      </aside>
-
-      <main class="center">
         <section class="panel">
           <div class="panelhead">
-            <span>workspace/operator-console.md</span>
-            <span>{{ task_count }} tasks | {{ note_count }} notes</span>
+            <h3>Projects</h3>
+            <span>workspace tabs</span>
           </div>
-          <div class="editor">---
-# operator workspace
-status: live
-mode: agent-first
 
-Use the forms below to create projects, tasks, and notes.
+          <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML" class="form-grid">
+            <input name="title" placeholder="new project title" required>
+            <input name="owner" placeholder="owner (optional)">
+            <button type="submit">create project</button>
+          </form>
+        </section>
 
-- tasks require a valid project_id (prj_...)
-- notes can be created with or without project_id
-- updates and archives are tracked in the event log
+        <section class="panel">
+          <div
+            id="projects-panel"
+            hx-get="{{ projects_partial_url }}"
+            hx-trigger="load, every {{ poll_projects_ms }}ms"
+            hx-swap="innerHTML"
+          >
+            {% include "partials/projects.html" %}
+          </div>
+        </section>
+      </aside>
 
-This center pane will evolve into a richer editor and planning surface.
-</div>
+      <main class="main">
+        {% if has_selected_project %}
+        <section class="panel">
+          <div class="project-summary">
+            <div>
+              <div class="meta">project workspace</div>
+              <div class="title">{{ selected_project_title }}</div>
+            </div>
+            <div>
+              <div class="meta">{{ selected_project_id }}</div>
+              <span class="pill">{{ selected_project_status }}</span>
+            </div>
+          </div>
         </section>
 
         <section class="panel">
           <div class="panelhead">
-            <h3>Create Entities</h3>
-            <span>minimal write actions</span>
+            <h3>Quick Capture</h3>
+            <span>create inside current project tab</span>
           </div>
-
-          <div class="form-grid">
-            <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML">
-              <div class="form-row">
-                <input name="title" placeholder="project title" required>
-                <input name="owner" placeholder="owner (optional)">
-              </div>
-              <div class="actions">
-                <button type="submit">create project</button>
-              </div>
-            </form>
-
-            <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML">
-              <div class="form-row">
-                <input name="title" placeholder="task title" required>
-                <input name="project_id" placeholder="project_id (prj_...)" required>
-              </div>
-              <div class="form-row">
+          <div class="forms">
+            <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML" class="form-grid">
+              <input type="hidden" name="project_id" value="{{ selected_project_id }}">
+              <input name="title" placeholder="task title" required>
+              <div class="control-grid">
                 <select name="status">
                   <option value="backlog">backlog</option>
                   <option value="todo" selected>todo</option>
@@ -522,70 +554,74 @@ This center pane will evolve into a richer editor and planning surface.
                 </select>
               </div>
               <input name="assignee" placeholder="assignee (agent:codex)">
-              <div class="actions">
-                <button type="submit">create task</button>
-              </div>
+              <button type="submit">create task</button>
             </form>
 
-            <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML">
-              <div class="form-row">
-                <input name="title" placeholder="note title" required>
-                <input name="project_id" placeholder="project_id (optional)">
-              </div>
-              <textarea name="body" placeholder="markdown body"></textarea>
-              <div class="actions">
-                <button type="submit">create note</button>
-              </div>
+            <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML" class="form-grid">
+              <input type="hidden" name="project_id" value="{{ selected_project_id }}">
+              <input type="hidden" name="ui_project_id" value="{{ selected_project_id }}">
+              <input name="title" placeholder="note title" required>
+              <textarea name="body" placeholder="project note markdown"></textarea>
+              <button type="submit">create note</button>
             </form>
           </div>
         </section>
 
-        <section class="split">
-          <div class="panel">
+        <section class="content-split">
+          <section class="panel">
             <div class="panelhead">
-              <h3>Projects</h3>
-              <span>copy id -> task/note</span>
-            </div>
-            <div
-              id="projects-panel"
-              hx-get="/partials/projects"
-              hx-trigger="load, every {{ poll_projects_ms }}ms"
-              hx-swap="innerHTML"
-            >
-              {% include "partials/projects.html" %}
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panelhead">
-              <h3>Task Queue</h3>
-              <span>editable rows</span>
+              <h3>Tasks</h3>
+              <span>{{ selected_project_id }}</span>
             </div>
             <div
               id="tasks-panel"
-              hx-get="/partials/tasks"
+              hx-get="{{ tasks_partial_url }}"
               hx-trigger="load, every {{ poll_tasks_ms }}ms"
               hx-swap="innerHTML"
             >
               {% include "partials/tasks.html" %}
             </div>
+          </section>
+
+          <section class="panel">
+            <div class="panelhead">
+              <h3>Notes</h3>
+              <span>{{ selected_project_id }}</span>
+            </div>
+            <div
+              id="notes-panel"
+              hx-get="{{ notes_partial_url }}"
+              hx-trigger="load, every {{ poll_notes_ms }}ms"
+              hx-swap="innerHTML"
+            >
+              {% include "partials/notes.html" %}
+            </div>
+          </section>
+        </section>
+        {% else %}
+        <section class="panel center-empty">
+          <div class="hint">
+            Select a project from the left sidebar to open its task and note workspace, or create a new project to get started.
           </div>
         </section>
+        {% endif %}
       </main>
 
       <aside class="rail right">
-        <div class="panelhead">
-          <h2>Event Log</h2>
-          <span>activity stream</span>
-        </div>
-        <div
-          id="activity-panel"
-          hx-get="/partials/activity"
-          hx-trigger="load, every {{ poll_activity_ms }}ms"
-          hx-swap="innerHTML"
-        >
-          {% include "partials/activity.html" %}
-        </div>
+        <section class="panel">
+          <div class="panelhead">
+            <h3>Event Log</h3>
+            <span>activity stream</span>
+          </div>
+          <div
+            id="activity-panel"
+            hx-get="/partials/activity"
+            hx-trigger="load, every {{ poll_activity_ms }}ms"
+            hx-swap="innerHTML"
+          >
+            {% include "partials/activity.html" %}
+          </div>
+        </section>
       </aside>
     </div>
   </div>

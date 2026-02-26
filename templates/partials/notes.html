@@ -1,5 +1,5 @@
 {% if notes.len() == 0 %}
-<p class="empty">No notes indexed yet.</p>
+<p class="empty">{% if has_scope %}No notes in this project yet.{% else %}No notes indexed yet.{% endif %}</p>
 {% else %}
 <div class="stack">
   {% for note in notes %}

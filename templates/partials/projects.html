@@ -1,18 +1,13 @@
 {% if projects.len() == 0 %}
-<p class="empty">No projects yet. Create one above.</p>
+<p class="empty">No projects yet. Create your first project to open a workspace tab.</p>
 {% else %}
-<div class="stack">
+<div class="project-list">
   {% for project in projects %}
-  <article class="project-card">
-    <div class="item-title">{{ project.title }}</div>
-    <div class="task-row">
-      <span>{{ project.id }}</span>
-      <span>{{ project.status }}</span>
-    </div>
-    {% if project.owner.is_some() %}
-    <div class="item-meta">owner: {{ project.owner.clone().unwrap() }}</div>
-    {% endif %}
-  </article>
+  <a class="project-item {% if project.id == selected_project_id %}active{% endif %}" href="/?project_id={{ project.id }}">
+    <div class="project-title">{{ project.title }}</div>
+    <div class="project-meta">{{ project.id }}</div>
+    <div class="project-meta">{{ project.status }}</div>
+  </a>
   {% endfor %}
 </div>
 {% endif %}

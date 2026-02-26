@@ -20,6 +20,9 @@ Last updated: 2026-02-26
 - [x] Added local htmx route behavior and fallback form wiring for create actions.
 - [x] Reworked dashboard UI toward the provided mockup style: dark shell, status strip, tri-pane layout, document-view center panel, event-log rail.
 - [x] Updated dashboard stats context (`server_port`, `task_count`, `project_count`, `note_count`) and surfaced in UI.
+- [x] Started Obsidian-style interaction model: project list in left rail with project-scoped workspace tabs.
+- [x] Added selected-project routing (`/?project_id=...`) that scopes center-pane tasks/notes and quick-capture forms.
+- [x] Added project-scoped partial polling (`/partials/tasks`, `/partials/notes`, `/partials/projects`) with preserved tab context.
 
 ## 1) Summary Goals
 
@@ -173,6 +176,7 @@ Last updated: 2026-02-26
 - [x] Add project creation workflow in dashboard.
 - [x] Harden form behavior with project ID validation and clearer bad-request handling.
 - [x] Complete mockup-inspired UI redesign pass (dark tri-pane dashboard shell).
+- [x] Deliver Obsidian-style project navigation baseline (left project rail + project-scoped task/note workspace).
 
 ### Week 5: Hardening + Import + Packaging
 

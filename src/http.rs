@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use askama::Template;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, patch, post};
@@ -51,6 +51,15 @@ struct DashboardTemplate {
     task_count: usize,
     project_count: usize,
     note_count: usize,
+    selected_project_id: String,
+    selected_project_title: String,
+    selected_project_status: String,
+    has_selected_project: bool,
+    projects_partial_url: String,
+    tasks_partial_url: String,
+    notes_partial_url: String,
+    has_scope: bool,
+    scope_query: String,
     poll_projects_ms: u64,
     poll_tasks_ms: u64,
     poll_notes_ms: u64,
@@ -61,18 +70,22 @@ struct DashboardTemplate {
 #[template(path = "partials/projects.html")]
 struct ProjectsTemplate {
     projects: Vec<ProjectItem>,
+    selected_project_id: String,
 }
 
 #[derive(Template)]
 #[template(path = "partials/tasks.html")]
 struct TasksTemplate {
     tasks: Vec<TaskItem>,
+    has_scope: bool,
+    scope_query: String,
 }
 
 #[derive(Template)]
 #[template(path = "partials/notes.html")]
 struct NotesTemplate {
     notes: Vec<NoteItem>,
+    has_scope: bool,
 }
 
 #[derive(Template)]
@@ -112,6 +125,7 @@ pub struct CreateNoteForm {
     pub title: String,
     pub project_id: Option<String>,
     pub body: Option<String>,
+    pub ui_project_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -127,24 +141,31 @@ pub struct ArchiveForm {
     pub expected_revision: String,
 }
 
-async fn dashboard(State(state): State<Arc<WebState>>) -> Result<Response, (StatusCode, String)> {
-    let tasks = state
-        .service
-        .list_tasks(&TaskFilters {
-            status: None,
-            priority: None,
-            project_id: None,
-            assignee: None,
-            include_archived: false,
-            limit: Some(200),
-        })
-        .map_err(internal_err)?;
+#[derive(Debug, Clone, Default, Deserialize)]
+struct ProjectScopeQuery {
+    project_id: Option<String>,
+}
 
-    let notes = state.service.list_notes(200, false).map_err(internal_err)?;
+impl ProjectScopeQuery {
+    fn project_id(&self) -> Option<String> {
+        normalize_optional(self.project_id.clone())
+    }
+}
+
+async fn dashboard(
+    State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
+) -> Result<Response, (StatusCode, String)> {
     let projects = state
         .service
         .list_projects(200, false)
         .map_err(internal_err)?;
+    let requested_project_id = query.project_id();
+    let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
+    let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
+
+    let tasks = list_scoped_tasks(&state.service, selected_project_id.as_deref())?;
+    let notes = list_scoped_notes(&state.service, selected_project_id.as_deref(), 200)?;
 
     let activity = state
         .service
@@ -156,11 +177,26 @@ async fn dashboard(State(state): State<Arc<WebState>>) -> Result<Response, (Stat
         task_count: tasks.len(),
         project_count: projects.len(),
         note_count: notes.len(),
+        selected_project_id: selected_project_id.clone().unwrap_or_default(),
+        selected_project_title: selected_project
+            .as_ref()
+            .map(|project| project.title.clone())
+            .unwrap_or_else(|| "Select a project".to_string()),
+        selected_project_status: selected_project
+            .as_ref()
+            .map(|project| project.status.clone())
+            .unwrap_or_else(|| "none".to_string()),
+        has_selected_project: selected_project.is_some(),
+        projects_partial_url: scoped_path("/partials/projects", selected_project_id.as_deref()),
+        tasks_partial_url: scoped_path("/partials/tasks", selected_project_id.as_deref()),
+        notes_partial_url: scoped_path("/partials/notes", selected_project_id.as_deref()),
+        has_scope: selected_project.is_some(),
+        scope_query: scope_query_suffix(selected_project_id.as_deref()),
         tasks,
         projects,
         notes,
         activity,
-        poll_projects_ms: state.poll.notes_interval_ms,
+        poll_projects_ms: state.poll.tasks_interval_ms,
         poll_tasks_ms: state.poll.tasks_interval_ms,
         poll_notes_ms: state.poll.notes_interval_ms,
         poll_activity_ms: state.poll.activity_interval_ms,
@@ -182,28 +218,27 @@ async fn htmx_asset() -> impl IntoResponse {
 
 async fn partial_tasks(
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
-    let tasks = state
-        .service
-        .list_tasks(&TaskFilters {
-            status: None,
-            priority: None,
-            project_id: None,
-            assignee: None,
-            include_archived: false,
-            limit: Some(200),
-        })
-        .map_err(internal_err)?;
+    let project_id = query.project_id();
+    let tasks = list_scoped_tasks(&state.service, project_id.as_deref())?;
 
     render_with_etag(
-        TasksTemplate { tasks }.render().map_err(internal_err)?,
+        TasksTemplate {
+            has_scope: project_id.is_some(),
+            scope_query: scope_query_suffix(project_id.as_deref()),
+            tasks,
+        }
+        .render()
+        .map_err(internal_err)?,
         &headers,
     )
 }
 
 async fn partial_projects(
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
     let projects = state
@@ -211,20 +246,30 @@ async fn partial_projects(
         .list_projects(200, false)
         .map_err(internal_err)?;
     render_with_etag(
-        ProjectsTemplate { projects }
-            .render()
-            .map_err(internal_err)?,
+        ProjectsTemplate {
+            projects,
+            selected_project_id: query.project_id().unwrap_or_default(),
+        }
+        .render()
+        .map_err(internal_err)?,
         &headers,
     )
 }
 
 async fn partial_notes(
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
-    let notes = state.service.list_notes(200, false).map_err(internal_err)?;
+    let project_id = query.project_id();
+    let notes = list_scoped_notes(&state.service, project_id.as_deref(), 200)?;
     render_with_etag(
-        NotesTemplate { notes }.render().map_err(internal_err)?,
+        NotesTemplate {
+            has_scope: project_id.is_some(),
+            notes,
+        }
+        .render()
+        .map_err(internal_err)?,
         &headers,
     )
 }
@@ -258,7 +303,7 @@ async fn create_project(
         ));
     }
 
-    state
+    let created = state
         .service
         .create_project(
             CreateProjectPayload {
@@ -276,9 +321,12 @@ async fn create_project(
         .list_projects(200, false)
         .map_err(internal_err)?;
     Ok(Html(
-        ProjectsTemplate { projects }
-            .render()
-            .map_err(internal_err)?,
+        ProjectsTemplate {
+            projects,
+            selected_project_id: created.id,
+        }
+        .render()
+        .map_err(internal_err)?,
     )
     .into_response())
 }
@@ -298,7 +346,7 @@ async fn create_task(
 
     let payload = CreateTaskPayload {
         title: form.title.trim().to_string(),
-        project_id,
+        project_id: project_id.clone(),
         status: parse_task_status(form.status.as_deref())?,
         priority: parse_task_priority(form.priority.as_deref())?,
         assignee: normalize_optional(form.assignee),
@@ -312,24 +360,24 @@ async fn create_task(
         .create_task(payload, Actor::human("operator"))
         .map_err(map_service_err)?;
 
-    let tasks = state
-        .service
-        .list_tasks(&TaskFilters {
-            status: None,
-            priority: None,
-            project_id: None,
-            assignee: None,
-            include_archived: false,
-            limit: Some(200),
-        })
-        .map_err(internal_err)?;
+    let tasks = list_scoped_tasks(&state.service, Some(&project_id))?;
 
-    Ok(Html(TasksTemplate { tasks }.render().map_err(internal_err)?).into_response())
+    Ok(Html(
+        TasksTemplate {
+            has_scope: true,
+            scope_query: scope_query_suffix(Some(&project_id)),
+            tasks,
+        }
+        .render()
+        .map_err(internal_err)?,
+    )
+    .into_response())
 }
 
 async fn update_task(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     Form(form): Form<UpdateTaskForm>,
 ) -> Result<Response, (StatusCode, String)> {
     let patch = TaskPatch {
@@ -352,19 +400,19 @@ async fn update_task(
         )
         .map_err(map_service_err)?;
 
-    let tasks = state
-        .service
-        .list_tasks(&TaskFilters {
-            status: None,
-            priority: None,
-            project_id: None,
-            assignee: None,
-            include_archived: false,
-            limit: Some(200),
-        })
-        .map_err(internal_err)?;
+    let project_id = query.project_id();
+    let tasks = list_scoped_tasks(&state.service, project_id.as_deref())?;
 
-    Ok(Html(TasksTemplate { tasks }.render().map_err(internal_err)?).into_response())
+    Ok(Html(
+        TasksTemplate {
+            has_scope: project_id.is_some(),
+            scope_query: scope_query_suffix(project_id.as_deref()),
+            tasks,
+        }
+        .render()
+        .map_err(internal_err)?,
+    )
+    .into_response())
 }
 
 async fn create_note(
@@ -378,7 +426,7 @@ async fn create_note(
 
     let payload = CreateNotePayload {
         title: form.title.trim().to_string(),
-        project_id,
+        project_id: project_id.clone(),
         tags: None,
         body: normalize_optional(form.body),
     };
@@ -388,14 +436,24 @@ async fn create_note(
         .create_note(payload, Actor::human("operator"))
         .map_err(map_service_err)?;
 
-    let notes = state.service.list_notes(200, false).map_err(internal_err)?;
+    let scope_project_id = normalize_optional(form.ui_project_id).or(project_id);
+    let notes = list_scoped_notes(&state.service, scope_project_id.as_deref(), 200)?;
 
-    Ok(Html(NotesTemplate { notes }.render().map_err(internal_err)?).into_response())
+    Ok(Html(
+        NotesTemplate {
+            has_scope: scope_project_id.is_some(),
+            notes,
+        }
+        .render()
+        .map_err(internal_err)?,
+    )
+    .into_response())
 }
 
 async fn update_note(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     Form(form): Form<UpdateNoteForm>,
 ) -> Result<Response, (StatusCode, String)> {
     let project_id = normalize_optional(form.project_id);
@@ -420,14 +478,24 @@ async fn update_note(
         )
         .map_err(map_service_err)?;
 
-    let notes = state.service.list_notes(200, false).map_err(internal_err)?;
+    let project_id = query.project_id();
+    let notes = list_scoped_notes(&state.service, project_id.as_deref(), 200)?;
 
-    Ok(Html(NotesTemplate { notes }.render().map_err(internal_err)?).into_response())
+    Ok(Html(
+        NotesTemplate {
+            has_scope: project_id.is_some(),
+            notes,
+        }
+        .render()
+        .map_err(internal_err)?,
+    )
+    .into_response())
 }
 
 async fn archive_entity(
     Path(entity_id): Path<String>,
     State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectScopeQuery>,
     Form(form): Form<ArchiveForm>,
 ) -> Result<Response, (StatusCode, String)> {
     state
@@ -439,19 +507,19 @@ async fn archive_entity(
         )
         .map_err(map_service_err)?;
 
-    let tasks = state
-        .service
-        .list_tasks(&TaskFilters {
-            status: None,
-            priority: None,
-            project_id: None,
-            assignee: None,
-            include_archived: false,
-            limit: Some(200),
-        })
-        .map_err(internal_err)?;
+    let project_id = query.project_id();
+    let tasks = list_scoped_tasks(&state.service, project_id.as_deref())?;
 
-    Ok(Html(TasksTemplate { tasks }.render().map_err(internal_err)?).into_response())
+    Ok(Html(
+        TasksTemplate {
+            has_scope: project_id.is_some(),
+            scope_query: scope_query_suffix(project_id.as_deref()),
+            tasks,
+        }
+        .render()
+        .map_err(internal_err)?,
+    )
+    .into_response())
 }
 
 fn parse_task_status(value: Option<&str>) -> Result<Option<TaskStatus>, (StatusCode, String)> {
@@ -556,4 +624,54 @@ fn ensure_project_exists_for_ui(
             format!("unknown project_id '{project_id}'"),
         )),
     }
+}
+
+fn resolve_selected_project(
+    projects: &[ProjectItem],
+    requested: Option<&str>,
+) -> Option<ProjectItem> {
+    if let Some(requested) = requested {
+        if let Some(project) = projects.iter().find(|project| project.id == requested) {
+            return Some(project.clone());
+        }
+    }
+    projects.first().cloned()
+}
+
+fn list_scoped_tasks(
+    service: &AppService,
+    project_id: Option<&str>,
+) -> Result<Vec<TaskItem>, (StatusCode, String)> {
+    service
+        .list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: project_id.map(ToOwned::to_owned),
+            assignee: None,
+            include_archived: false,
+            limit: Some(200),
+        })
+        .map_err(internal_err)
+}
+
+fn list_scoped_notes(
+    service: &AppService,
+    project_id: Option<&str>,
+    limit: usize,
+) -> Result<Vec<NoteItem>, (StatusCode, String)> {
+    let mut notes = service.list_notes(limit, false).map_err(internal_err)?;
+    if let Some(project_id) = project_id {
+        notes.retain(|note| note.project_id.as_deref() == Some(project_id));
+    }
+    Ok(notes)
+}
+
+fn scope_query_suffix(project_id: Option<&str>) -> String {
+    project_id
+        .map(|project_id| format!("?project_id={project_id}"))
+        .unwrap_or_default()
+}
+
+fn scoped_path(base: &str, project_id: Option<&str>) -> String {
+    format!("{base}{}", scope_query_suffix(project_id))
 }
