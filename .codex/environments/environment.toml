@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "cargo run -- --workspace \"/Users/anthonymarti/Desktop/N10E LABS Code/n10e-01\" serve"
+command = "cargo run -- --workspace /tmp/n10e-demo serve"

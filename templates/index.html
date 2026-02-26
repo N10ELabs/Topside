@@ -35,151 +35,137 @@
     .app {
       min-height: 100vh;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto 1fr;
     }
 
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 13px 18px;
+      gap: 12px;
+      padding: 14px 18px;
       border-bottom: 1px solid var(--line);
       background: rgba(13, 11, 9, 0.85);
       backdrop-filter: blur(4px);
     }
 
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
     }
 
     .brand-badge {
-      width: 26px;
-      height: 26px;
+      width: 24px;
+      height: 24px;
       border-radius: 7px;
       background: linear-gradient(145deg, #f59e0b, #b45309);
       box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
+      flex: 0 0 24px;
     }
 
-    .brand-title {
+    .brand h1 {
       margin: 0;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       letter-spacing: 0.02em;
     }
 
-    .brand-version {
-      color: var(--muted);
-      font-size: 12px;
+    .title-sep {
+      width: 1px;
+      align-self: stretch;
+      background: var(--line);
     }
 
-    .nav {
-      display: flex;
-      align-items: center;
-      gap: 16px;
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 28px;
+      line-height: 1;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 14px;
     }
 
-    .nav a {
-      color: var(--muted);
-      text-decoration: none;
-      padding-bottom: 6px;
-      border-bottom: 1px solid transparent;
-    }
-
-    .nav a.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
-
-    .statusbar {
+    .top-actions {
       display: flex;
       align-items: center;
+      gap: 10px;
       flex-wrap: wrap;
-      gap: 14px;
-      padding: 10px 18px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(19, 16, 13, 0.88);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 14px;
-      color: var(--muted);
+      justify-content: flex-end;
     }
 
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-    }
-
-    .status strong { color: var(--text); }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--success);
-      box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
-    }
-
-    .spacer { flex: 1; }
-
-    .ghost-btn {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 6px 10px;
-      background: var(--panel);
-      color: var(--muted);
+    .action-btn,
+    button,
+    input,
+    textarea,
+    select {
       font: inherit;
     }
 
-    .workspace {
-      min-height: 0;
-      height: calc(100vh - 112px);
-      display: grid;
-      grid-template-columns: 300px 1fr 340px;
+    .action-btn,
+    button {
+      border: 1px solid #8f4306;
+      border-radius: 9px;
+      background: linear-gradient(180deg, #ca6a0a, #a34f08);
+      color: var(--text);
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px 12px;
     }
 
-    .rail,
-    .main {
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-size: 12px;
+      background: #181511;
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+    }
+
+    .projects-col {
+      border-right: 1px solid var(--line);
+      background: rgba(14, 12, 10, 0.78);
+      padding: 16px;
       min-height: 0;
       overflow: auto;
     }
 
-    .rail {
-      border-right: 1px solid var(--line);
-      background: rgba(14, 12, 10, 0.78);
-      padding: 14px;
-    }
-
-    .rail.right {
-      border-right: none;
-      border-left: 1px solid var(--line);
-    }
-
-    .main {
-      padding: 14px;
+    .workspace-col {
+      padding: 16px;
+      min-height: 0;
+      overflow: auto;
       display: grid;
+      grid-template-rows: auto 1fr;
       gap: 12px;
-      grid-template-rows: auto auto 1fr;
     }
 
     .panel {
       border: 1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(180deg, #1c1814, #15120f);
-      padding: 12px;
       min-height: 0;
+      padding: 12px;
     }
 
     .panelhead {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      gap: 8px;
       margin-bottom: 10px;
       color: var(--muted);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
@@ -189,97 +175,96 @@
     h2,
     h3 {
       margin: 0;
-      font-size: 18px;
-      font-weight: 600;
       color: var(--text);
+      font-weight: 700;
       letter-spacing: 0.01em;
     }
 
-    .project-summary {
+    h2 { font-size: 34px; }
+    h3 { font-size: 18px; }
+
+    .workspace-head {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      margin-bottom: 2px;
+    }
+
+    .workspace-meta {
+      margin-top: 6px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
+      gap: 8px;
       flex-wrap: wrap;
-    }
-
-    .project-summary .title {
-      font-size: 24px;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .meta {
       color: var(--muted);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      border: 1px solid #4c3a2b;
-      border-radius: 999px;
-      background: #20170f;
-      color: #cfb18e;
-      padding: 2px 8px;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 12px;
-      text-transform: lowercase;
     }
 
-    .forms {
+    .workspace-grid {
       display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(280px, 0.95fr);
       gap: 12px;
-      grid-template-columns: 1fr 1fr;
+      min-height: 0;
     }
 
-    .form-grid {
+    .column {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .project-create,
+    .quick-create {
       display: grid;
       gap: 8px;
     }
 
     input,
     textarea,
-    select,
-    button {
+    select {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 10px;
       background: #120f0d;
       color: var(--text);
       padding: 9px 10px;
-      font: inherit;
     }
 
     textarea {
-      min-height: 84px;
+      min-height: 86px;
       resize: vertical;
     }
 
-    button {
+    .divider {
+      margin: 12px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    details {
+      border: 1px solid #3d3126;
+      border-radius: 10px;
+      background: #171410;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    summary {
       cursor: pointer;
-      background: linear-gradient(180deg, #ca6a0a, #a34f08);
-      border-color: #8f4306;
+      padding: 10px;
+      list-style: none;
       font-weight: 600;
+      color: #dfb07b;
+      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      border-bottom: 1px solid #3d3126;
     }
 
-    button.danger {
-      background: linear-gradient(180deg, #b91c1c, #8b1414);
-      border-color: #6f1111;
-    }
+    details > div { padding: 10px; }
 
-    .content-split {
-      min-height: 0;
+    .project-list,
+    .stack,
+    .activity-list,
+    .status-list {
       display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
-
-    .stack { display: grid; gap: 8px; }
-
-    .project-list { display: grid; gap: 8px; }
 
     .project-item {
       display: grid;
@@ -308,101 +293,122 @@
       line-height: 1.25;
     }
 
-    .project-meta {
+    .project-meta,
+    .item-meta,
+    .status-row {
       color: var(--muted);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 12px;
-    }
-
-    .task-card,
-    .list-item,
-    .event-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #15120f;
-      padding: 10px;
-      display: grid;
-      gap: 6px;
-    }
-
-    .list-item.active {
-      border-color: #7a4d24;
-      background: linear-gradient(180deg, #271910, #19130f);
-      box-shadow: inset 0 0 0 1px var(--accent-soft);
-    }
-
-    .item-title {
-      font-weight: 600;
-      font-size: 17px;
-      line-height: 1.25;
+      line-height: 1.4;
     }
 
     .task-row,
-    .item-meta {
+    .note-row,
+    .activity-row {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #15120f;
+      padding: 9px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .task-line {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .check-form,
+    .archive-form {
+      margin: 0;
+    }
+
+    .check-btn {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      border: 1px solid #5d4a36;
+      border-radius: 6px;
+      background: #1b1712;
+      color: transparent;
+      padding: 0;
+    }
+
+    .check-btn.done {
+      color: #10100e;
+      background: #d5a162;
+      border-color: #d5a162;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .task-title {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .task-title.done {
+      text-decoration: line-through;
+      color: #958878;
+    }
+
+    .task-meta {
       color: var(--muted);
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 12px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .control-grid {
-      display: grid;
-      gap: 8px;
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .actions button {
-      width: auto;
-      min-width: 82px;
-      padding: 7px 12px;
-    }
-
-    .chip-row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-
-    .chip {
-      border: 1px solid #3f3429;
-      border-radius: 8px;
-      background: #1b1612;
-      color: #b8aa99;
-      padding: 1px 7px;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 11px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
-    .event-item {
-      border-left: 2px solid #3e3227;
-      gap: 4px;
+    .mini-btn {
+      border: 1px solid #4f3f30;
+      background: #1b1712;
+      color: var(--muted);
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.2;
+      min-width: 64px;
     }
 
-    .event-head {
+    .mini-btn.danger {
+      border-color: #6f1111;
+      color: #fca5a5;
+      background: #2b1111;
+    }
+
+    .note-title,
+    .activity-main {
+      font-size: 16px;
+      line-height: 1.3;
+      font-weight: 500;
+    }
+
+    .status-block {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .status-row {
       display: flex;
       justify-content: space-between;
       gap: 8px;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 12px;
-      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      padding: 7px 0;
     }
 
-    .event-kind.agent { color: #60a5fa; text-transform: lowercase; font-weight: 600; }
-    .event-kind.system { color: #4ade80; text-transform: lowercase; font-weight: 600; }
-    .event-kind.human { color: #fbbf24; text-transform: lowercase; font-weight: 600; }
+    .status-row:last-child {
+      border-bottom: none;
+    }
 
-    .event-body {
-      color: #d8cfc2;
-      line-height: 1.35;
-      font-size: 14px;
+    .status-ok {
+      color: var(--success);
+      font-weight: 600;
     }
 
     .empty {
@@ -415,49 +421,55 @@
       background: #15120f;
     }
 
-    .center-empty {
+    .no-project {
+      min-height: 260px;
       display: grid;
       place-items: center;
       text-align: center;
-      min-height: 280px;
-    }
-
-    .center-empty .hint {
-      max-width: 460px;
       color: var(--muted);
-      line-height: 1.5;
       font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 14px;
+      line-height: 1.5;
     }
 
-    @media (max-width: 1250px) {
-      .workspace {
-        grid-template-columns: 270px 1fr 300px;
+    @media (max-width: 1200px) {
+      .workspace-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .workspace-grid > .column:last-child {
+        grid-column: span 2;
       }
     }
 
-    @media (max-width: 1060px) {
-      .workspace {
-        grid-template-columns: 1fr;
-        height: auto;
-      }
-
-      .rail,
-      .rail.right {
-        border: none;
-      }
-
-      .main {
-        grid-template-rows: auto auto auto;
-      }
-
-      .content-split,
-      .forms {
+    @media (max-width: 980px) {
+      .layout {
         grid-template-columns: 1fr;
       }
 
-      .rail.right {
-        border-top: 1px solid var(--line);
+      .projects-col {
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace-grid > .column:last-child {
+        grid-column: auto;
+      }
+
+      h2 {
+        font-size: 28px;
+      }
+
+      .subtitle {
+        display: none;
+      }
+
+      .title-sep {
+        display: none;
       }
     }
   </style>
@@ -465,164 +477,178 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-badge"></div>
-        <h1 class="brand-title">n10e</h1>
-        <span class="brand-version">v0.1.0</span>
+      <div class="title-wrap">
+        <div class="brand">
+          <div class="brand-badge"></div>
+          <h1>n10e</h1>
+        </div>
+        <div class="title-sep"></div>
+        <p class="subtitle">agent-native knowledge hub</p>
       </div>
-      <nav class="nav">
-        <a class="active" href="#">dashboard</a>
-        <a href="#">search</a>
-        <a href="#">config</a>
-      </nav>
+
+      <div class="top-actions">
+        <span class="chip">:{{ server_port }}</span>
+        <span class="chip">{{ project_count }} projects</span>
+        <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
+          <button class="action-btn" type="submit">reindex</button>
+        </form>
+        <span class="chip">admin</span>
+        <span class="chip">user</span>
+      </div>
     </header>
 
-    <div class="statusbar">
-      <div class="status"><span class="dot"></span><span>serving :<strong>{{ server_port }}</strong></span></div>
-      <div class="status"><strong>{{ project_count }}</strong> projects</div>
-      <div class="status"><strong>{{ task_count }}</strong> tasks</div>
-      <div class="status"><strong>{{ note_count }}</strong> notes</div>
-      <div class="status"><span class="pill">project tab</span></div>
-      <div class="spacer"></div>
-      <button class="ghost-btn" type="button">reindex</button>
-    </div>
-
-    <div class="workspace">
-      <aside class="rail left">
+    <div class="layout">
+      <aside class="projects-col">
         <section class="panel">
           <div class="panelhead">
             <h3>Projects</h3>
             <span>workspace tabs</span>
           </div>
 
-          <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML" class="form-grid">
-            <input name="title" placeholder="new project title" required>
-            <input name="owner" placeholder="owner (optional)">
-            <button type="submit">create project</button>
-          </form>
-        </section>
-
-        <section class="panel">
           <div
             id="projects-panel"
             hx-get="{{ projects_partial_url }}"
-            hx-trigger="load, every {{ poll_projects_ms }}ms"
+            hx-trigger="load, every {{ poll_projects_ms }}ms, n10e-refresh from:body"
             hx-swap="innerHTML"
           >
             {% include "partials/projects.html" %}
           </div>
+
+          <div class="divider"></div>
+
+          <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML" class="project-create">
+            <input name="title" placeholder="new project" required>
+            <input name="owner" placeholder="owner (optional)">
+            <button type="submit">+ new project</button>
+          </form>
         </section>
       </aside>
 
-      <main class="main">
+      <main class="workspace-col">
         {% if has_selected_project %}
-        <section class="panel">
-          <div class="project-summary">
-            <div>
-              <div class="meta">project workspace</div>
-              <div class="title">{{ selected_project_title }}</div>
-            </div>
-            <div>
-              <div class="meta">{{ selected_project_id }}</div>
-              <span class="pill">{{ selected_project_status }}</span>
-            </div>
+        <section class="workspace-head">
+          <h2>{{ selected_project_title }}</h2>
+          <div class="workspace-meta">
+            <span>{{ selected_project_id }}</span>
+            <span>{{ selected_project_status }}</span>
+            <span>{{ task_count }} tasks</span>
+            <span>{{ note_count }} notes</span>
+            <span>dashboard</span>
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panelhead">
-            <h3>Quick Capture</h3>
-            <span>create inside current project tab</span>
-          </div>
-          <div class="forms">
-            <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML" class="form-grid">
-              <input type="hidden" name="project_id" value="{{ selected_project_id }}">
-              <input name="title" placeholder="task title" required>
-              <div class="control-grid">
-                <select name="status">
-                  <option value="backlog">backlog</option>
-                  <option value="todo" selected>todo</option>
-                  <option value="in_progress">in_progress</option>
-                  <option value="blocked">blocked</option>
-                  <option value="done">done</option>
-                </select>
-                <select name="priority">
-                  <option value="P0">P0</option>
-                  <option value="P1">P1</option>
-                  <option value="P2" selected>P2</option>
-                  <option value="P3">P3</option>
-                </select>
-              </div>
-              <input name="assignee" placeholder="assignee (agent:codex)">
-              <button type="submit">create task</button>
-            </form>
-
-            <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML" class="form-grid">
-              <input type="hidden" name="project_id" value="{{ selected_project_id }}">
-              <input type="hidden" name="ui_project_id" value="{{ selected_project_id }}">
-              <input name="title" placeholder="note title" required>
-              <textarea name="body" placeholder="project note markdown"></textarea>
-              <button type="submit">create note</button>
-            </form>
-          </div>
-        </section>
-
-        <section class="content-split">
-          <section class="panel">
+        <section class="workspace-grid">
+          <section class="panel column">
             <div class="panelhead">
               <h3>Tasks</h3>
               <span>{{ selected_project_id }}</span>
             </div>
+
+            <details>
+              <summary>+ add task</summary>
+              <div>
+                <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML" class="quick-create">
+                  <input type="hidden" name="project_id" value="{{ selected_project_id }}">
+                  <input name="title" placeholder="task title" required>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <select name="status">
+                      <option value="backlog">backlog</option>
+                      <option value="todo" selected>todo</option>
+                      <option value="in_progress">in_progress</option>
+                      <option value="blocked">blocked</option>
+                      <option value="done">done</option>
+                    </select>
+                    <select name="priority">
+                      <option value="P0">P0</option>
+                      <option value="P1">P1</option>
+                      <option value="P2" selected>P2</option>
+                      <option value="P3">P3</option>
+                    </select>
+                  </div>
+                  <input name="assignee" placeholder="assignee (agent:codex)">
+                  <button type="submit">create task</button>
+                </form>
+              </div>
+            </details>
+
             <div
               id="tasks-panel"
               hx-get="{{ tasks_partial_url }}"
-              hx-trigger="load, every {{ poll_tasks_ms }}ms"
+              hx-trigger="load, every {{ poll_tasks_ms }}ms, n10e-refresh from:body"
               hx-swap="innerHTML"
             >
               {% include "partials/tasks.html" %}
             </div>
           </section>
 
-          <section class="panel">
+          <section class="panel column">
             <div class="panelhead">
               <h3>Notes</h3>
               <span>{{ selected_project_id }}</span>
             </div>
+
+            <details>
+              <summary>+ new note</summary>
+              <div>
+                <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML" class="quick-create">
+                  <input type="hidden" name="project_id" value="{{ selected_project_id }}">
+                  <input type="hidden" name="ui_project_id" value="{{ selected_project_id }}">
+                  <input name="title" placeholder="note title" required>
+                  <textarea name="body" placeholder="markdown"></textarea>
+                  <button type="submit">create note</button>
+                </form>
+              </div>
+            </details>
+
             <div
               id="notes-panel"
               hx-get="{{ notes_partial_url }}"
-              hx-trigger="load, every {{ poll_notes_ms }}ms"
+              hx-trigger="load, every {{ poll_notes_ms }}ms, n10e-refresh from:body"
               hx-swap="innerHTML"
             >
               {% include "partials/notes.html" %}
             </div>
           </section>
+
+          <section class="panel column">
+            <div class="panelhead">
+              <h3>Recent Activity</h3>
+              <span>live</span>
+            </div>
+
+            <div
+              id="activity-panel"
+              hx-get="/partials/activity"
+              hx-trigger="load, every {{ poll_activity_ms }}ms, n10e-refresh from:body"
+              hx-swap="innerHTML"
+            >
+              {% include "partials/activity.html" %}
+            </div>
+
+            <div class="status-block">
+              <div class="panelhead" style="margin-bottom:6px;">
+                <h3>System Status</h3>
+                <span>local</span>
+              </div>
+              <div class="status-list">
+                <div class="status-row"><span>last index scan</span><span>{{ last_activity_at }}</span></div>
+                <div class="status-row"><span>pending files</span><span class="status-ok">all synced</span></div>
+                <div class="status-row"><span>errors</span><span>0</span></div>
+              </div>
+              <div style="margin-top:10px;">
+                <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
+                  <button type="submit" style="width:100%;">rescan index</button>
+                </form>
+              </div>
+            </div>
+          </section>
         </section>
         {% else %}
-        <section class="panel center-empty">
-          <div class="hint">
-            Select a project from the left sidebar to open its task and note workspace, or create a new project to get started.
-          </div>
+        <section class="panel no-project">
+          Select a project from the left sidebar to open its tasks and notes workspace.
         </section>
         {% endif %}
       </main>
-
-      <aside class="rail right">
-        <section class="panel">
-          <div class="panelhead">
-            <h3>Event Log</h3>
-            <span>activity stream</span>
-          </div>
-          <div
-            id="activity-panel"
-            hx-get="/partials/activity"
-            hx-trigger="load, every {{ poll_activity_ms }}ms"
-            hx-swap="innerHTML"
-          >
-            {% include "partials/activity.html" %}
-          </div>
-        </section>
-      </aside>
     </div>
   </div>
 </body>

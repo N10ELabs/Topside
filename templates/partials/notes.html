@@ -3,13 +3,13 @@
 {% else %}
 <div class="stack">
   {% for note in notes %}
-  <article class="list-item {% if loop.index0 == 0 %}active{% endif %}">
-    <div class="item-title">{{ note.title }}</div>
+  <article class="note-row">
+    <div class="note-title">{{ note.title }}</div>
     <div class="item-meta">{{ note.path }}</div>
-    <div class="chip-row">
-      <span class="chip">{{ note.id }}</span>
+    <div class="item-meta">
+      <span>{{ note.id }}</span>
       {% if note.project_id.is_some() %}
-      <span class="chip">{{ note.project_id.clone().unwrap() }}</span>
+      <span>· {{ note.project_id.clone().unwrap() }}</span>
       {% endif %}
     </div>
   </article>

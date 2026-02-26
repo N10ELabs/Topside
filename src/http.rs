@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use askama::Template;
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Form, Router};
@@ -31,6 +31,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/partials/projects", get(partial_projects))
         .route("/partials/notes", get(partial_notes))
         .route("/partials/activity", get(partial_activity))
+        .route("/reindex", post(reindex_now))
         .route("/projects", post(create_project))
         .route("/tasks", post(create_task))
         .route("/tasks/{id}", patch(update_task).post(update_task))
@@ -60,6 +61,7 @@ struct DashboardTemplate {
     notes_partial_url: String,
     has_scope: bool,
     scope_query: String,
+    last_activity_at: String,
     poll_projects_ms: u64,
     poll_tasks_ms: u64,
     poll_notes_ms: u64,
@@ -192,6 +194,10 @@ async fn dashboard(
         notes_partial_url: scoped_path("/partials/notes", selected_project_id.as_deref()),
         has_scope: selected_project.is_some(),
         scope_query: scope_query_suffix(selected_project_id.as_deref()),
+        last_activity_at: activity
+            .first()
+            .map(|item| item.occurred_at.to_rfc3339())
+            .unwrap_or_else(|| "never".to_string()),
         tasks,
         projects,
         notes,
@@ -289,6 +295,16 @@ async fn partial_activity(
             .map_err(internal_err)?,
         &headers,
     )
+}
+
+async fn reindex_now(State(state): State<Arc<WebState>>) -> Result<Response, (StatusCode, String)> {
+    state.service.reindex_all().map_err(internal_err)?;
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response.headers_mut().insert(
+        HeaderName::from_static("hx-trigger"),
+        HeaderValue::from_static("n10e-refresh"),
+    );
+    Ok(response)
 }
 
 async fn create_project(

@@ -23,6 +23,9 @@ Last updated: 2026-02-26
 - [x] Started Obsidian-style interaction model: project list in left rail with project-scoped workspace tabs.
 - [x] Added selected-project routing (`/?project_id=...`) that scopes center-pane tasks/notes and quick-capture forms.
 - [x] Added project-scoped partial polling (`/partials/tasks`, `/partials/notes`, `/partials/projects`) with preserved tab context.
+- [x] Refined interaction model to a Workbench-style tri-column workspace: Tasks, Notes, and Recent Activity/System Status under selected project.
+- [x] Added functional reindex actions (`POST /reindex`) from topbar and system status panel with htmx refresh trigger fan-out.
+- [x] Simplified task interaction to checklist-style rows with quick done toggle and archive action.
 
 ## 1) Summary Goals
 
@@ -177,6 +180,7 @@ Last updated: 2026-02-26
 - [x] Harden form behavior with project ID validation and clearer bad-request handling.
 - [x] Complete mockup-inspired UI redesign pass (dark tri-pane dashboard shell).
 - [x] Deliver Obsidian-style project navigation baseline (left project rail + project-scoped task/note workspace).
+- [x] Apply Workbench-style interaction pass while preserving existing visual theme.
 
 ### Week 5: Hardening + Import + Packaging
 

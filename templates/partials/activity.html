@@ -1,21 +1,12 @@
 {% if activity.len() == 0 %}
 <p class="empty">No activity recorded yet.</p>
 {% else %}
-<div class="stack">
+<div class="activity-list">
   {% for item in activity %}
-  <article class="event-item">
-    <div class="event-head">
-      <span class="event-kind {{ item.actor_kind }}">{{ item.actor_kind }}</span>
-      <span>{{ item.action }}</span>
-      <span class="event-time">{{ item.occurred_at }}</span>
-    </div>
-    <div class="event-body">{{ item.summary }}</div>
-    {% if item.file_path.is_some() %}
-    <div class="item-meta">{{ item.file_path.clone().unwrap() }}</div>
-    {% endif %}
-    {% if item.entity_id.is_some() %}
-    <div class="chip-row"><span class="chip">{{ item.entity_id.clone().unwrap() }}</span></div>
-    {% endif %}
+  <article class="activity-row">
+    <div class="activity-main">{{ item.actor_kind }} {{ item.action }}{% if item.entity_id.is_some() %} {{ item.entity_id.clone().unwrap() }}{% endif %}</div>
+    <div class="item-meta">{{ item.summary }}</div>
+    <div class="item-meta">{{ item.occurred_at }}</div>
   </article>
   {% endfor %}
 </div>

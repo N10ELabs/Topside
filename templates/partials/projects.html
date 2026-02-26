@@ -5,8 +5,8 @@
   {% for project in projects %}
   <a class="project-item {% if project.id == selected_project_id %}active{% endif %}" href="/?project_id={{ project.id }}">
     <div class="project-title">{{ project.title }}</div>
-    <div class="project-meta">{{ project.id }}</div>
     <div class="project-meta">{{ project.status }}</div>
+    <div class="project-meta">{{ project.id }}</div>
   </a>
   {% endfor %}
 </div>
