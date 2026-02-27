@@ -8,8 +8,9 @@ Last updated: 2026-02-26
 - [ ] Codex + Claude Code compatibility proof is complete.
 - [x] 5k-file performance proof meets target (<150ms p95 read/search) on local benchmark run.
 - [ ] Full integration/hardening test suite is complete.
-- [x] Dashboard create flows are responsive (task/note/project create paths now wired and validated).
-- [x] Dashboard visual pass updated to mockup-aligned dark tri-pane operator layout.
+- [x] Workspace create flows are responsive (task/note/project create paths now wired and validated).
+- [x] Workspace visual pass updated to a tri-pane operator layout.
+- [x] Product direction reframed around local-first planning, shared memory, and agent handoff.
 
 ## Recent Progress (2026-02-26)
 
@@ -30,7 +31,7 @@ Last updated: 2026-02-26
 ## 1) Summary Goals
 
 - [x] Build a single Rust binary `n10e`.
-- [x] Deliver integrated minimal core (task board + note explorer + compact activity panel).
+- [x] Deliver integrated minimal core (planning queue + note context + compact activity panel).
 - [x] Expose curated MCP tools with direct writes guarded by optimistic locking.
 - [x] Record append-only activity events for all mutations.
 - [ ] Validate MCP behavior against Codex and Claude Code.
@@ -42,9 +43,10 @@ Last updated: 2026-02-26
 - [x] Local single-user workflow.
 - [x] Markdown source-of-truth for notes/tasks/projects.
 - [x] Indexed search, backlinks, activity tracking.
-- [x] Lightweight dashboard, CLI, MCP read/write.
+- [x] Lightweight workspace UI, CLI, MCP read/write.
 - [x] Keep cloud sync/auth/collab/mobile out of V0.
 - [x] Keep binary file handling as link-only in V0.
+- [x] Keep orchestration-dashboard competition out of scope; optimize for durable context instead.
 
 ## 3) Key Architecture Decisions
 
@@ -123,6 +125,7 @@ Last updated: 2026-02-26
 - [x] `PATCH /notes/{id}`
 - [x] `POST /archive/{entity_id}`
 - [x] Keep auth out of V0 (trusted localhost).
+- [x] Use the UI as an operator workspace for planning and context inspection, not just a mutation shell.
 
 ## 6) Data Layer Design
 
@@ -171,14 +174,14 @@ Last updated: 2026-02-26
 - [x] Add automated Claude-style `tools/call` MCP compatibility profile tests.
 - [ ] Run compatibility validation against Codex and Claude Code.
 
-### Week 4: Dashboard Core
+### Week 4: Workspace Core
 
 - [x] Build Askama templates + htmx endpoints.
-- [x] Deliver task board + note explorer + compact activity panel.
+- [x] Deliver task planning surface + note explorer + compact activity panel.
 - [x] Add ETag-based polling partials and basic actions.
-- [x] Add project creation workflow in dashboard.
+- [x] Add project creation workflow in workspace UI.
 - [x] Harden form behavior with project ID validation and clearer bad-request handling.
-- [x] Complete mockup-inspired UI redesign pass (dark tri-pane dashboard shell).
+- [x] Complete mockup-inspired UI redesign pass (dark tri-pane workspace shell).
 - [x] Deliver Obsidian-style project navigation baseline (left project rail + project-scoped task/note workspace).
 - [x] Apply Workbench-style interaction pass while preserving existing visual theme.
 
@@ -208,7 +211,7 @@ Last updated: 2026-02-26
 - [x] Automated conflict-path test (stale `expected_revision`) prevents overwrite.
 - [x] Automated archive-path tests verify preserved queryability/state.
 - [ ] Automated backlink tests for create/update/rename path scenarios.
-- [x] Automated dashboard mutation + htmx refresh tests.
+- [x] Automated workspace mutation + htmx refresh tests.
 
 ### Compatibility
 
@@ -261,4 +264,6 @@ Benchmark evidence (2026-02-26, local run):
 
 - [ ] Expand backlink integration tests to include update/rename-path scenarios.
 - [ ] Run real-client Codex and Claude Code MCP compatibility matrix and document results.
+- [ ] Add direct handoff primitives: brief templates, context packs, and agent-readable summaries.
+- [ ] Surface git/worktree lineage and dirty-state in the UI and activity model.
 - [ ] Close remaining hardening gaps: advanced contention tests and release artifact finalization.

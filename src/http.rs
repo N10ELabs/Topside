@@ -44,10 +44,10 @@ pub fn router(state: Arc<WebState>) -> Router {
 #[derive(Template)]
 #[template(path = "index.html")]
 struct DashboardTemplate {
-    tasks: Vec<TaskItem>,
-    projects: Vec<ProjectItem>,
-    notes: Vec<NoteItem>,
-    activity: Vec<crate::types::ActivityItem>,
+    tasks: Vec<WorkspaceTaskCard>,
+    projects: Vec<WorkspaceProjectCard>,
+    notes: Vec<WorkspaceNoteCard>,
+    activity: Vec<WorkspaceActivityCard>,
     server_port: u16,
     task_count: usize,
     project_count: usize,
@@ -55,6 +55,9 @@ struct DashboardTemplate {
     selected_project_id: String,
     selected_project_title: String,
     selected_project_status: String,
+    selected_project_status_class: String,
+    selected_project_owner: String,
+    selected_project_updated_at: String,
     has_selected_project: bool,
     projects_partial_url: String,
     tasks_partial_url: String,
@@ -62,6 +65,14 @@ struct DashboardTemplate {
     has_scope: bool,
     scope_query: String,
     last_activity_at: String,
+    latest_activity_summary: String,
+    latest_git_branch: String,
+    open_task_count: usize,
+    done_task_count: usize,
+    agent_task_count: usize,
+    unassigned_task_count: usize,
+    handoff_state: String,
+    handoff_detail: String,
     poll_projects_ms: u64,
     poll_tasks_ms: u64,
     poll_notes_ms: u64,
@@ -71,14 +82,14 @@ struct DashboardTemplate {
 #[derive(Template)]
 #[template(path = "partials/projects.html")]
 struct ProjectsTemplate {
-    projects: Vec<ProjectItem>,
+    projects: Vec<WorkspaceProjectCard>,
     selected_project_id: String,
 }
 
 #[derive(Template)]
 #[template(path = "partials/tasks.html")]
 struct TasksTemplate {
-    tasks: Vec<TaskItem>,
+    tasks: Vec<WorkspaceTaskCard>,
     has_scope: bool,
     scope_query: String,
 }
@@ -86,14 +97,60 @@ struct TasksTemplate {
 #[derive(Template)]
 #[template(path = "partials/notes.html")]
 struct NotesTemplate {
-    notes: Vec<NoteItem>,
+    notes: Vec<WorkspaceNoteCard>,
     has_scope: bool,
 }
 
 #[derive(Template)]
 #[template(path = "partials/activity.html")]
 struct ActivityTemplate {
-    activity: Vec<crate::types::ActivityItem>,
+    activity: Vec<WorkspaceActivityCard>,
+}
+
+#[derive(Clone)]
+struct WorkspaceProjectCard {
+    id: String,
+    title: String,
+    status: String,
+    status_class: String,
+    owner_label: String,
+    updated_label: String,
+}
+
+#[derive(Clone)]
+struct WorkspaceTaskCard {
+    id: String,
+    title: String,
+    status: String,
+    status_class: String,
+    priority: String,
+    priority_class: String,
+    assignee: String,
+    assignee_class: String,
+    due_label: String,
+    updated_label: String,
+    revision: String,
+    is_done: bool,
+}
+
+#[derive(Clone)]
+struct WorkspaceNoteCard {
+    id: String,
+    title: String,
+    path: String,
+    project_label: String,
+    updated_label: String,
+}
+
+#[derive(Clone)]
+struct WorkspaceActivityCard {
+    actor_label: String,
+    actor_class: String,
+    action_label: String,
+    entity_label: String,
+    summary: String,
+    occurred_label: String,
+    git_label: String,
 }
 
 #[derive(Deserialize)]
@@ -158,27 +215,52 @@ async fn dashboard(
     State(state): State<Arc<WebState>>,
     Query(query): Query<ProjectScopeQuery>,
 ) -> Result<Response, (StatusCode, String)> {
-    let projects = state
+    let project_items = state
         .service
         .list_projects(200, false)
         .map_err(internal_err)?;
     let requested_project_id = query.project_id();
-    let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
+    let selected_project =
+        resolve_selected_project(&project_items, requested_project_id.as_deref());
     let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
 
-    let tasks = list_scoped_tasks(&state.service, selected_project_id.as_deref())?;
-    let notes = list_scoped_notes(&state.service, selected_project_id.as_deref(), 200)?;
+    let task_items = list_scoped_tasks(&state.service, selected_project_id.as_deref())?;
+    let note_items = list_scoped_notes(&state.service, selected_project_id.as_deref(), 200)?;
 
-    let activity = state
+    let activity_items = state
         .service
         .list_recent_activity(None, 100)
         .map_err(internal_err)?;
 
+    let open_task_count = task_items
+        .iter()
+        .filter(|task| task.status != TaskStatus::Done)
+        .count();
+    let done_task_count = task_items.len().saturating_sub(open_task_count);
+    let agent_task_count = task_items
+        .iter()
+        .filter(|task| task.assignee.starts_with("agent:"))
+        .count();
+    let unassigned_task_count = task_items
+        .iter()
+        .filter(|task| task.assignee == "agent:unassigned")
+        .count();
+    let (handoff_state, handoff_detail) = handoff_summary(&task_items, &note_items);
+
+    let latest_activity_summary = activity_items
+        .first()
+        .map(|item| item.summary.clone())
+        .unwrap_or_else(|| "No mutations recorded yet.".to_string());
+    let latest_git_branch = activity_items
+        .iter()
+        .find_map(|item| item.git_branch.clone())
+        .unwrap_or_else(|| "git context unavailable".to_string());
+
     let template = DashboardTemplate {
         server_port: state.service.config.server.port,
-        task_count: tasks.len(),
-        project_count: projects.len(),
-        note_count: notes.len(),
+        task_count: task_items.len(),
+        project_count: project_items.len(),
+        note_count: note_items.len(),
         selected_project_id: selected_project_id.clone().unwrap_or_default(),
         selected_project_title: selected_project
             .as_ref()
@@ -188,20 +270,40 @@ async fn dashboard(
             .as_ref()
             .map(|project| project.status.clone())
             .unwrap_or_else(|| "none".to_string()),
+        selected_project_status_class: selected_project
+            .as_ref()
+            .map(|project| status_class_for_label(&project.status))
+            .unwrap_or_else(|| "status-neutral".to_string()),
+        selected_project_owner: selected_project
+            .as_ref()
+            .and_then(|project| project.owner.clone())
+            .unwrap_or_else(|| "unowned".to_string()),
+        selected_project_updated_at: selected_project
+            .as_ref()
+            .map(|project| format_timestamp(project.updated_at))
+            .unwrap_or_else(|| "never".to_string()),
         has_selected_project: selected_project.is_some(),
         projects_partial_url: scoped_path("/partials/projects", selected_project_id.as_deref()),
         tasks_partial_url: scoped_path("/partials/tasks", selected_project_id.as_deref()),
         notes_partial_url: scoped_path("/partials/notes", selected_project_id.as_deref()),
         has_scope: selected_project.is_some(),
         scope_query: scope_query_suffix(selected_project_id.as_deref()),
-        last_activity_at: activity
+        last_activity_at: activity_items
             .first()
-            .map(|item| item.occurred_at.to_rfc3339())
+            .map(|item| format_timestamp(item.occurred_at))
             .unwrap_or_else(|| "never".to_string()),
-        tasks,
-        projects,
-        notes,
-        activity,
+        latest_activity_summary,
+        latest_git_branch,
+        open_task_count,
+        done_task_count,
+        agent_task_count,
+        unassigned_task_count,
+        handoff_state,
+        handoff_detail,
+        tasks: task_items.into_iter().map(map_task_card).collect(),
+        projects: project_items.into_iter().map(map_project_card).collect(),
+        notes: note_items.into_iter().map(map_note_card).collect(),
+        activity: activity_items.into_iter().map(map_activity_card).collect(),
         poll_projects_ms: state.poll.tasks_interval_ms,
         poll_tasks_ms: state.poll.tasks_interval_ms,
         poll_notes_ms: state.poll.notes_interval_ms,
@@ -234,7 +336,7 @@ async fn partial_tasks(
         TasksTemplate {
             has_scope: project_id.is_some(),
             scope_query: scope_query_suffix(project_id.as_deref()),
-            tasks,
+            tasks: tasks.into_iter().map(map_task_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -253,7 +355,7 @@ async fn partial_projects(
         .map_err(internal_err)?;
     render_with_etag(
         ProjectsTemplate {
-            projects,
+            projects: projects.into_iter().map(map_project_card).collect(),
             selected_project_id: query.project_id().unwrap_or_default(),
         }
         .render()
@@ -272,7 +374,7 @@ async fn partial_notes(
     render_with_etag(
         NotesTemplate {
             has_scope: project_id.is_some(),
-            notes,
+            notes: notes.into_iter().map(map_note_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -290,9 +392,11 @@ async fn partial_activity(
         .list_recent_activity(since, 100)
         .map_err(internal_err)?;
     render_with_etag(
-        ActivityTemplate { activity }
-            .render()
-            .map_err(internal_err)?,
+        ActivityTemplate {
+            activity: activity.into_iter().map(map_activity_card).collect(),
+        }
+        .render()
+        .map_err(internal_err)?,
         &headers,
     )
 }
@@ -338,7 +442,7 @@ async fn create_project(
         .map_err(internal_err)?;
     Ok(Html(
         ProjectsTemplate {
-            projects,
+            projects: projects.into_iter().map(map_project_card).collect(),
             selected_project_id: created.id,
         }
         .render()
@@ -382,7 +486,7 @@ async fn create_task(
         TasksTemplate {
             has_scope: true,
             scope_query: scope_query_suffix(Some(&project_id)),
-            tasks,
+            tasks: tasks.into_iter().map(map_task_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -423,7 +527,7 @@ async fn update_task(
         TasksTemplate {
             has_scope: project_id.is_some(),
             scope_query: scope_query_suffix(project_id.as_deref()),
-            tasks,
+            tasks: tasks.into_iter().map(map_task_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -458,7 +562,7 @@ async fn create_note(
     Ok(Html(
         NotesTemplate {
             has_scope: scope_project_id.is_some(),
-            notes,
+            notes: notes.into_iter().map(map_note_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -500,7 +604,7 @@ async fn update_note(
     Ok(Html(
         NotesTemplate {
             has_scope: project_id.is_some(),
-            notes,
+            notes: notes.into_iter().map(map_note_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -530,7 +634,7 @@ async fn archive_entity(
         TasksTemplate {
             has_scope: project_id.is_some(),
             scope_query: scope_query_suffix(project_id.as_deref()),
-            tasks,
+            tasks: tasks.into_iter().map(map_task_card).collect(),
         }
         .render()
         .map_err(internal_err)?,
@@ -690,4 +794,158 @@ fn scope_query_suffix(project_id: Option<&str>) -> String {
 
 fn scoped_path(base: &str, project_id: Option<&str>) -> String {
     format!("{base}{}", scope_query_suffix(project_id))
+}
+
+fn map_project_card(project: ProjectItem) -> WorkspaceProjectCard {
+    WorkspaceProjectCard {
+        id: project.id,
+        title: project.title,
+        status_class: status_class_for_label(&project.status),
+        status: project.status,
+        owner_label: project.owner.unwrap_or_else(|| "owner unset".to_string()),
+        updated_label: format_timestamp(project.updated_at),
+    }
+}
+
+fn map_task_card(task: TaskItem) -> WorkspaceTaskCard {
+    let priority = task.priority.as_str().to_string();
+    let status = task.status.as_str().to_string();
+    let assignee = task.assignee;
+    let due_label = task
+        .due_at
+        .map(format_timestamp)
+        .unwrap_or_else(|| "no due date".to_string());
+    let is_done = task.status == TaskStatus::Done;
+
+    WorkspaceTaskCard {
+        id: task.id,
+        title: task.title,
+        status_class: status_class_for_label(&status),
+        status,
+        priority_class: priority_class_for_label(&priority),
+        priority,
+        assignee_class: assignee_class_for_label(&assignee),
+        assignee,
+        due_label,
+        updated_label: format_timestamp(task.updated_at),
+        revision: task.revision,
+        is_done,
+    }
+}
+
+fn map_note_card(note: NoteItem) -> WorkspaceNoteCard {
+    WorkspaceNoteCard {
+        id: note.id,
+        title: note.title,
+        path: note.path,
+        project_label: note
+            .project_id
+            .unwrap_or_else(|| "unscoped note".to_string()),
+        updated_label: format_timestamp(note.updated_at),
+    }
+}
+
+fn map_activity_card(item: crate::types::ActivityItem) -> WorkspaceActivityCard {
+    let actor_label = format!("{}:{}", item.actor_kind, item.actor_id);
+    let entity_label = item.entity_id.unwrap_or_else(|| "workspace".to_string());
+    let git_label = match (item.git_branch, item.git_commit) {
+        (Some(branch), Some(commit)) => format!("{branch} @ {}", shorten_commit(&commit)),
+        (Some(branch), None) => branch,
+        _ => "git context unavailable".to_string(),
+    };
+
+    WorkspaceActivityCard {
+        actor_class: actor_class_for_label(&item.actor_kind),
+        actor_label,
+        action_label: item.action,
+        entity_label,
+        summary: item.summary,
+        occurred_label: format_timestamp(item.occurred_at),
+        git_label,
+    }
+}
+
+fn format_timestamp(ts: DateTime<Utc>) -> String {
+    ts.format("%Y-%m-%d %H:%M UTC").to_string()
+}
+
+fn shorten_commit(commit: &str) -> String {
+    commit.chars().take(8).collect()
+}
+
+fn status_class_for_label(status: &str) -> String {
+    match status {
+        "active" | "in_progress" => "status-live".to_string(),
+        "done" => "status-done".to_string(),
+        "blocked" => "status-warn".to_string(),
+        "backlog" | "todo" => "status-neutral".to_string(),
+        _ => "status-neutral".to_string(),
+    }
+}
+
+fn priority_class_for_label(priority: &str) -> String {
+    match priority {
+        "P0" => "priority-p0".to_string(),
+        "P1" => "priority-p1".to_string(),
+        "P2" => "priority-p2".to_string(),
+        _ => "priority-p3".to_string(),
+    }
+}
+
+fn assignee_class_for_label(assignee: &str) -> String {
+    if assignee.starts_with("agent:") {
+        "assignee-agent".to_string()
+    } else if assignee.starts_with("human:") {
+        "assignee-human".to_string()
+    } else {
+        "assignee-neutral".to_string()
+    }
+}
+
+fn actor_class_for_label(actor_kind: &str) -> String {
+    match actor_kind {
+        "agent" => "actor-agent".to_string(),
+        "human" => "actor-human".to_string(),
+        _ => "actor-system".to_string(),
+    }
+}
+
+fn handoff_summary(tasks: &[TaskItem], notes: &[NoteItem]) -> (String, String) {
+    if tasks.is_empty() && notes.is_empty() {
+        return (
+            "cold start".to_string(),
+            "Add a plan and a few notes before handing work to an agent.".to_string(),
+        );
+    }
+
+    if tasks.is_empty() {
+        return (
+            "notes only".to_string(),
+            "Context exists, but execution still needs concrete tasks.".to_string(),
+        );
+    }
+
+    if notes.is_empty() {
+        return (
+            "task heavy".to_string(),
+            "Work is queued, but shared context is still thin.".to_string(),
+        );
+    }
+
+    let agent_owned = tasks
+        .iter()
+        .filter(|task| task.assignee.starts_with("agent:"))
+        .count();
+
+    if agent_owned == 0 {
+        return (
+            "ready to assign".to_string(),
+            "The plan is documented. Assign an agent when you want execution to start.".to_string(),
+        );
+    }
+
+    (
+        "handoff ready".to_string(),
+        "Tasks and notes give agents enough context to pick up quickly.".to_string(),
+    )
 }

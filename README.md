@@ -1,8 +1,10 @@
 # n10e (codename: n10e-01)
 
-Agent-native, local-first project management + knowledge hub.
+Local-first agent workspace, planning surface, and memory layer.
 
-`n10e` indexes markdown source-of-truth on disk into SQLite (FTS5), serves a lightweight Askama + htmx dashboard, and exposes curated MCP tools over stdio for coding agents.
+`n10e` keeps markdown on disk as the source of truth, indexes it into SQLite (FTS5), serves a lightweight workspace UI, and exposes curated MCP tools over stdio for coding agents.
+
+The goal is not to become another generic agent dashboard. The goal is to make project context durable, inspectable, and fast for both humans and agents to pick up.
 
 ## Status
 
@@ -13,7 +15,7 @@ V0 foundation implemented:
 - SQLite migrations, FTS5 search, reverse wiki-link indexing
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
 - Immutable activity event logging with git context
-- Dashboard with task board, note explorer, activity panel
+- Workspace UI with task planning, note context, and activity visibility
 - MCP stdio JSON-RPC tool surface (curated core)
 
 ## Install
@@ -31,7 +33,7 @@ cargo run -- init /path/to/workspace
 cargo run -- --workspace /path/to/workspace serve
 ```
 
-Dashboard default URL: `http://127.0.0.1:7410`
+Workspace default URL: `http://127.0.0.1:7410`
 
 ## CLI
 
@@ -74,6 +76,10 @@ Compatibility tracking: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Product Direction
+
+See [docs/PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md).
 
 ## Roadmap Progress
 

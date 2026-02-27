@@ -1,16 +1,17 @@
 {% if notes.len() == 0 %}
-<p class="empty">{% if has_scope %}No notes in this project yet.{% else %}No notes indexed yet.{% endif %}</p>
+<p class="empty-state">{% if has_scope %}No notes in this project yet. Capture implementation context, decisions, or a handoff brief here.{% else %}No notes indexed yet.{% endif %}</p>
 {% else %}
 <div class="stack">
   {% for note in notes %}
   <article class="note-row">
-    <div class="note-title">{{ note.title }}</div>
-    <div class="item-meta">{{ note.path }}</div>
-    <div class="item-meta">
-      <span>{{ note.id }}</span>
-      {% if note.project_id.is_some() %}
-      <span>· {{ note.project_id.clone().unwrap() }}</span>
-      {% endif %}
+    <div class="note-head">
+      <div class="note-title">{{ note.title }}</div>
+      <span class="item-meta">{{ note.updated_label }}</span>
+    </div>
+    <div class="note-path">{{ note.path }}</div>
+    <div class="token-row">
+      <span class="token status-neutral">{{ note.project_label }}</span>
+      <span class="item-meta">{{ note.id }}</span>
     </div>
   </article>
   {% endfor %}

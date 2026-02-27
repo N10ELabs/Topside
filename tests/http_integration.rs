@@ -37,7 +37,7 @@ async fn dashboard_and_partial_endpoints_work_with_etags() -> Result<()> {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await?;
     let html = String::from_utf8(body.to_vec())?;
-    assert!(html.contains("dashboard"));
+    assert!(html.contains("local-first agent workspace"));
 
     let response_1 = app
         .clone()

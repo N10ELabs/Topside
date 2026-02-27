@@ -1,12 +1,18 @@
 {% if projects.len() == 0 %}
-<p class="empty">No projects yet. Create your first project to open a workspace tab.</p>
+<p class="empty-state">No projects yet. Create the first initiative to open a planning workspace.</p>
 {% else %}
 <div class="project-list">
   {% for project in projects %}
   <a class="project-item {% if project.id == selected_project_id %}active{% endif %}" href="/?project_id={{ project.id }}">
+    <div class="project-kicker">
+      <span class="status-pill {{ project.status_class }}">{{ project.status }}</span>
+      <span class="item-meta">{{ project.updated_label }}</span>
+    </div>
     <div class="project-title">{{ project.title }}</div>
-    <div class="project-meta">{{ project.status }}</div>
-    <div class="project-meta">{{ project.id }}</div>
+    <div class="project-footer">
+      <span class="owner-chip">{{ project.owner_label }}</span>
+      <span class="item-meta">{{ project.id }}</span>
+    </div>
   </a>
   {% endfor %}
 </div>

@@ -1,23 +1,24 @@
 {% if tasks.len() == 0 %}
-<p class="empty">{% if has_scope %}No tasks in this project yet.{% else %}No tasks indexed yet.{% endif %}</p>
+<p class="empty-state">{% if has_scope %}No tasks in this project yet. Add a concrete execution step so an agent has a clear place to start.{% else %}No tasks indexed yet.{% endif %}</p>
 {% else %}
 <div class="stack">
   {% for task in tasks %}
   <article class="task-row">
-    <div class="task-line">
+    <div class="task-shell">
       <form method="post" action="/tasks/{{ task.id }}{{ scope_query }}" hx-patch="/tasks/{{ task.id }}{{ scope_query }}" hx-target="#tasks-panel" hx-swap="innerHTML" class="check-form">
         <input type="hidden" name="expected_revision" value="{{ task.revision }}">
-        <input type="hidden" name="status" value="{% if task.status.as_str() == "done" %}todo{% else %}done{% endif %}">
-        <button class="check-btn {% if task.status.as_str() == "done" %}done{% endif %}" type="submit">{% if task.status.as_str() == "done" %}✓{% else %}·{% endif %}</button>
+        <input type="hidden" name="status" value="{% if task.is_done %}todo{% else %}done{% endif %}">
+        <button class="check-btn {% if task.is_done %}done{% endif %}" type="submit">{% if task.is_done %}✓{% else %}·{% endif %}</button>
       </form>
 
-      <div>
-        <div class="task-title {% if task.status.as_str() == "done" %}done{% endif %}">{{ task.title }}</div>
-        <div class="task-meta">
-          <span>{{ task.priority.as_str() }}</span>
-          <span>{{ task.status.as_str() }}</span>
-          <span>{{ task.id }}</span>
+      <div class="task-content">
+        <div class="task-title {% if task.is_done %}done{% endif %}">{{ task.title }}</div>
+        <div class="task-tags">
+          <span class="token {{ task.priority_class }}">{{ task.priority }}</span>
+          <span class="token {{ task.status_class }}">{{ task.status }}</span>
+          <span class="token {{ task.assignee_class }}">{{ task.assignee }}</span>
         </div>
+        <div class="item-meta">updated {{ task.updated_label }} · due {{ task.due_label }} · {{ task.id }}</div>
       </div>
 
       <form method="post" action="/archive/{{ task.id }}{{ scope_query }}" hx-post="/archive/{{ task.id }}{{ scope_query }}" hx-target="#tasks-panel" hx-swap="innerHTML" class="archive-form">

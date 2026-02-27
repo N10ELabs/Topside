@@ -3,94 +3,154 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>n10e Dashboard</title>
+  <title>n10e Workspace</title>
   <script src="/htmx"></script>
   <style>
     :root {
-      --bg: #0e0d0b;
-      --bg-elev: #141210;
-      --panel: #191612;
-      --line: #2d271f;
-      --text: #ece5d7;
-      --muted: #a59a8b;
-      --accent: #d97706;
-      --accent-soft: rgba(217, 119, 6, 0.18);
-      --success: #22c55e;
-      --danger: #ef4444;
+      --bg: #09121a;
+      --bg-elev: rgba(11, 24, 35, 0.9);
+      --panel: rgba(16, 31, 44, 0.9);
+      --panel-strong: rgba(12, 26, 38, 0.96);
+      --line: rgba(121, 151, 173, 0.2);
+      --line-strong: rgba(132, 169, 194, 0.34);
+      --text: #edf4f8;
+      --muted: #8ea5b6;
+      --accent: #f59e0b;
+      --accent-soft: rgba(245, 158, 11, 0.15);
+      --accent-cool: #38bdf8;
+      --success: #34d399;
+      --warn: #f97316;
+      --danger: #f87171;
+      --shadow: 0 24px 80px rgba(4, 10, 16, 0.46);
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      color-scheme: dark;
+    }
 
     body {
       margin: 0;
       min-height: 100vh;
       color: var(--text);
       background:
-        radial-gradient(circle at 8% -15%, #2b1f15 0%, transparent 45%),
-        radial-gradient(circle at 100% -30%, #241911 0%, transparent 40%),
-        var(--bg);
-      font-family: "Space Grotesk", "IBM Plex Sans", "Avenir Next", sans-serif;
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 32%),
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.18), transparent 28%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 28%),
+        repeating-linear-gradient(
+          90deg,
+          rgba(142, 165, 182, 0.035) 0,
+          rgba(142, 165, 182, 0.035) 1px,
+          transparent 1px,
+          transparent 120px
+        ),
+        linear-gradient(180deg, #0a1219 0%, #091018 100%);
+      font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%),
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.025), transparent 30%);
+      mix-blend-mode: screen;
+      opacity: 0.55;
+    }
+
+    h1,
+    h2,
+    h3,
+    strong {
+      margin: 0;
+    }
+
+    a {
+      color: inherit;
     }
 
     .app {
       min-height: 100vh;
+      padding: 18px;
       display: grid;
-      grid-template-rows: auto 1fr;
+      gap: 16px;
+    }
+
+    .topbar,
+    .panel,
+    .mission-card,
+    .signal-panel {
+      animation: rise-in 320ms ease both;
     }
 
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(13, 11, 9, 0.85);
-      backdrop-filter: blur(4px);
+      gap: 14px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--bg-elev);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
     }
 
     .title-wrap {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
       min-width: 0;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      gap: 12px;
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
     }
 
     .brand-badge {
-      width: 24px;
-      height: 24px;
-      border-radius: 7px;
-      background: linear-gradient(145deg, #f59e0b, #b45309);
-      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3);
-      flex: 0 0 24px;
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      background:
+        linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(56, 189, 248, 0.92));
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+        0 10px 24px rgba(56, 189, 248, 0.2);
+      flex: 0 0 28px;
+    }
+
+    .brand-block {
+      display: grid;
+      gap: 2px;
     }
 
     .brand h1 {
-      margin: 0;
       font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
-    .title-sep {
-      width: 1px;
-      align-self: stretch;
-      background: var(--line);
+    .brand-note {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .subtitle {
       margin: 0;
-      color: var(--muted);
-      font-size: 28px;
-      line-height: 1;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      color: #d6e5ef;
+      font-size: 15px;
+      line-height: 1.45;
+      max-width: 620px;
     }
 
     .top-actions {
@@ -111,110 +171,262 @@
 
     .action-btn,
     button {
-      border: 1px solid #8f4306;
-      border-radius: 9px;
-      background: linear-gradient(180deg, #ca6a0a, #a34f08);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.22), rgba(245, 158, 11, 0.1));
       color: var(--text);
       font-weight: 600;
       cursor: pointer;
-      padding: 8px 12px;
+      padding: 10px 14px;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    button:hover,
+    .action-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(245, 158, 11, 0.75);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.28), rgba(245, 158, 11, 0.12));
     }
 
     .chip {
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 5px 10px;
+      padding: 7px 11px;
       color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
       font-size: 12px;
-      background: #181511;
+      background: rgba(8, 20, 30, 0.72);
     }
 
     .layout {
       min-height: 0;
       display: grid;
-      grid-template-columns: 300px 1fr;
+      gap: 16px;
+      grid-template-columns: 320px minmax(0, 1fr);
     }
 
-    .projects-col {
-      border-right: 1px solid var(--line);
-      background: rgba(14, 12, 10, 0.78);
-      padding: 16px;
+    .projects-col,
+    .workspace-col {
       min-height: 0;
-      overflow: auto;
     }
 
     .workspace-col {
-      padding: 16px;
-      min-height: 0;
-      overflow: auto;
       display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 12px;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .panel,
+    .mission-card,
+    .signal-panel {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+        var(--panel);
+      box-shadow: var(--shadow);
+      min-height: 0;
     }
 
     .panel {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: linear-gradient(180deg, #1c1814, #15120f);
-      min-height: 0;
-      padding: 12px;
+      padding: 18px;
     }
 
-    .panelhead {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 10px;
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 13px;
+    .rail-panel {
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 18px;
     }
 
-    h2,
-    h3 {
+    .section-label {
+      color: var(--accent-cool);
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .panel-copy,
+    .signal-copy,
+    .mission-copy {
       margin: 0;
-      color: var(--text);
-      font-weight: 700;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .panel-head,
+    .panel-head-inline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .panel-head-inline {
+      margin-bottom: 0;
+    }
+
+    .panel-head h3,
+    .panel-head-inline h3 {
+      font-size: 20px;
       letter-spacing: 0.01em;
     }
 
-    h2 { font-size: 34px; }
-    h3 { font-size: 18px; }
-
-    .workspace-head {
-      border-bottom: 1px solid var(--line);
-      padding-bottom: 10px;
-      margin-bottom: 2px;
+    .item-meta {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      font-size: 12px;
+      line-height: 1.5;
     }
 
-    .workspace-meta {
-      margin-top: 6px;
+    .mission-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
+    }
+
+    .mission-card,
+    .signal-panel {
+      padding: 22px;
+    }
+
+    .mission-card {
+      display: grid;
+      gap: 18px;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 30%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+        var(--panel-strong);
+    }
+
+    .mission-head {
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .mission-head h2,
+    .empty-hero h2 {
+      font-size: clamp(34px, 4vw, 48px);
+      line-height: 0.96;
+      letter-spacing: -0.03em;
+      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
+    }
+
+    .meta-grid,
+    .signals-grid,
+    .system-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .meta-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .meta-card,
+    .signal-card,
+    .system-row {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(8, 18, 28, 0.52);
+    }
+
+    .meta-card {
+      display: grid;
+      gap: 6px;
+    }
+
+    .meta-label {
       color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
       font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+    }
+
+    .meta-card strong {
+      font-size: 16px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .signal-panel {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+      background:
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 30%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+        var(--panel);
+    }
+
+    .signal-hero {
+      display: grid;
+      gap: 8px;
+    }
+
+    .signal-value {
+      font-size: 30px;
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
+      text-transform: lowercase;
+    }
+
+    .signal-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .signals-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .signal-card {
+      display: grid;
+      gap: 6px;
+    }
+
+    .signal-card strong {
+      font-size: 26px;
+      line-height: 1;
     }
 
     .workspace-grid {
       display: grid;
-      grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(280px, 0.95fr);
-      gap: 12px;
-      min-height: 0;
+      gap: 16px;
+      grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 0.95fr);
     }
 
     .column {
-      min-height: 0;
-      overflow: auto;
+      display: grid;
+      gap: 14px;
+      align-content: start;
     }
 
     .project-create,
     .quick-create {
       display: grid;
-      gap: 8px;
+      gap: 10px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }
 
     input,
@@ -222,102 +434,238 @@
     select {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #120f0d;
+      border-radius: 14px;
+      background: rgba(7, 17, 26, 0.92);
       color: var(--text);
-      padding: 9px 10px;
+      padding: 11px 12px;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #6f8798;
     }
 
     textarea {
-      min-height: 86px;
+      min-height: 108px;
       resize: vertical;
     }
 
     .divider {
-      margin: 12px 0;
-      border-top: 1px solid var(--line);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
     }
 
     details {
-      border: 1px solid #3d3126;
-      border-radius: 10px;
-      background: #171410;
-      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(7, 18, 28, 0.64);
       overflow: hidden;
     }
 
     summary {
       cursor: pointer;
-      padding: 10px;
+      padding: 13px 14px;
       list-style: none;
+      color: #d9ebf6;
       font-weight: 600;
-      color: #dfb07b;
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      border-bottom: 1px solid #3d3126;
+      border-bottom: 1px solid transparent;
     }
 
-    details > div { padding: 10px; }
+    details[open] summary {
+      border-bottom-color: var(--line);
+    }
+
+    details > div {
+      padding: 14px;
+    }
 
     .project-list,
     .stack,
-    .activity-list,
-    .status-list {
+    .activity-list {
       display: grid;
-      gap: 8px;
+      gap: 10px;
     }
 
-    .project-item {
-      display: grid;
-      gap: 4px;
-      text-decoration: none;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #16130f;
-      color: var(--text);
-      padding: 10px;
-    }
-
-    .project-item:hover {
-      border-color: #574332;
-      background: #1a1511;
-    }
-
-    .project-item.active {
-      border-color: #7a4d24;
-      background: linear-gradient(180deg, #2a1a10, #19130f);
-      box-shadow: inset 0 0 0 1px var(--accent-soft);
-    }
-
-    .project-title {
-      font-weight: 600;
-      line-height: 1.25;
-    }
-
-    .project-meta,
-    .item-meta,
-    .status-row {
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
+    .project-item,
     .task-row,
     .note-row,
     .activity-row {
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #15120f;
-      padding: 9px;
-      display: grid;
-      gap: 6px;
+      border-radius: 18px;
+      background: rgba(9, 21, 32, 0.82);
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
     }
 
-    .task-line {
+    .project-item {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      padding: 14px;
+      text-decoration: none;
+    }
+
+    .project-item:hover,
+    .task-row:hover,
+    .note-row:hover,
+    .activity-row:hover {
+      transform: translateY(-1px);
+      border-color: var(--line-strong);
+      background: rgba(11, 25, 38, 0.92);
+    }
+
+    .project-item.active {
+      border-color: rgba(56, 189, 248, 0.42);
+      background:
+        linear-gradient(180deg, rgba(56, 189, 248, 0.12), transparent 55%),
+        rgba(11, 26, 39, 0.96);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
+    }
+
+    .project-kicker,
+    .project-footer,
+    .note-head,
+    .activity-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .project-title,
+    .note-title,
+    .activity-main,
+    .task-title {
+      font-size: 17px;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+
+    .task-row {
+      padding: 12px;
+    }
+
+    .task-shell {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
       align-items: start;
+    }
+
+    .task-content {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .task-title.done {
+      text-decoration: line-through;
+      color: #88a0af;
+    }
+
+    .task-tags,
+    .token-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .token,
+    .status-pill,
+    .actor-chip,
+    .owner-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      background: rgba(9, 21, 32, 0.82);
+    }
+
+    .status-live {
+      border-color: rgba(52, 211, 153, 0.32);
+      color: #a7f3d0;
+      background: rgba(8, 59, 44, 0.35);
+    }
+
+    .status-done {
+      border-color: rgba(56, 189, 248, 0.28);
+      color: #b9eafe;
+      background: rgba(14, 56, 74, 0.36);
+    }
+
+    .status-warn {
+      border-color: rgba(249, 115, 22, 0.34);
+      color: #fdc79b;
+      background: rgba(86, 40, 15, 0.4);
+    }
+
+    .status-neutral {
+      color: #d5e4ef;
+      background: rgba(24, 38, 50, 0.78);
+    }
+
+    .priority-p0 {
+      border-color: rgba(248, 113, 113, 0.46);
+      color: #fecaca;
+      background: rgba(82, 24, 24, 0.48);
+    }
+
+    .priority-p1 {
+      border-color: rgba(249, 115, 22, 0.4);
+      color: #fed7aa;
+      background: rgba(92, 42, 18, 0.4);
+    }
+
+    .priority-p2 {
+      border-color: rgba(245, 158, 11, 0.34);
+      color: #fde68a;
+      background: rgba(84, 56, 16, 0.38);
+    }
+
+    .priority-p3 {
+      border-color: rgba(148, 163, 184, 0.28);
+      color: #cbd5e1;
+      background: rgba(35, 47, 58, 0.42);
+    }
+
+    .assignee-agent,
+    .actor-agent {
+      border-color: rgba(56, 189, 248, 0.32);
+      color: #bae6fd;
+      background: rgba(16, 56, 74, 0.4);
+    }
+
+    .assignee-human,
+    .actor-human {
+      border-color: rgba(245, 158, 11, 0.36);
+      color: #fde68a;
+      background: rgba(90, 54, 17, 0.42);
+    }
+
+    .assignee-neutral,
+    .actor-system {
+      color: #d4dee5;
+      background: rgba(24, 38, 50, 0.78);
+    }
+
+    .note-row,
+    .activity-row {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .note-path {
+      color: #c5d5df;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
     }
 
     .check-form,
@@ -326,150 +674,166 @@
     }
 
     .check-btn {
-      width: 20px;
-      height: 20px;
-      min-width: 20px;
-      border: 1px solid #5d4a36;
-      border-radius: 6px;
-      background: #1b1712;
+      width: 24px;
+      height: 24px;
+      min-width: 24px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: rgba(10, 20, 28, 0.88);
       color: transparent;
       padding: 0;
-    }
-
-    .check-btn.done {
-      color: #10100e;
-      background: #d5a162;
-      border-color: #d5a162;
-      font-weight: 700;
       line-height: 1;
     }
 
-    .task-title {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.3;
-    }
-
-    .task-title.done {
-      text-decoration: line-through;
-      color: #958878;
-    }
-
-    .task-meta {
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 11px;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .check-btn.done {
+      color: #06202a;
+      background: linear-gradient(180deg, #7dd3fc, #34d399);
+      border-color: rgba(125, 211, 252, 0.92);
     }
 
     .mini-btn {
-      border: 1px solid #4f3f30;
-      background: #1b1712;
+      border: 1px solid var(--line);
+      background: rgba(9, 21, 32, 0.9);
       color: var(--muted);
-      padding: 4px 8px;
-      border-radius: 8px;
+      padding: 7px 10px;
+      border-radius: 10px;
       font-size: 11px;
       line-height: 1.2;
-      min-width: 64px;
+      min-width: 72px;
     }
 
     .mini-btn.danger {
-      border-color: #6f1111;
-      color: #fca5a5;
-      background: #2b1111;
-    }
-
-    .note-title,
-    .activity-main {
-      font-size: 16px;
-      line-height: 1.3;
-      font-weight: 500;
+      border-color: rgba(248, 113, 113, 0.38);
+      color: #fecaca;
+      background: rgba(82, 24, 24, 0.42);
     }
 
     .status-block {
-      margin-top: 12px;
-      padding-top: 10px;
+      display: grid;
+      gap: 12px;
+      padding-top: 8px;
       border-top: 1px solid var(--line);
     }
 
-    .status-row {
+    .system-row {
       display: flex;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 8px;
-      border-bottom: 1px solid var(--line);
-      padding: 7px 0;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
-    .status-row:last-child {
-      border-bottom: none;
-    }
-
-    .status-ok {
-      color: var(--success);
-      font-weight: 600;
-    }
-
-    .empty {
+    .empty-state,
+    .empty-hero p {
+      margin: 0;
       color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 13px;
-      padding: 8px;
-      border: 1px dashed #3a3128;
-      border-radius: 10px;
-      background: #15120f;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .empty-state {
+      padding: 16px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 18px;
+      background: rgba(8, 18, 28, 0.5);
     }
 
     .no-project {
-      min-height: 260px;
+      min-height: 420px;
       display: grid;
       place-items: center;
-      text-align: center;
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-      font-size: 14px;
-      line-height: 1.5;
+      background:
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.12), transparent 32%),
+        var(--panel);
     }
 
-    @media (max-width: 1200px) {
+    .empty-hero {
+      max-width: 640px;
+      display: grid;
+      gap: 12px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    @keyframes rise-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1280px) {
+      .mission-grid,
       .workspace-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
       }
 
-      .workspace-grid > .column:last-child {
-        grid-column: span 2;
+      .signals-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
 
     @media (max-width: 980px) {
+      .app {
+        padding: 14px;
+      }
+
       .layout {
         grid-template-columns: 1fr;
       }
 
-      .projects-col {
-        border-right: none;
-        border-bottom: 1px solid var(--line);
+      .rail-panel {
+        position: static;
       }
 
-      .workspace-grid {
+      .topbar,
+      .mission-head,
+      .panel-head,
+      .panel-head-inline {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .top-actions {
+        justify-content: flex-start;
+      }
+
+      .meta-grid,
+      .signals-grid,
+      .form-grid,
+      .field-row {
         grid-template-columns: 1fr;
       }
+    }
 
-      .workspace-grid > .column:last-child {
-        grid-column: auto;
+    @media (max-width: 720px) {
+      .topbar,
+      .panel,
+      .mission-card,
+      .signal-panel {
+        border-radius: 18px;
       }
 
-      h2 {
-        font-size: 28px;
+      .task-shell {
+        grid-template-columns: auto 1fr;
+      }
+
+      .archive-form {
+        grid-column: 2;
+      }
+
+      .mission-head h2,
+      .empty-hero h2 {
+        font-size: 34px;
       }
 
       .subtitle {
-        display: none;
-      }
-
-      .title-sep {
-        display: none;
+        font-size: 14px;
       }
     }
   </style>
@@ -480,30 +844,37 @@
       <div class="title-wrap">
         <div class="brand">
           <div class="brand-badge"></div>
-          <h1>n10e</h1>
+          <div class="brand-block">
+            <h1>n10e</h1>
+            <div class="brand-note">local-first agent workspace</div>
+          </div>
         </div>
-        <div class="title-sep"></div>
-        <p class="subtitle">agent-native knowledge hub</p>
+        <p class="subtitle">Plan the project once, keep the context durable on disk, and let any compatible agent pick it up without a long briefing.</p>
       </div>
 
       <div class="top-actions">
+        <span class="chip">local-first</span>
+        <span class="chip">mcp ready</span>
         <span class="chip">:{{ server_port }}</span>
-        <span class="chip">{{ project_count }} projects</span>
+        <span class="chip">{{ project_count }} initiatives</span>
+        <span class="chip">{{ task_count }} scoped tasks</span>
         <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
-          <button class="action-btn" type="submit">reindex</button>
+          <button class="action-btn" type="submit">refresh index</button>
         </form>
-        <span class="chip">admin</span>
-        <span class="chip">user</span>
       </div>
     </header>
 
     <div class="layout">
       <aside class="projects-col">
-        <section class="panel">
-          <div class="panelhead">
-            <h3>Projects</h3>
-            <span>workspace tabs</span>
+        <section class="panel rail-panel">
+          <div class="panel-head-inline">
+            <div>
+              <div class="section-label">Initiatives</div>
+              <h3>Shared project memory</h3>
+            </div>
+            <span class="item-meta">{{ project_count }} total</span>
           </div>
+          <p class="panel-copy">Choose a project to open its planning surface. Tasks, notes, and activity stay visible in one operator workspace.</p>
 
           <div
             id="projects-panel"
@@ -517,40 +888,97 @@
           <div class="divider"></div>
 
           <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML" class="project-create">
-            <input name="title" placeholder="new project" required>
-            <input name="owner" placeholder="owner (optional)">
-            <button type="submit">+ new project</button>
+            <div class="section-label">New initiative</div>
+            <div class="form-grid">
+              <input name="title" placeholder="project title" required>
+              <input name="owner" placeholder="owner or lead">
+            </div>
+            <button type="submit">Create project</button>
           </form>
         </section>
       </aside>
 
       <main class="workspace-col">
         {% if has_selected_project %}
-        <section class="workspace-head">
-          <h2>{{ selected_project_title }}</h2>
-          <div class="workspace-meta">
-            <span>{{ selected_project_id }}</span>
-            <span>{{ selected_project_status }}</span>
-            <span>{{ task_count }} tasks</span>
-            <span>{{ note_count }} notes</span>
-            <span>dashboard</span>
-          </div>
+        <section class="mission-grid">
+          <article class="mission-card">
+            <div class="section-label">Mission brief</div>
+            <div class="mission-head">
+              <h2>{{ selected_project_title }}</h2>
+              <span class="status-pill {{ selected_project_status_class }}">{{ selected_project_status }}</span>
+            </div>
+            <p class="mission-copy">This workspace is for planning alongside agents. Keep the execution queue explicit, add context notes as you learn, and use the activity log as the shared thread of record.</p>
+
+            <div class="meta-grid">
+              <div class="meta-card">
+                <span class="meta-label">Project ID</span>
+                <strong>{{ selected_project_id }}</strong>
+              </div>
+              <div class="meta-card">
+                <span class="meta-label">Owner</span>
+                <strong>{{ selected_project_owner }}</strong>
+              </div>
+              <div class="meta-card">
+                <span class="meta-label">Last updated</span>
+                <strong>{{ selected_project_updated_at }}</strong>
+              </div>
+              <div class="meta-card">
+                <span class="meta-label">Latest branch</span>
+                <strong>{{ latest_git_branch }}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="signal-panel">
+            <div class="section-label">Handoff posture</div>
+            <div class="signal-hero">
+              <div class="signal-value">{{ handoff_state }}</div>
+              <p class="signal-copy">{{ handoff_detail }}</p>
+            </div>
+
+            <div class="signals-grid">
+              <div class="signal-card">
+                <span class="meta-label">Open tasks</span>
+                <strong>{{ open_task_count }}</strong>
+                <span class="signal-note">Execution queue still in play.</span>
+              </div>
+              <div class="signal-card">
+                <span class="meta-label">Context notes</span>
+                <strong>{{ note_count }}</strong>
+                <span class="signal-note">Persistent context on disk.</span>
+              </div>
+              <div class="signal-card">
+                <span class="meta-label">Agent-owned</span>
+                <strong>{{ agent_task_count }}</strong>
+                <span class="signal-note">Tasks already assigned to agents.</span>
+              </div>
+              <div class="signal-card">
+                <span class="meta-label">Unassigned</span>
+                <strong>{{ unassigned_task_count }}</strong>
+                <span class="signal-note">Tasks still waiting for ownership.</span>
+              </div>
+            </div>
+          </article>
         </section>
 
         <section class="workspace-grid">
           <section class="panel column">
-            <div class="panelhead">
-              <h3>Tasks</h3>
-              <span>{{ selected_project_id }}</span>
+            <div class="panel-head">
+              <div>
+                <div class="section-label">Execution queue</div>
+                <h3>Tasks in motion</h3>
+              </div>
+              <span class="item-meta">{{ selected_project_id }}</span>
             </div>
+            <p class="panel-copy">Keep the plan explicit so any agent can pick up the project state quickly and act with awareness.</p>
 
             <details>
-              <summary>+ add task</summary>
+              <summary>Add task</summary>
               <div>
                 <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML" class="quick-create">
                   <input type="hidden" name="project_id" value="{{ selected_project_id }}">
                   <input name="title" placeholder="task title" required>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                  <div class="field-row">
                     <select name="status">
                       <option value="backlog">backlog</option>
                       <option value="todo" selected>todo</option>
@@ -566,7 +994,7 @@
                     </select>
                   </div>
                   <input name="assignee" placeholder="assignee (agent:codex)">
-                  <button type="submit">create task</button>
+                  <button type="submit">Create task</button>
                 </form>
               </div>
             </details>
@@ -582,20 +1010,24 @@
           </section>
 
           <section class="panel column">
-            <div class="panelhead">
-              <h3>Notes</h3>
-              <span>{{ selected_project_id }}</span>
+            <div class="panel-head">
+              <div>
+                <div class="section-label">Context memory</div>
+                <h3>Notes that speed up handoff</h3>
+              </div>
+              <span class="item-meta">{{ note_count }} indexed</span>
             </div>
+            <p class="panel-copy">Capture decisions, implementation clues, and plain-language handoff notes. Agents can retrieve this context without depending on a chat log.</p>
 
             <details>
-              <summary>+ new note</summary>
+              <summary>Add note</summary>
               <div>
                 <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML" class="quick-create">
                   <input type="hidden" name="project_id" value="{{ selected_project_id }}">
                   <input type="hidden" name="ui_project_id" value="{{ selected_project_id }}">
                   <input name="title" placeholder="note title" required>
-                  <textarea name="body" placeholder="markdown"></textarea>
-                  <button type="submit">create note</button>
+                  <textarea name="body" placeholder="markdown summary, implementation notes, handoff context"></textarea>
+                  <button type="submit">Create note</button>
                 </form>
               </div>
             </details>
@@ -611,10 +1043,14 @@
           </section>
 
           <section class="panel column">
-            <div class="panelhead">
-              <h3>Recent Activity</h3>
-              <span>live</span>
+            <div class="panel-head">
+              <div>
+                <div class="section-label">Operator log</div>
+                <h3>Activity and system state</h3>
+              </div>
+              <span class="item-meta">live stream</span>
             </div>
+            <p class="panel-copy">Every mutation is recorded with actor and git context so handoffs stay inspectable after the fact.</p>
 
             <div
               id="activity-panel"
@@ -626,26 +1062,46 @@
             </div>
 
             <div class="status-block">
-              <div class="panelhead" style="margin-bottom:6px;">
-                <h3>System Status</h3>
-                <span>local</span>
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">Workspace state</div>
+                  <h3>Readiness signals</h3>
+                </div>
+                <span class="item-meta">local</span>
               </div>
-              <div class="status-list">
-                <div class="status-row"><span>last index scan</span><span>{{ last_activity_at }}</span></div>
-                <div class="status-row"><span>pending files</span><span class="status-ok">all synced</span></div>
-                <div class="status-row"><span>errors</span><span>0</span></div>
+
+              <div class="system-grid">
+                <div class="system-row">
+                  <span class="item-meta">latest activity</span>
+                  <span class="item-meta">{{ last_activity_at }}</span>
+                </div>
+                <div class="system-row">
+                  <span class="item-meta">recent summary</span>
+                  <span class="item-meta">{{ latest_activity_summary }}</span>
+                </div>
+                <div class="system-row">
+                  <span class="item-meta">done tasks</span>
+                  <span class="item-meta">{{ done_task_count }}</span>
+                </div>
+                <div class="system-row">
+                  <span class="item-meta">scoped workspace</span>
+                  <span class="item-meta">{% if has_scope %}{{ scope_query }}{% else %}global{% endif %}</span>
+                </div>
               </div>
-              <div style="margin-top:10px;">
-                <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
-                  <button type="submit" style="width:100%;">rescan index</button>
-                </form>
-              </div>
+
+              <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
+                <button type="submit" style="width:100%;">Rescan workspace</button>
+              </form>
             </div>
           </section>
         </section>
         {% else %}
         <section class="panel no-project">
-          Select a project from the left sidebar to open its tasks and notes workspace.
+          <div class="empty-hero">
+            <div class="section-label">Workspace ready</div>
+            <h2>Select an initiative</h2>
+            <p>Choose a project from the left rail or create one to start building durable context for agents. The UI is meant to help you plan and inspect handoff quality, not just watch agents run.</p>
+          </div>
         </section>
         {% endif %}
       </main>

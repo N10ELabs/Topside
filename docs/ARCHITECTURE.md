@@ -5,7 +5,7 @@
 `n10e` is a single Rust binary with subcommands.
 
 `n10e serve` runs:
-- Axum HTTP server (dashboard + mutation endpoints)
+- Axum HTTP server (workspace UI + mutation endpoints)
 - stdio MCP server (JSON-RPC style tools)
 - filesystem watcher for incremental reindexing
 - SQLite index/search layer
@@ -33,9 +33,9 @@
 ## UI
 
 - Askama server-rendered templates.
-- htmx polling for partials:
+- htmx polling for workspace partials:
   - `/partials/tasks`
   - `/partials/notes`
   - `/partials/activity`
 - ETag support on partial endpoints.
-
+- The UI is designed as a local operator workbench for planning, context inspection, and agent handoff.

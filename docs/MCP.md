@@ -1,7 +1,7 @@
 # MCP / Tool Interface
 
 `n10e mcp` starts a dedicated stdio JSON-RPC endpoint with tool methods.
-`n10e serve` also starts MCP stdio alongside the HTTP dashboard.
+`n10e serve` also starts MCP stdio alongside the HTTP workspace UI.
 
 ## Supported tool names
 
