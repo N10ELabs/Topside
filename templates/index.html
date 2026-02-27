@@ -315,7 +315,6 @@
       place-items: center;
       padding: 0;
       opacity: 0;
-      pointer-events: none;
       transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
     }
 
@@ -325,10 +324,13 @@
       fill: currentColor;
     }
 
+    .project-card.active + .project-actions-btn {
+      opacity: 1;
+    }
+
     .project-row:hover .project-actions-btn,
     .project-row:focus-within .project-actions-btn {
       opacity: 1;
-      pointer-events: auto;
     }
 
     .project-actions-btn:hover,
@@ -616,7 +618,7 @@
       padding: 24px;
       background: rgba(4, 9, 14, 0.58);
       backdrop-filter: blur(8px);
-      z-index: 30;
+      z-index: 1200;
     }
 
     .overlay-shell.open {
@@ -994,6 +996,8 @@
 
       const projectMenuButton = event.target.closest("[data-project-menu-id]");
       if (projectMenuButton) {
+        event.preventDefault();
+        event.stopPropagation();
         openProjectSettings(projectMenuButton.dataset.projectMenuId);
         return;
       }
@@ -1235,14 +1239,17 @@
 
       const draftInput = event.target.closest("[data-task-draft-key]");
       if (draftInput && draftInput.tagName === "INPUT") {
-        const draft = getDraft(draftInput.dataset.taskDraftKey);
-        if (!draft) return;
-        if (draft.title.trim()) {
-          await commitDraftTask(draft);
-        } else {
+        const draftKey = draftInput.dataset.taskDraftKey;
+        window.setTimeout(async () => {
+          const draft = getDraft(draftKey);
+          if (!draft) return;
+          if (draft.title.trim()) {
+            await commitDraftTask(draft);
+            return;
+          }
           removeDraft(draft.key);
           render();
-        }
+        }, 0);
       }
 
       const noteTitle = event.target.closest("[data-note-title-id]");
@@ -1652,6 +1659,22 @@
           </button>
         </div>
       `).join("");
+
+      projectList.querySelectorAll("[data-project-menu-id]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openProjectSettings(button.dataset.projectMenuId);
+        });
+      });
+
+      projectList.querySelectorAll("[data-project-select-id]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await selectProject(button.dataset.projectSelectId);
+        });
+      });
     }
 
     function renderProjectSettings() {
