@@ -1063,6 +1063,11 @@
           return;
         }
 
+        if (action === "sync-project") {
+          await syncProjectFromSettings();
+          return;
+        }
+
         if (action === "archive-project") {
           await archiveProjectFromSettings();
           return;
@@ -1699,6 +1704,14 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
+                <div class="small-label">sync</div>
+              </div>
+              <div class="overlay-value">${escapeHtml(project.last_synced_at_label || "Never synced")}</div>
+              <div class="overlay-muted">${escapeHtml(project.last_sync_summary || syncSummaryFallback(sourceKind))}</div>
+              ${renderProjectSyncControls(sourceKind)}
+            </section>
+            <section class="overlay-section">
+              <div class="overlay-section-head">
                 <div class="small-label">danger</div>
               </div>
               <div class="overlay-inline-actions">
@@ -1770,6 +1783,25 @@
           ${sourceKind ? `<button class="text-btn" type="button" data-project-settings-action="unlink-source">unlink source</button>` : ""}
         </div>
       `;
+    }
+
+    function renderProjectSyncControls(sourceKind) {
+      if (sourceKind === "local") {
+        return `
+          <div class="overlay-inline-actions">
+            <button class="text-btn" type="button" data-project-settings-action="sync-project">sync project</button>
+          </div>
+        `;
+      }
+
+      return `<div class="disabled-note">${escapeHtml(syncSummaryFallback(sourceKind))}</div>`;
+    }
+
+    function syncSummaryFallback(sourceKind) {
+      if (sourceKind === "github") {
+        return "Phase 1 sync works with linked local folders. Connect a local project path to scan repo markdown files.";
+      }
+      return "Link a local project folder to enable manual sync from repo markdown files.";
     }
 
     function openProjectSettings(projectId) {
@@ -1941,6 +1973,23 @@
 
       applyUiState(response);
       closeProjectSettings();
+      render();
+    }
+
+    async function syncProjectFromSettings() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const response = await fetchJson(`/api/projects/${project.id}/sync`, {
+        method: "POST",
+        body: JSON.stringify({
+          current_project_id: state.selectedProjectId
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      state.projectSettingsMessage = "";
       render();
     }
 

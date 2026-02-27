@@ -11,7 +11,7 @@ use crate::activity::ActivityDraft;
 use crate::types::{
     ActivityItem, EntityFrontmatter, EntitySnapshot, EntityType, IndexedEntity, NoteItem,
     ParsedEntity, ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters,
-    TaskItem, TaskPriority, TaskStatus,
+    TaskItem, TaskPriority, TaskStatus, TaskSyncKind,
 };
 
 #[derive(Clone)]
@@ -185,8 +185,9 @@ impl Db {
                         r#"
                         INSERT INTO tasks (
                             id, project_id, status, priority, assignee, due_at, path, title,
-                            created_at, updated_at, revision, archived, sort_order, completed_at
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                            created_at, updated_at, revision, archived, sort_order, completed_at,
+                            sync_kind, sync_path, sync_key, sync_managed
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
                         ON CONFLICT(id) DO UPDATE SET
                             project_id = excluded.project_id,
                             status = excluded.status,
@@ -200,7 +201,11 @@ impl Db {
                             revision = excluded.revision,
                             archived = excluded.archived,
                             sort_order = excluded.sort_order,
-                            completed_at = excluded.completed_at
+                            completed_at = excluded.completed_at,
+                            sync_kind = excluded.sync_kind,
+                            sync_path = excluded.sync_path,
+                            sync_key = excluded.sync_key,
+                            sync_managed = excluded.sync_managed
                         "#,
                         params![
                             entity.id,
@@ -217,6 +222,10 @@ impl Db {
                             if entity.archived { 1 } else { 0 },
                             entity.sort_order,
                             entity.completed_at.map(|v| v.to_rfc3339()),
+                            entity.sync_kind.as_ref().map(TaskSyncKind::as_str),
+                            entity.sync_path,
+                            entity.sync_key,
+                            if entity.sync_managed { 1 } else { 0 },
                         ],
                     )?;
                     tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
@@ -226,15 +235,19 @@ impl Db {
                     tx.execute(
                         r#"
                         INSERT INTO projects (
-                            id, status, owner, source_kind, source_locator, path, title,
+                            id, status, owner, source_kind, source_locator, sync_source_key,
+                            last_synced_at, last_sync_summary, path, title,
                             created_at, updated_at, revision, archived
                         )
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                         ON CONFLICT(id) DO UPDATE SET
                             status = excluded.status,
                             owner = excluded.owner,
                             source_kind = excluded.source_kind,
                             source_locator = excluded.source_locator,
+                            sync_source_key = excluded.sync_source_key,
+                            last_synced_at = excluded.last_synced_at,
+                            last_sync_summary = excluded.last_sync_summary,
                             path = excluded.path,
                             title = excluded.title,
                             created_at = excluded.created_at,
@@ -248,6 +261,9 @@ impl Db {
                             entity.owner,
                             entity.source_kind.as_ref().map(ProjectSourceKind::as_str),
                             entity.source_locator,
+                            entity.sync_source_key,
+                            entity.last_synced_at.map(|v| v.to_rfc3339()),
+                            entity.last_sync_summary,
                             path,
                             entity.title,
                             entity.created_at.to_rfc3339(),
@@ -404,7 +420,8 @@ impl Db {
             let mut stmt = conn.prepare(
                 r#"
                 SELECT id, title, project_id, status, priority, assignee, due_at, created_at,
-                       sort_order, completed_at, path, updated_at, revision, archived
+                       sort_order, completed_at, sync_kind, sync_path, sync_key, sync_managed,
+                       path, updated_at, revision, archived
                 FROM tasks
                 WHERE (?1 IS NULL OR status = ?1)
                   AND (?2 IS NULL OR priority = ?2)
@@ -441,7 +458,12 @@ impl Db {
                         .get::<_, Option<String>>(9)?
                         .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
                         .map(|v| v.with_timezone(&Utc));
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(11)?)
+                    let sync_kind = row
+                        .get::<_, Option<String>>(10)?
+                        .map(|value| parse_task_sync_kind(&value))
+                        .transpose()
+                        .map_err(to_sql_err)?;
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(15)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
 
@@ -456,10 +478,14 @@ impl Db {
                         created_at,
                         sort_order: row.get(8)?,
                         completed_at,
-                        path: row.get(10)?,
+                        sync_kind,
+                        sync_path: row.get(11)?,
+                        sync_key: row.get(12)?,
+                        sync_managed: row.get::<_, i64>(13)? != 0,
+                        path: row.get(14)?,
                         updated_at,
-                        revision: row.get(12)?,
-                        archived: row.get::<_, i64>(13)? != 0,
+                        revision: row.get(16)?,
+                        archived: row.get::<_, i64>(17)? != 0,
                     })
                 },
             )?;
@@ -514,7 +540,8 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, title, status, owner, source_kind, source_locator, path, updated_at, revision, archived
+                SELECT id, title, status, owner, source_kind, source_locator, sync_source_key,
+                       last_synced_at, last_sync_summary, path, updated_at, revision, archived
                 FROM projects
                 WHERE (?1 = 1 OR archived = 0)
                 ORDER BY updated_at DESC
@@ -525,9 +552,13 @@ impl Db {
             let rows = stmt.query_map(
                 params![if include_archived { 1 } else { 0 }, limit as i64],
                 |row| {
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(10)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
+                    let last_synced_at = row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
                     Ok(ProjectItem {
                         id: row.get(0)?,
                         title: row.get(1)?,
@@ -539,10 +570,13 @@ impl Db {
                             .transpose()
                             .map_err(to_sql_err)?,
                         source_locator: row.get(5)?,
-                        path: row.get(6)?,
+                        sync_source_key: row.get(6)?,
+                        last_synced_at,
+                        last_sync_summary: row.get(8)?,
+                        path: row.get(9)?,
                         updated_at,
-                        revision: row.get(8)?,
-                        archived: row.get::<_, i64>(9)? != 0,
+                        revision: row.get(11)?,
+                        archived: row.get::<_, i64>(12)? != 0,
                     })
                 },
             )?;
@@ -770,6 +804,11 @@ fn parse_task_priority(value: &str) -> Result<TaskPriority> {
     serde_json::from_str::<TaskPriority>(&encoded).context("invalid task priority value in sqlite")
 }
 
+fn parse_task_sync_kind(value: &str) -> Result<TaskSyncKind> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<TaskSyncKind>(&encoded).context("invalid task sync kind value in sqlite")
+}
+
 fn parse_project_source_kind(value: &str) -> Result<ProjectSourceKind> {
     let encoded = format!("\"{}\"", value);
     serde_json::from_str::<ProjectSourceKind>(&encoded)
@@ -787,6 +826,7 @@ fn to_sql_err(err: anyhow::Error) -> rusqlite::Error {
 fn apply_migration(conn: &mut Connection, name: &str, sql: &str) -> Result<()> {
     match name {
         "002_project_sources_and_task_order" => apply_project_source_and_task_order_migration(conn),
+        "003_project_and_task_sync_metadata" => apply_project_and_task_sync_migration(conn),
         _ => conn.execute_batch(sql).map_err(Into::into),
     }
 }
@@ -808,6 +848,39 @@ fn apply_project_source_and_task_order_migration(conn: &mut Connection) -> Resul
         r#"
         CREATE INDEX IF NOT EXISTS idx_tasks_project_sort_order ON tasks(project_id, sort_order);
         CREATE INDEX IF NOT EXISTS idx_tasks_project_completed_at ON tasks(project_id, completed_at);
+        "#,
+    )?;
+    Ok(())
+}
+
+fn apply_project_and_task_sync_migration(conn: &mut Connection) -> Result<()> {
+    if !has_column(conn, "tasks", "sync_kind")? {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN sync_kind TEXT;")?;
+    }
+    if !has_column(conn, "tasks", "sync_path")? {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN sync_path TEXT;")?;
+    }
+    if !has_column(conn, "tasks", "sync_key")? {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN sync_key TEXT;")?;
+    }
+    if !has_column(conn, "tasks", "sync_managed")? {
+        conn.execute_batch(
+            "ALTER TABLE tasks ADD COLUMN sync_managed INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    if !has_column(conn, "projects", "sync_source_key")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN sync_source_key TEXT;")?;
+    }
+    if !has_column(conn, "projects", "last_synced_at")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN last_synced_at TEXT;")?;
+    }
+    if !has_column(conn, "projects", "last_sync_summary")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN last_sync_summary TEXT;")?;
+    }
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_sync_key ON tasks(project_id, sync_path, sync_key);
+        CREATE INDEX IF NOT EXISTS idx_projects_sync_source_key ON projects(sync_source_key);
         "#,
     )?;
     Ok(())
@@ -871,7 +944,11 @@ const MIGRATIONS: &[(&str, &str)] = &[
         revision TEXT NOT NULL,
         archived INTEGER NOT NULL DEFAULT 0,
         sort_order INTEGER NOT NULL DEFAULT 0,
-        completed_at TEXT
+        completed_at TEXT,
+        sync_kind TEXT,
+        sync_path TEXT,
+        sync_key TEXT,
+        sync_managed INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS projects (
@@ -880,6 +957,9 @@ const MIGRATIONS: &[(&str, &str)] = &[
         owner TEXT,
         source_kind TEXT,
         source_locator TEXT,
+        sync_source_key TEXT,
+        last_synced_at TEXT,
+        last_sync_summary TEXT,
         path TEXT NOT NULL,
         title TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -939,11 +1019,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
     CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_project_sort_order ON tasks(project_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_tasks_project_completed_at ON tasks(project_id, completed_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_sync_key ON tasks(project_id, sync_path, sync_key);
+    CREATE INDEX IF NOT EXISTS idx_projects_sync_source_key ON projects(sync_source_key);
     CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
     CREATE INDEX IF NOT EXISTS idx_activity_occurred_at ON activity_events(occurred_at);
     "#,
     ),
     ("002_project_sources_and_task_order", ""),
+    ("003_project_and_task_sync_metadata", ""),
 ];
 
 #[allow(dead_code)]

@@ -12,11 +12,12 @@ use crate::db::{Db, StoredEntityRecord};
 use crate::git::read_git_context;
 use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
+use crate::repo_sync::{derive_sync_source_key, render_synced_task_body, scan_repo_todo_files};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
     EntitySnapshot, EntityType, NoteDetail, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
     ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult,
-    TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus,
+    TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus, TaskSyncKind,
 };
 
 #[derive(Debug, Error)]
@@ -206,6 +207,10 @@ impl AppService {
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
                 sort_order: Some((ordered_active_ids.len() + 1) as i64),
+                sync_kind: None,
+                sync_path: None,
+                sync_key: None,
+                sync_managed: None,
                 tags: None,
                 body: None,
             },
@@ -255,6 +260,10 @@ impl AppService {
             .join(format!("{id}-{title_slug}.md"));
         self.config.ensure_within_workspace(&path)?;
 
+        let sync_source_key = match (&payload.source_kind, &payload.source_locator) {
+            (Some(kind), Some(locator)) => Some(derive_sync_source_key(kind.as_str(), locator)),
+            _ => None,
+        };
         let mut fm = EntityFrontmatter::Project(ProjectFrontmatter {
             id: id.clone(),
             entity_type: EntityType::Project,
@@ -263,6 +272,9 @@ impl AppService {
             owner: payload.owner,
             source_kind: payload.source_kind,
             source_locator: payload.source_locator,
+            sync_source_key,
+            last_synced_at: None,
+            last_sync_summary: None,
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -314,19 +326,30 @@ impl AppService {
             .join(format!("{id}-{title_slug}.md"));
         self.config.ensure_within_workspace(&path)?;
 
+        let status = payload.status.unwrap_or_default();
+        let completed_at = if status == TaskStatus::Done {
+            Some(now)
+        } else {
+            None
+        };
+
         let mut fm = EntityFrontmatter::Task(TaskFrontmatter {
             id: id.clone(),
             entity_type: EntityType::Task,
             title: payload.title,
             project_id: payload.project_id,
-            status: payload.status.unwrap_or_default(),
+            status,
             priority: payload.priority.unwrap_or_default(),
             assignee: payload
                 .assignee
                 .unwrap_or_else(|| "agent:unassigned".to_string()),
             due_at: payload.due_at,
             sort_order: next_sort_order,
-            completed_at: None,
+            completed_at,
+            sync_kind: payload.sync_kind,
+            sync_path: payload.sync_path,
+            sync_key: payload.sync_key,
+            sync_managed: payload.sync_managed.unwrap_or(false),
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -588,6 +611,15 @@ impl AppService {
         if let Some(value) = patch.source_locator {
             frontmatter.source_locator = value;
         }
+        if let Some(value) = patch.sync_source_key {
+            frontmatter.sync_source_key = value;
+        }
+        if let Some(value) = patch.last_synced_at {
+            frontmatter.last_synced_at = value;
+        }
+        if let Some(value) = patch.last_sync_summary {
+            frontmatter.last_sync_summary = value;
+        }
         if let Some(value) = patch.tags {
             frontmatter.tags = Some(value);
         }
@@ -620,6 +652,156 @@ impl AppService {
             .read_entity_snapshot(id)?
             .context("updated project not found after indexing")
             .map_err(ServiceError::Other)
+    }
+
+    pub fn sync_project_from_source(
+        &self,
+        project_id: &str,
+        actor: Actor,
+    ) -> Result<ProjectSyncReport, ServiceError> {
+        let project = self
+            .list_projects(200, false)?
+            .into_iter()
+            .find(|item| item.id == project_id)
+            .with_context(|| format!("project {project_id} not found"))?;
+
+        let source_kind = project
+            .source_kind
+            .clone()
+            .with_context(|| "project has no linked source")?;
+        if source_kind != crate::types::ProjectSourceKind::Local {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "phase 1 sync is only available for linked local folders"
+            )));
+        }
+
+        let source_locator = project
+            .source_locator
+            .clone()
+            .with_context(|| "project has no linked source path")?;
+        let source_root = PathBuf::from(&source_locator);
+        if !source_root.is_dir() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked source path is not a directory"
+            )));
+        }
+
+        let scan = scan_repo_todo_files(&source_root)?;
+        let existing_tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+
+        let mut existing_by_sync = std::collections::HashMap::new();
+        for task in existing_tasks {
+            if task.sync_managed
+                && task.sync_kind == Some(TaskSyncKind::RepoMarkdown)
+                && task.sync_path.is_some()
+                && task.sync_key.is_some()
+            {
+                existing_by_sync.insert(
+                    (
+                        task.sync_path.clone().unwrap_or_default(),
+                        task.sync_key.clone().unwrap_or_default(),
+                    ),
+                    task,
+                );
+            }
+        }
+
+        let mut created = 0usize;
+        let mut updated = 0usize;
+
+        for candidate in &scan.task_candidates {
+            let desired_status = if candidate.completed {
+                TaskStatus::Done
+            } else {
+                TaskStatus::Todo
+            };
+            let match_key = (candidate.relative_path.clone(), candidate.sync_key.clone());
+
+            if let Some(existing) = existing_by_sync.get(&match_key) {
+                let mut patch = TaskPatch::default();
+                let mut changed = false;
+
+                if existing.title != candidate.title {
+                    patch.title = Some(candidate.title.clone());
+                    changed = true;
+                }
+                if existing.status != desired_status {
+                    patch.status = Some(desired_status);
+                    changed = true;
+                }
+
+                if changed {
+                    self.update_task(&existing.id, patch, &existing.revision, actor.clone())?;
+                    updated += 1;
+                }
+                continue;
+            }
+
+            self.create_task(
+                CreateTaskPayload {
+                    title: candidate.title.clone(),
+                    project_id: project_id.to_string(),
+                    status: Some(desired_status),
+                    priority: Some(TaskPriority::P2),
+                    assignee: Some("agent:unassigned".to_string()),
+                    due_at: None,
+                    sort_order: None,
+                    sync_kind: Some(TaskSyncKind::RepoMarkdown),
+                    sync_path: Some(candidate.relative_path.clone()),
+                    sync_key: Some(candidate.sync_key.clone()),
+                    sync_managed: Some(true),
+                    tags: None,
+                    body: Some(render_synced_task_body(
+                        &candidate.relative_path,
+                        &candidate.section_path,
+                    )),
+                },
+                actor.clone(),
+            )?;
+            created += 1;
+        }
+
+        let synced_at = Utc::now();
+        let summary = format!(
+            "Scanned {} file(s), found {} repo task(s): {} created, {} updated.",
+            scan.files_scanned,
+            scan.task_candidates.len(),
+            created,
+            updated
+        );
+        let source_key = derive_sync_source_key(source_kind.as_str(), &source_locator);
+
+        let project_snapshot = self
+            .read_entity(project_id)?
+            .context("project not found during sync")?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                sync_source_key: Some(Some(source_key)),
+                last_synced_at: Some(Some(synced_at)),
+                last_sync_summary: Some(Some(summary.clone())),
+                ..ProjectPatch::default()
+            },
+            &project_snapshot.revision,
+            actor,
+        )?;
+
+        Ok(ProjectSyncReport {
+            project_id: project_id.to_string(),
+            files_scanned: scan.files_scanned,
+            tasks_found: scan.task_candidates.len(),
+            created,
+            updated,
+            synced_at,
+            summary,
+        })
     }
 
     pub fn archive_entity(
@@ -793,6 +975,17 @@ struct EntityActivityMeta<'a> {
     before_revision: Option<String>,
     after_revision: Option<String>,
     summary: &'a str,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectSyncReport {
+    pub project_id: String,
+    pub files_scanned: usize,
+    pub tasks_found: usize,
+    pub created: usize,
+    pub updated: usize,
+    pub synced_at: chrono::DateTime<Utc>,
+    pub summary: String,
 }
 
 fn split_task(frontmatter: EntityFrontmatter, body: String) -> Result<(TaskFrontmatter, String)> {

@@ -16,7 +16,8 @@ V0 foundation implemented:
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
 - Immutable activity event logging with git context
 - Three-pane workspace UI: projects, inline to-do, and notes
-- Linked project sources for local folders and GitHub repos (metadata only)
+- Linked project sources for local folders and GitHub repos
+- Manual Phase 1 repo sync from linked local folders by scanning `to-do.md` checklist files into `n10e` tasks
 - MCP stdio JSON-RPC tool surface (curated core)
 
 ## Install

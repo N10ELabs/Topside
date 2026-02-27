@@ -95,9 +95,22 @@ impl Indexer {
             due_at: parsed.frontmatter.due_at(),
             sort_order: parsed.frontmatter.sort_order().unwrap_or_default(),
             completed_at: parsed.frontmatter.completed_at(),
+            sync_kind: parsed.frontmatter.sync_kind(),
+            sync_path: parsed.frontmatter.sync_path().map(ToString::to_string),
+            sync_key: parsed.frontmatter.sync_key().map(ToString::to_string),
+            sync_managed: parsed.frontmatter.sync_managed().unwrap_or(false),
             owner: parsed.frontmatter.owner().map(ToString::to_string),
             source_kind: parsed.frontmatter.source_kind(),
             source_locator: parsed.frontmatter.source_locator().map(ToString::to_string),
+            sync_source_key: parsed
+                .frontmatter
+                .sync_source_key()
+                .map(ToString::to_string),
+            last_synced_at: parsed.frontmatter.last_synced_at(),
+            last_sync_summary: parsed
+                .frontmatter
+                .last_sync_summary()
+                .map(ToString::to_string),
             tags,
             created_at: parsed.frontmatter.created_at(),
             updated_at: parsed.frontmatter.updated_at(),

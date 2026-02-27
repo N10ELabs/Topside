@@ -151,6 +151,18 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
             if let Some(completed_at) = task.completed_at {
                 out.push_str(&format!("completed_at: {}\n", completed_at.to_rfc3339()));
             }
+            if let Some(sync_kind) = &task.sync_kind {
+                out.push_str(&format!("sync_kind: {}\n", sync_kind.as_str()));
+            }
+            if let Some(sync_path) = &task.sync_path {
+                out.push_str(&format!("sync_path: {}\n", yaml_scalar(sync_path)));
+            }
+            if let Some(sync_key) = &task.sync_key {
+                out.push_str(&format!("sync_key: {}\n", yaml_scalar(sync_key)));
+            }
+            if task.sync_managed {
+                out.push_str("sync_managed: true\n");
+            }
             render_tags(&mut out, task.tags.as_ref());
             out.push_str(&format!("created_at: {}\n", task.created_at.to_rfc3339()));
             out.push_str(&format!("updated_at: {}\n", task.updated_at.to_rfc3339()));
@@ -175,6 +187,24 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
                 out.push_str(&format!(
                     "source_locator: {}\n",
                     yaml_scalar(source_locator)
+                ));
+            }
+            if let Some(sync_source_key) = &project.sync_source_key {
+                out.push_str(&format!(
+                    "sync_source_key: {}\n",
+                    yaml_scalar(sync_source_key)
+                ));
+            }
+            if let Some(last_synced_at) = project.last_synced_at {
+                out.push_str(&format!(
+                    "last_synced_at: {}\n",
+                    last_synced_at.to_rfc3339()
+                ));
+            }
+            if let Some(last_sync_summary) = &project.last_sync_summary {
+                out.push_str(&format!(
+                    "last_sync_summary: {}\n",
+                    yaml_scalar(last_sync_summary)
                 ));
             }
             render_tags(&mut out, project.tags.as_ref());
@@ -253,6 +283,10 @@ mod tests {
             due_at: None,
             sort_order: 1,
             completed_at: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: false,
             tags: Some(vec!["alpha".to_string()]),
             created_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
             updated_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),

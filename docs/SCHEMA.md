@@ -20,6 +20,10 @@ Optional:
 - `due_at` (UTC ISO-8601)
 - `sort_order` (manual ordering for active task lists)
 - `completed_at` (UTC ISO-8601 completion timestamp)
+- `sync_kind` (`repo_markdown`)
+- `sync_path` (repo-relative source file path)
+- `sync_key` (stable sync identity for the imported item)
+- `sync_managed` (`true` for repo-imported tasks)
 - `tags` (list)
 
 ## Project
@@ -37,6 +41,9 @@ Optional:
 - `owner`
 - `source_kind` (`local|github`)
 - `source_locator` (linked folder path or GitHub repo URL)
+- `sync_source_key` (derived machine-facing sync source identity)
+- `last_synced_at` (UTC ISO-8601)
+- `last_sync_summary` (latest manual sync result)
 - `tags`
 
 ## Note

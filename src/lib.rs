@@ -10,5 +10,6 @@ pub mod http;
 pub mod indexer;
 pub mod markdown;
 pub mod mcp;
+pub mod repo_sync;
 pub mod service;
 pub mod types;

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::PollConfig;
 use crate::markdown::render_markdown_html;
+use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ServiceError};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectPatch,
@@ -33,6 +34,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/projects", get(api_projects).post(api_create_project))
         .route("/api/projects/{id}", patch(api_update_project))
         .route("/api/projects/{id}/archive", post(api_archive_project))
+        .route("/api/projects/{id}/sync", post(api_sync_project))
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/{id}", patch(api_update_task))
@@ -79,6 +81,8 @@ struct ProjectSummary {
     revision: String,
     source_kind: Option<String>,
     source_locator: Option<String>,
+    last_synced_at_label: Option<String>,
+    last_sync_summary: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -188,6 +192,11 @@ struct ExpectedRevisionRequest {
 #[derive(Debug, Deserialize)]
 struct OpenPathRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SyncProjectRequest {
+    current_project_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -332,6 +341,21 @@ async fn api_archive_project(
 
     let payload = build_ui_state_payload(&state.service, request.current_project_id)
         .map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_sync_project(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<SyncProjectRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .sync_project_from_source(&id, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -550,6 +574,9 @@ fn project_patch_from_request(request: &UpdateProjectRequest) -> Result<ProjectP
     if request.clear_source {
         patch.source_kind = Some(None);
         patch.source_locator = Some(None);
+        patch.sync_source_key = Some(None);
+        patch.last_synced_at = Some(None);
+        patch.last_sync_summary = Some(None);
         return Ok(patch);
     }
 
@@ -561,11 +588,19 @@ fn project_patch_from_request(request: &UpdateProjectRequest) -> Result<ProjectP
             "local" => {
                 let canonical = canonicalize_local_source(&locator)?;
                 patch.source_kind = Some(Some(ProjectSourceKind::Local));
-                patch.source_locator = Some(Some(canonical.to_string_lossy().to_string()));
+                let canonical_string = canonical.to_string_lossy().to_string();
+                patch.source_locator = Some(Some(canonical_string.clone()));
+                patch.sync_source_key =
+                    Some(Some(derive_sync_source_key("local", &canonical_string)));
+                patch.last_synced_at = Some(None);
+                patch.last_sync_summary = Some(None);
             }
             "github" => {
                 patch.source_kind = Some(Some(ProjectSourceKind::Github));
+                patch.sync_source_key = Some(Some(derive_sync_source_key("github", &locator)));
                 patch.source_locator = Some(Some(locator));
+                patch.last_synced_at = Some(None);
+                patch.last_sync_summary = Some(None);
             }
             other => return Err(format!("unsupported source_kind: {other}")),
         }
@@ -609,6 +644,8 @@ fn map_project_summary(project: ProjectItem) -> ProjectSummary {
         revision: project.revision,
         source_kind: project.source_kind.map(|kind| kind.as_str().to_string()),
         source_locator: project.source_locator,
+        last_synced_at_label: project.last_synced_at.map(format_timestamp),
+        last_sync_summary: project.last_sync_summary,
     }
 }
 

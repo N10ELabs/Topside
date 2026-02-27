@@ -8,7 +8,7 @@ use axum::http::{Request, StatusCode, header};
 use tower::util::ServiceExt;
 
 use n10e::http::{WebState, router};
-use n10e::types::{Actor, CreateProjectPayload};
+use n10e::types::{Actor, CreateProjectPayload, ProjectSourceKind, TaskFilters, TaskStatus};
 
 #[tokio::test]
 async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
@@ -268,6 +268,71 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
 
     assert!(service.list_projects(10, false)?.is_empty());
     assert_eq!(service.list_projects(10, true)?.len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn project_sync_endpoint_imports_repo_tasks() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    std::fs::write(
+        repo_root.path().join("to-do.md"),
+        "# Launch\n- [ ] Pick a name\n- [x] Ship alpha\n",
+    )?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Sync HTTP Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        poll: service.config.poll.clone(),
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let sync_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/projects/{}/sync", project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"current_project_id\":\"{}\"}}",
+                    project.id
+                )))?,
+        )
+        .await?;
+    assert_eq!(sync_response.status(), StatusCode::OK);
+
+    let sync_body = to_bytes(sync_response.into_body(), usize::MAX).await?;
+    let sync_json = String::from_utf8(sync_body.to_vec())?;
+    assert!(sync_json.contains("Scanned 1 file(s), found 2 repo task(s)"));
+
+    let tasks = service.list_tasks(&TaskFilters {
+        status: None,
+        priority: None,
+        project_id: Some(project.id.clone()),
+        assignee: None,
+        include_archived: false,
+        limit: Some(20),
+    })?;
+    assert_eq!(tasks.len(), 2);
+    assert!(
+        tasks
+            .iter()
+            .any(|task| task.title == "Ship alpha" && task.status == TaskStatus::Done)
+    );
 
     Ok(())
 }
