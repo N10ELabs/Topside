@@ -18,6 +18,8 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
         CreateProjectPayload {
             title: "Alpha Project".to_string(),
             owner: Some("human:anthony".to_string()),
+            source_kind: None,
+            source_locator: None,
             tags: Some(vec!["alpha".to_string()]),
             body: Some("Project bootstrap".to_string()),
         },
@@ -45,6 +47,7 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
             priority: None,
             assignee: Some("agent:codex".to_string()),
             due_at: None,
+            sort_order: None,
             tags: Some(vec!["integration".to_string()]),
             body: Some(format!("Task references note [[note:{}]].", note.id)),
         },
@@ -138,6 +141,8 @@ fn reindex_skips_malformed_frontmatter_but_keeps_valid_files() -> Result<()> {
         CreateProjectPayload {
             title: "Valid Project".to_string(),
             owner: None,
+            source_kind: None,
+            source_locator: None,
             tags: None,
             body: Some("valid".to_string()),
         },
@@ -171,7 +176,7 @@ fn migrations_are_forward_only_and_idempotent() -> Result<()> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
         row.get(0)
     })?;
-    assert_eq!(count, 1);
+    assert_eq!(count, 2);
 
     Ok(())
 }

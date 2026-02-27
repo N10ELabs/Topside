@@ -14,9 +14,9 @@ use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
-    EntitySnapshot, EntityType, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
-    ProjectFrontmatter, ProjectStatus, SearchFilters, SearchResult, TaskFilters, TaskFrontmatter,
-    TaskItem, TaskPatch, TaskPriority, TaskStatus,
+    EntitySnapshot, EntityType, NoteDetail, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
+    ProjectFrontmatter, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult, TaskFilters,
+    TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus,
 };
 
 #[derive(Debug, Error)]
@@ -114,6 +114,133 @@ impl AppService {
         self.db.list_recent_activity(since, limit)
     }
 
+    pub fn load_project_workspace(&self, project_id: &str) -> Result<ProjectWorkspace> {
+        let project = self
+            .list_projects(200, false)?
+            .into_iter()
+            .find(|item| item.id == project_id)
+            .with_context(|| format!("project {project_id} not found"))?;
+
+        let mut tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(500),
+        })?;
+
+        let mut active_tasks = Vec::new();
+        let mut done_tasks = Vec::new();
+        for task in tasks.drain(..) {
+            if task.status == TaskStatus::Done {
+                done_tasks.push(task);
+            } else {
+                active_tasks.push(task);
+            }
+        }
+
+        active_tasks.sort_by(|left, right| {
+            effective_task_sort_order(left)
+                .cmp(&effective_task_sort_order(right))
+                .then(left.created_at.cmp(&right.created_at))
+        });
+        done_tasks.sort_by(|left, right| {
+            effective_completed_at(right)
+                .cmp(&effective_completed_at(left))
+                .then(right.updated_at.cmp(&left.updated_at))
+        });
+
+        let mut notes = self.list_notes(200, false)?;
+        notes.retain(|note| note.project_id.as_deref() == Some(project_id));
+
+        let mut note_details = Vec::new();
+        for note in notes {
+            let Some(snapshot) = self.read_entity(&note.id)? else {
+                continue;
+            };
+            note_details.push(NoteDetail {
+                id: snapshot.id,
+                title: snapshot.title,
+                project_id: snapshot.frontmatter.project_id().map(ToString::to_string),
+                body: snapshot.body,
+                path: snapshot.path,
+                updated_at: snapshot.frontmatter.updated_at(),
+                revision: snapshot.revision,
+                archived: snapshot.archived,
+            });
+        }
+        note_details.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+
+        let suggested_open_note_id = note_details.first().map(|note| note.id.clone());
+
+        Ok(ProjectWorkspace {
+            project,
+            active_tasks,
+            done_tasks,
+            notes: note_details,
+            suggested_open_note_id,
+        })
+    }
+
+    pub fn create_task_after(
+        &self,
+        project_id: &str,
+        title: String,
+        after_task_id: Option<&str>,
+        actor: Actor,
+    ) -> Result<(ProjectWorkspace, String), ServiceError> {
+        let ordered_active_ids = self
+            .load_project_workspace(project_id)?
+            .active_tasks
+            .into_iter()
+            .map(|task| task.id)
+            .collect::<Vec<_>>();
+
+        let created = self.create_task(
+            CreateTaskPayload {
+                title,
+                project_id: project_id.to_string(),
+                status: Some(TaskStatus::Todo),
+                priority: Some(TaskPriority::P2),
+                assignee: Some("agent:unassigned".to_string()),
+                due_at: None,
+                sort_order: Some((ordered_active_ids.len() + 1) as i64),
+                tags: None,
+                body: None,
+            },
+            actor,
+        )?;
+
+        if let Some(after_task_id) = after_task_id {
+            let mut ordered_ids = ordered_active_ids;
+            let insert_at = ordered_ids
+                .iter()
+                .position(|id| id == after_task_id)
+                .map(|index| index + 1)
+                .unwrap_or(ordered_ids.len());
+            ordered_ids.insert(insert_at, created.id.clone());
+            self.reorder_project_tasks_internal(project_id, &ordered_ids, None)?;
+        }
+
+        Ok((
+            self.load_project_workspace(project_id)
+                .map_err(ServiceError::Other)?,
+            created.id,
+        ))
+    }
+
+    pub fn reorder_project_tasks(
+        &self,
+        project_id: &str,
+        ordered_active_task_ids: &[String],
+        actor: Actor,
+    ) -> Result<ProjectWorkspace, ServiceError> {
+        self.reorder_project_tasks_internal(project_id, ordered_active_task_ids, Some(actor))?;
+        self.load_project_workspace(project_id)
+            .map_err(ServiceError::Other)
+    }
+
     pub fn create_project(
         &self,
         payload: CreateProjectPayload,
@@ -134,6 +261,8 @@ impl AppService {
             title: payload.title,
             status: ProjectStatus::Active,
             owner: payload.owner,
+            source_kind: payload.source_kind,
+            source_locator: payload.source_locator,
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -170,6 +299,10 @@ impl AppService {
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
         self.ensure_project_exists(&payload.project_id)?;
+        let next_sort_order = match payload.sort_order {
+            Some(sort_order) => sort_order,
+            None => self.next_task_sort_order(&payload.project_id)?,
+        };
 
         let now = Utc::now();
         let id = format!("{}_{}", EntityType::Task.prefix(), Ulid::new());
@@ -192,6 +325,8 @@ impl AppService {
                 .assignee
                 .unwrap_or_else(|| "agent:unassigned".to_string()),
             due_at: payload.due_at,
+            sort_order: next_sort_order,
+            completed_at: None,
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -302,6 +437,11 @@ impl AppService {
             frontmatter.title = value;
         }
         if let Some(value) = patch.status {
+            if value == TaskStatus::Done && frontmatter.status != TaskStatus::Done {
+                frontmatter.completed_at = Some(Utc::now());
+            } else if value != TaskStatus::Done && frontmatter.status == TaskStatus::Done {
+                frontmatter.completed_at = None;
+            }
             frontmatter.status = value;
         }
         if let Some(value) = patch.priority {
@@ -312,6 +452,9 @@ impl AppService {
         }
         if let Some(value) = patch.due_at {
             frontmatter.due_at = parse_optional_datetime(&value)?;
+        }
+        if let Some(value) = patch.sort_order {
+            frontmatter.sort_order = value;
         }
         if let Some(value) = patch.tags {
             frontmatter.tags = Some(value);
@@ -470,6 +613,75 @@ impl AppService {
             .map_err(ServiceError::Other)
     }
 
+    fn next_task_sort_order(&self, project_id: &str) -> Result<i64, ServiceError> {
+        let workspace = self.load_project_workspace(project_id)?;
+        let next = workspace
+            .active_tasks
+            .iter()
+            .map(effective_task_sort_order)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        Ok(next)
+    }
+
+    fn reorder_project_tasks_internal(
+        &self,
+        project_id: &str,
+        ordered_active_task_ids: &[String],
+        actor: Option<Actor>,
+    ) -> Result<(), ServiceError> {
+        self.ensure_project_exists(project_id)?;
+        let workspace = self.load_project_workspace(project_id)?;
+        let expected = workspace
+            .active_tasks
+            .iter()
+            .map(|task| task.id.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        let provided = ordered_active_task_ids
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+
+        if expected != provided {
+            return Err(anyhow::anyhow!("reorder payload did not match active task set").into());
+        }
+
+        let now = Utc::now();
+        for (index, task_id) in ordered_active_task_ids.iter().enumerate() {
+            let (record, parsed) = self
+                .db
+                .parse_entity_from_disk(task_id)?
+                .context("task not found during reorder")?;
+            let (mut frontmatter, body) = split_task(parsed.frontmatter, parsed.body)?;
+            frontmatter.sort_order = (index as i64) + 1;
+            frontmatter.updated_at = now;
+            let mut entity = EntityFrontmatter::Task(frontmatter);
+            let rendered = render_entity_markdown(&mut entity, &body)?;
+            atomic_write(&record.path, &rendered)?;
+            self.indexer.index_file(&record.path)?;
+        }
+
+        if let Some(actor) = actor {
+            let project = workspace.project;
+            let project_path = PathBuf::from(project.path);
+            self.record_entity_activity(
+                actor,
+                EntityActivityMeta {
+                    action: "reorder_tasks",
+                    entity_type: EntityType::Project,
+                    entity_id: &project.id,
+                    path: &project_path,
+                    before_revision: None,
+                    after_revision: None,
+                    summary: "Reordered project tasks",
+                },
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn ensure_project_exists(&self, project_id: &str) -> Result<()> {
         let record = self
             .db
@@ -528,6 +740,18 @@ fn split_note(frontmatter: EntityFrontmatter, body: String) -> Result<(NoteFront
     }
 }
 
+fn effective_task_sort_order(task: &TaskItem) -> i64 {
+    if task.sort_order > 0 {
+        task.sort_order
+    } else {
+        task.created_at.timestamp_millis()
+    }
+}
+
+fn effective_completed_at(task: &TaskItem) -> chrono::DateTime<Utc> {
+    task.completed_at.unwrap_or(task.updated_at)
+}
+
 fn slugify(value: &str) -> String {
     let mut slug = value
         .to_lowercase()
@@ -539,7 +763,12 @@ fn slugify(value: &str) -> String {
         slug = slug.replace("--", "-");
     }
 
-    slug.trim_matches('-').chars().take(64).collect()
+    let slug = slug.trim_matches('-').chars().take(64).collect::<String>();
+    if slug.is_empty() {
+        "untitled".to_string()
+    } else {
+        slug
+    }
 }
 
 fn atomic_write(path: &Path, content: &str) -> Result<()> {

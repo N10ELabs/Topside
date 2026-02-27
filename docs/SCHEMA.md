@@ -18,6 +18,8 @@ Required fields:
 
 Optional:
 - `due_at` (UTC ISO-8601)
+- `sort_order` (manual ordering for active task lists)
+- `completed_at` (UTC ISO-8601 completion timestamp)
 - `tags` (list)
 
 ## Project
@@ -33,6 +35,8 @@ Required:
 
 Optional:
 - `owner`
+- `source_kind` (`local|github`)
+- `source_locator` (linked folder path or GitHub repo URL)
 - `tags`
 
 ## Note
@@ -57,4 +61,3 @@ Entity relationships in body markdown use wiki-style links:
 - `[[note:NOTE_ID]]`
 
 Backlinks are indexed into SQLite `entity_links`.
-

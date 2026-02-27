@@ -13,7 +13,7 @@ The product is not trying to win by becoming the loudest orchestration dashboard
 - agents get a curated MCP surface for reading and mutating that context safely
 - every mutation leaves an immutable activity trail with git context
 
-The UI exists to help a human plan, inspect, and hand off work alongside agents.
+The UI exists to help a human keep project context simple, shared, and fast to pick up alongside agents.
 
 ## Core Promise
 
@@ -21,7 +21,7 @@ If a human plans a project in `n10e`, any compatible agent should be able to pic
 
 ## Product Pillars
 
-- Planning surface: turn intent into projects, tasks, and notes quickly.
+- Planning surface: turn intent into a simple project list, task list, and notes quickly.
 - Shared memory: keep context durable, local, and inspectable outside any single vendor UI.
 - Safe coordination: use optimistic locking, archive-only deletion, and append-only activity.
 - Fast retrieval: keep search and entity reads fast enough to feel ambient during agent workflows.
@@ -37,13 +37,13 @@ If a human plans a project in `n10e`, any compatible agent should be able to pic
 
 ## UI Direction
 
-The UI should read as an operator workbench, not a generic analytics dashboard.
+The UI should read as a calm shared knowledge hub, not a dashboard.
 
-- foreground project intent and handoff readiness
-- make active tasks, context notes, and live activity visible at once
-- surface agent ownership clearly
-- preserve low-latency interactions with minimal chrome
-- keep the interface useful even when another tool is doing the actual code execution
+- keep the main surface to three panes: projects, to-do, notes
+- favor inline editing, buttons, and text fields over visible forms
+- preserve markdown as the storage format while allowing a cleaner note-reading mode
+- keep project-linked local folders and GitHub repos visibly separate from n10e-managed markdown
+- reduce chrome so the project context itself is the primary focus
 
 ## Highest-Value Next Scope
 

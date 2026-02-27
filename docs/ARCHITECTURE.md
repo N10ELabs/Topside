@@ -32,10 +32,7 @@
 
 ## UI
 
-- Askama server-rendered templates.
-- htmx polling for workspace partials:
-  - `/partials/tasks`
-  - `/partials/notes`
-  - `/partials/activity`
-- ETag support on partial endpoints.
-- The UI is designed as a local operator workbench for planning, context inspection, and agent handoff.
+- Askama server-rendered shell template.
+- Lightweight in-page JavaScript controller for the three-pane workspace.
+- JSON endpoints drive project selection, task mutation/reorder, note editing, and project linking.
+- The UI is designed as a shared project context hub: projects on the left, inline task planning in the center, and notes on the right.

@@ -11,13 +11,15 @@ use n10e::http::{WebState, router};
 use n10e::types::{Actor, CreateProjectPayload};
 
 #[tokio::test]
-async fn dashboard_and_partial_endpoints_work_with_etags() -> Result<()> {
+async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
     let _project = service.create_project(
         CreateProjectPayload {
             title: "HTTP Project".to_string(),
             owner: None,
+            source_kind: None,
+            source_locator: None,
             tags: None,
             body: Some("http body".to_string()),
         },
@@ -37,35 +39,20 @@ async fn dashboard_and_partial_endpoints_work_with_etags() -> Result<()> {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await?;
     let html = String::from_utf8(body.to_vec())?;
-    assert!(html.contains("local-first agent workspace"));
+    assert!(html.contains("projects"));
 
     let response_1 = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/partials/tasks")
+                .uri("/api/projects")
                 .body(Body::empty())?,
         )
         .await?;
     assert_eq!(response_1.status(), StatusCode::OK);
-    let etag = response_1
-        .headers()
-        .get(header::ETAG)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default()
-        .to_string();
-    assert!(!etag.is_empty());
-
-    let response_2 = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/partials/tasks")
-                .header(header::IF_NONE_MATCH, etag)
-                .body(Body::empty())?,
-        )
-        .await?;
-    assert_eq!(response_2.status(), StatusCode::NOT_MODIFIED);
+    let body = to_bytes(response_1.into_body(), usize::MAX).await?;
+    let json = String::from_utf8(body.to_vec())?;
+    assert!(json.contains("HTTP Project"));
 
     Ok(())
 }
@@ -78,6 +65,8 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         CreateProjectPayload {
             title: "Mutation Project".to_string(),
             owner: None,
+            source_kind: None,
+            source_locator: None,
             tags: None,
             body: None,
         },
@@ -90,10 +79,9 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     });
     let app = router(state);
 
-    let create_form = format!(
-        "title={}&project_id={}&status=todo&priority=P2&assignee=agent%3Acodex",
-        urlencoding::encode("HTTP Task"),
-        urlencoding::encode(&project.id)
+    let create_json = format!(
+        "{{\"project_id\":\"{}\",\"title\":\"HTTP Task\",\"after_task_id\":null}}",
+        project.id
     );
 
     let create_response = app
@@ -101,9 +89,9 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/tasks")
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(create_form))?,
+                .uri("/api/tasks")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(create_json))?,
         )
         .await?;
     assert_eq!(create_response.status(), StatusCode::OK);
@@ -119,9 +107,9 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     assert_eq!(tasks.len(), 1);
     let task = &tasks[0];
 
-    let update_form = format!(
-        "expected_revision={}&status=done&priority=P1&assignee=agent%3Acodex",
-        urlencoding::encode(&task.revision)
+    let update_json = format!(
+        "{{\"expected_revision\":\"{}\",\"status\":\"done\"}}",
+        task.revision
     );
 
     let update_response = app
@@ -129,9 +117,9 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(format!("/tasks/{}", task.id))
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(update_form))?,
+                .uri(format!("/api/tasks/{}", task.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(update_json))?,
         )
         .await?;
     assert_eq!(update_response.status(), StatusCode::OK);
@@ -140,11 +128,11 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .oneshot(
             Request::builder()
                 .method("PATCH")
-                .uri(format!("/tasks/{}", task.id))
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .uri(format!("/api/tasks/{}", task.id))
+                .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(format!(
-                    "expected_revision={}&status=in_progress",
-                    urlencoding::encode(&task.revision)
+                    "{{\"expected_revision\":\"{}\",\"status\":\"in_progress\"}}",
+                    task.revision
                 )))?,
         )
         .await?;

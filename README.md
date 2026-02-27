@@ -1,8 +1,8 @@
 # n10e (codename: n10e-01)
 
-Local-first agent workspace, planning surface, and memory layer.
+Local-first project context hub and agent memory layer.
 
-`n10e` keeps markdown on disk as the source of truth, indexes it into SQLite (FTS5), serves a lightweight workspace UI, and exposes curated MCP tools over stdio for coding agents.
+`n10e` keeps markdown on disk as the source of truth, indexes it into SQLite (FTS5), serves a simplified three-pane knowledge hub UI, and exposes curated MCP tools over stdio for coding agents.
 
 The goal is not to become another generic agent dashboard. The goal is to make project context durable, inspectable, and fast for both humans and agents to pick up.
 
@@ -15,7 +15,8 @@ V0 foundation implemented:
 - SQLite migrations, FTS5 search, reverse wiki-link indexing
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
 - Immutable activity event logging with git context
-- Workspace UI with task planning, note context, and activity visibility
+- Three-pane workspace UI: projects, inline to-do, and notes
+- Linked project sources for local folders and GitHub repos (metadata only)
 - MCP stdio JSON-RPC tool surface (curated core)
 
 ## Install

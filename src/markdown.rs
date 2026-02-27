@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+use pulldown_cmark::{Options, Parser, html};
 use regex::Regex;
 use serde_yaml::Value;
 use sha2::{Digest, Sha256};
@@ -119,6 +120,19 @@ pub fn parse_optional_datetime(value: &str) -> Result<Option<DateTime<Utc>>> {
     Ok(Some(parsed))
 }
 
+pub fn render_markdown_html(body: &str) -> String {
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TABLES);
+    options.insert(Options::ENABLE_TASKLISTS);
+    options.insert(Options::ENABLE_SMART_PUNCTUATION);
+
+    let parser = Parser::new_ext(body, options);
+    let mut out = String::new();
+    html::push_html(&mut out, parser);
+    out
+}
+
 fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&str>) -> String {
     match frontmatter {
         EntityFrontmatter::Task(task) => {
@@ -133,6 +147,10 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
             if let Some(due_at) = task.due_at {
                 out.push_str(&format!("due_at: {}\n", due_at.to_rfc3339()));
             }
+            out.push_str(&format!("sort_order: {}\n", task.sort_order));
+            if let Some(completed_at) = task.completed_at {
+                out.push_str(&format!("completed_at: {}\n", completed_at.to_rfc3339()));
+            }
             render_tags(&mut out, task.tags.as_ref());
             out.push_str(&format!("created_at: {}\n", task.created_at.to_rfc3339()));
             out.push_str(&format!("updated_at: {}\n", task.updated_at.to_rfc3339()));
@@ -146,16 +164,18 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
             out.push_str(&format!("id: {}\n", yaml_scalar(&project.id)));
             out.push_str("type: project\n");
             out.push_str(&format!("title: {}\n", yaml_scalar(&project.title)));
-            out.push_str(&format!(
-                "status: {}\n",
-                match project.status {
-                    crate::types::ProjectStatus::Active => "active",
-                    crate::types::ProjectStatus::Paused => "paused",
-                    crate::types::ProjectStatus::Archived => "archived",
-                }
-            ));
+            out.push_str(&format!("status: {}\n", project.status.as_str()));
             if let Some(owner) = &project.owner {
                 out.push_str(&format!("owner: {}\n", yaml_scalar(owner)));
+            }
+            if let Some(source_kind) = &project.source_kind {
+                out.push_str(&format!("source_kind: {}\n", source_kind.as_str()));
+            }
+            if let Some(source_locator) = &project.source_locator {
+                out.push_str(&format!(
+                    "source_locator: {}\n",
+                    yaml_scalar(source_locator)
+                ));
             }
             render_tags(&mut out, project.tags.as_ref());
             out.push_str(&format!(
@@ -231,6 +251,8 @@ mod tests {
             priority: TaskPriority::P2,
             assignee: "agent:codex".to_string(),
             due_at: None,
+            sort_order: 1,
+            completed_at: None,
             tags: Some(vec!["alpha".to_string()]),
             created_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
             updated_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
@@ -261,5 +283,11 @@ body
             }
             _ => panic!("expected note"),
         }
+    }
+
+    #[test]
+    fn markdown_to_html_renders_task_lists() {
+        let html = super::render_markdown_html("- [x] done");
+        assert!(html.contains("checkbox"));
     }
 }

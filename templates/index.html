@@ -3,25 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>n10e Workspace</title>
-  <script src="/htmx"></script>
+  <title>n10e</title>
   <style>
     :root {
-      --bg: #09121a;
-      --bg-elev: rgba(11, 24, 35, 0.9);
-      --panel: rgba(16, 31, 44, 0.9);
-      --panel-strong: rgba(12, 26, 38, 0.96);
-      --line: rgba(121, 151, 173, 0.2);
-      --line-strong: rgba(132, 169, 194, 0.34);
-      --text: #edf4f8;
-      --muted: #8ea5b6;
-      --accent: #f59e0b;
-      --accent-soft: rgba(245, 158, 11, 0.15);
-      --accent-cool: #38bdf8;
+      --bg: #0b1218;
+      --panel: #101b24;
+      --panel-soft: #13212b;
+      --line: rgba(147, 184, 207, 0.28);
+      --line-strong: rgba(147, 184, 207, 0.42);
+      --text: #e8f0f5;
+      --muted: #8fa4b5;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.18);
+      --warm: #f59e0b;
       --success: #34d399;
-      --warn: #f97316;
       --danger: #f87171;
-      --shadow: 0 24px 80px rgba(4, 10, 16, 0.46);
+      --shadow: 0 18px 48px rgba(2, 8, 14, 0.38);
     }
 
     * {
@@ -37,1075 +34,1461 @@
       min-height: 100vh;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.14), transparent 32%),
-        radial-gradient(circle at top right, rgba(245, 158, 11, 0.18), transparent 28%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 28%),
-        repeating-linear-gradient(
-          90deg,
-          rgba(142, 165, 182, 0.035) 0,
-          rgba(142, 165, 182, 0.035) 1px,
-          transparent 1px,
-          transparent 120px
-        ),
-        linear-gradient(180deg, #0a1219 0%, #091018 100%);
-      font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 28%),
+        radial-gradient(circle at top right, rgba(245, 158, 11, 0.1), transparent 24%),
+        linear-gradient(180deg, #0a1117, #0b1218);
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
     }
 
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%),
-        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.025), transparent 30%);
-      mix-blend-mode: screen;
-      opacity: 0.55;
+    button,
+    input,
+    textarea {
+      font: inherit;
     }
 
-    h1,
-    h2,
-    h3,
-    strong {
-      margin: 0;
+    button {
+      cursor: pointer;
     }
 
-    a {
-      color: inherit;
-    }
-
-    .app {
+    .shell {
       min-height: 100vh;
-      padding: 18px;
       display: grid;
-      gap: 16px;
-    }
-
-    .topbar,
-    .panel,
-    .mission-card,
-    .signal-panel {
-      animation: rise-in 320ms ease both;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+      padding: 14px;
     }
 
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 14px;
-      padding: 18px 20px;
+      gap: 16px;
+      padding: 14px 16px;
       border: 1px solid var(--line);
-      border-radius: 22px;
-      background: var(--bg-elev);
-      backdrop-filter: blur(18px);
+      border-radius: 18px;
+      background: rgba(14, 23, 31, 0.88);
       box-shadow: var(--shadow);
     }
 
-    .title-wrap {
-      display: flex;
-      align-items: center;
-      gap: 16px;
+    .brand {
+      display: grid;
+      gap: 4px;
       min-width: 0;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-    }
-
-    .brand-badge {
-      width: 28px;
-      height: 28px;
-      border-radius: 9px;
-      background:
-        linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(56, 189, 248, 0.92));
-      box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-        0 10px 24px rgba(56, 189, 248, 0.2);
-      flex: 0 0 28px;
-    }
-
-    .brand-block {
-      display: grid;
-      gap: 2px;
-    }
-
     .brand h1 {
-      font-size: 20px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .brand-note {
-      color: var(--muted);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .subtitle {
       margin: 0;
-      color: #d6e5ef;
-      font-size: 15px;
-      line-height: 1.45;
-      max-width: 620px;
+      font-size: 20px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+      letter-spacing: 0.08em;
     }
 
-    .top-actions {
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 720px;
+    }
+
+    .chips {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
 
-    .action-btn,
-    button,
-    input,
-    textarea,
-    select {
-      font: inherit;
-    }
-
-    .action-btn,
-    button {
-      border: 1px solid rgba(245, 158, 11, 0.5);
-      border-radius: 12px;
-      background: linear-gradient(180deg, rgba(245, 158, 11, 0.22), rgba(245, 158, 11, 0.1));
-      color: var(--text);
-      font-weight: 600;
-      cursor: pointer;
-      padding: 10px 14px;
-      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
-    }
-
-    button:hover,
-    .action-btn:hover {
-      transform: translateY(-1px);
-      border-color: rgba(245, 158, 11, 0.75);
-      background: linear-gradient(180deg, rgba(245, 158, 11, 0.28), rgba(245, 158, 11, 0.12));
-    }
-
     .chip {
+      padding: 6px 10px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 7px 11px;
       color: var(--muted);
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+      background: rgba(8, 18, 26, 0.8);
       font-size: 12px;
-      background: rgba(8, 20, 30, 0.72);
+      font-family: "IBM Plex Mono", monospace;
     }
 
     .layout {
       min-height: 0;
       display: grid;
-      gap: 16px;
-      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 12px;
+      grid-template-columns: 260px minmax(0, 1fr) minmax(0, 1fr);
     }
 
-    .projects-col,
-    .workspace-col {
+    .pane {
       min-height: 0;
-    }
-
-    .workspace-col {
       display: grid;
-      gap: 16px;
-      align-content: start;
-    }
-
-    .panel,
-    .mission-card,
-    .signal-panel {
+      grid-template-rows: auto 1fr;
       border: 1px solid var(--line);
-      border-radius: 24px;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-        var(--panel);
+      border-radius: 20px;
+      background: rgba(16, 27, 36, 0.92);
       box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 15px;
+      text-transform: lowercase;
+    }
+
+    .pane-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pane-body {
       min-height: 0;
-    }
-
-    .panel {
-      padding: 18px;
-    }
-
-    .rail-panel {
+      overflow: auto;
+      padding: 12px;
       display: grid;
-      gap: 16px;
-      position: sticky;
-      top: 18px;
-    }
-
-    .section-label {
-      color: var(--accent-cool);
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      font-size: 12px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .panel-copy,
-    .signal-copy,
-    .mission-copy {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    .panel-head,
-    .panel-head-inline {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .panel-head-inline {
-      margin-bottom: 0;
-    }
-
-    .panel-head h3,
-    .panel-head-inline h3 {
-      font-size: 20px;
-      letter-spacing: 0.01em;
-    }
-
-    .item-meta {
-      color: var(--muted);
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .mission-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
-    }
-
-    .mission-card,
-    .signal-panel {
-      padding: 22px;
-    }
-
-    .mission-card {
-      display: grid;
-      gap: 18px;
-      background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 30%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-        var(--panel-strong);
-    }
-
-    .mission-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .mission-head h2,
-    .empty-hero h2 {
-      font-size: clamp(34px, 4vw, 48px);
-      line-height: 0.96;
-      letter-spacing: -0.03em;
-      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
-    }
-
-    .meta-grid,
-    .signals-grid,
-    .system-grid {
-      display: grid;
-      gap: 12px;
-    }
-
-    .meta-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .meta-card,
-    .signal-card,
-    .system-row {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-      background: rgba(8, 18, 28, 0.52);
-    }
-
-    .meta-card {
-      display: grid;
-      gap: 6px;
-    }
-
-    .meta-label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-    }
-
-    .meta-card strong {
-      font-size: 16px;
-      line-height: 1.35;
-      word-break: break-word;
-    }
-
-    .signal-panel {
-      display: grid;
-      gap: 16px;
+      gap: 10px;
       align-content: start;
-      background:
-        radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 30%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-        var(--panel);
     }
 
-    .signal-hero {
+    .icon-btn,
+    .text-btn,
+    .mode-btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(9, 18, 25, 0.9);
+      color: var(--text);
+      padding: 8px 10px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .mode-btn.active,
+    .project-card.active {
+      border-color: rgba(56, 189, 248, 0.6);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.22);
+      background: rgba(16, 33, 46, 0.98);
+    }
+
+    .inline-shell,
+    .project-card,
+    .task-row,
+    .task-draft,
+    .note-card,
+    .note-editor,
+    .done-row,
+    .empty-state,
+    .message {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(10, 18, 25, 0.78);
+    }
+
+    .inline-shell,
+    .message,
+    .empty-state {
+      padding: 10px;
+    }
+
+    .inline-shell {
       display: grid;
       gap: 8px;
     }
 
-    .signal-value {
-      font-size: 30px;
-      line-height: 0.98;
-      letter-spacing: -0.03em;
-      font-family: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
-      text-transform: lowercase;
+    .inline-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
-    .signal-note {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.55;
-    }
-
-    .signals-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .signal-card {
-      display: grid;
-      gap: 6px;
-    }
-
-    .signal-card strong {
-      font-size: 26px;
-      line-height: 1;
-    }
-
-    .workspace-grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 0.95fr);
-    }
-
-    .column {
-      display: grid;
-      gap: 14px;
-      align-content: start;
-    }
-
-    .project-create,
-    .quick-create {
-      display: grid;
-      gap: 10px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    input,
-    textarea,
-    select {
+    .text-input,
+    .task-input,
+    .note-title-input,
+    .markdown-input,
+    .path-input {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 14px;
-      background: rgba(7, 17, 26, 0.92);
+      border-radius: 10px;
+      background: rgba(8, 15, 21, 0.92);
       color: var(--text);
-      padding: 11px 12px;
+      padding: 10px 11px;
     }
 
-    input::placeholder,
-    textarea::placeholder {
-      color: #6f8798;
-    }
-
-    textarea {
-      min-height: 108px;
+    .markdown-input {
+      min-height: 240px;
       resize: vertical;
+      line-height: 1.55;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+    }
+
+    .project-list,
+    .task-list,
+    .done-list,
+    .notes-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .project-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      text-align: left;
+    }
+
+    .project-card-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .source-badge {
+      min-width: 34px;
+      height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      background: rgba(10, 18, 26, 0.9);
+    }
+
+    .section-title,
+    .small-label {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: "IBM Plex Mono", monospace;
     }
 
     .divider {
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+      margin: 4px 0;
     }
 
-    details {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(7, 18, 28, 0.64);
-      overflow: hidden;
-    }
-
-    summary {
-      cursor: pointer;
-      padding: 13px 14px;
-      list-style: none;
-      color: #d9ebf6;
-      font-weight: 600;
-      border-bottom: 1px solid transparent;
-    }
-
-    details[open] summary {
-      border-bottom-color: var(--line);
-    }
-
-    details > div {
-      padding: 14px;
-    }
-
-    .project-list,
-    .stack,
-    .activity-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .project-item,
     .task-row,
-    .note-row,
-    .activity-row {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(9, 21, 32, 0.82);
-      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
-    }
-
-    .project-item {
+    .task-draft,
+    .done-row {
       display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
       gap: 10px;
-      padding: 14px;
-      text-decoration: none;
-    }
-
-    .project-item:hover,
-    .task-row:hover,
-    .note-row:hover,
-    .activity-row:hover {
-      transform: translateY(-1px);
-      border-color: var(--line-strong);
-      background: rgba(11, 25, 38, 0.92);
-    }
-
-    .project-item.active {
-      border-color: rgba(56, 189, 248, 0.42);
-      background:
-        linear-gradient(180deg, rgba(56, 189, 248, 0.12), transparent 55%),
-        rgba(11, 26, 39, 0.96);
-      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
-    }
-
-    .project-kicker,
-    .project-footer,
-    .note-head,
-    .activity-head {
-      display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
+      padding: 10px 12px;
     }
 
-    .project-title,
-    .note-title,
-    .activity-main,
-    .task-title {
-      font-size: 17px;
-      line-height: 1.35;
-      font-weight: 600;
+    .task-row.dragging {
+      opacity: 0.5;
     }
 
-    .task-row {
-      padding: 12px;
+    .drag-handle {
+      width: 20px;
+      color: var(--muted);
+      cursor: grab;
+      user-select: none;
+      text-align: center;
+      font-family: "IBM Plex Mono", monospace;
     }
 
-    .task-shell {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: start;
-    }
-
-    .task-content {
-      display: grid;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .task-title.done {
-      text-decoration: line-through;
-      color: #88a0af;
-    }
-
-    .task-tags,
-    .token-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .token,
-    .status-pill,
-    .actor-chip,
-    .owner-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 6px 10px;
-      border: 1px solid var(--line);
-      font-size: 11px;
-      line-height: 1;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-      background: rgba(9, 21, 32, 0.82);
-    }
-
-    .status-live {
-      border-color: rgba(52, 211, 153, 0.32);
-      color: #a7f3d0;
-      background: rgba(8, 59, 44, 0.35);
-    }
-
-    .status-done {
-      border-color: rgba(56, 189, 248, 0.28);
-      color: #b9eafe;
-      background: rgba(14, 56, 74, 0.36);
-    }
-
-    .status-warn {
-      border-color: rgba(249, 115, 22, 0.34);
-      color: #fdc79b;
-      background: rgba(86, 40, 15, 0.4);
-    }
-
-    .status-neutral {
-      color: #d5e4ef;
-      background: rgba(24, 38, 50, 0.78);
-    }
-
-    .priority-p0 {
-      border-color: rgba(248, 113, 113, 0.46);
-      color: #fecaca;
-      background: rgba(82, 24, 24, 0.48);
-    }
-
-    .priority-p1 {
-      border-color: rgba(249, 115, 22, 0.4);
-      color: #fed7aa;
-      background: rgba(92, 42, 18, 0.4);
-    }
-
-    .priority-p2 {
-      border-color: rgba(245, 158, 11, 0.34);
-      color: #fde68a;
-      background: rgba(84, 56, 16, 0.38);
-    }
-
-    .priority-p3 {
-      border-color: rgba(148, 163, 184, 0.28);
-      color: #cbd5e1;
-      background: rgba(35, 47, 58, 0.42);
-    }
-
-    .assignee-agent,
-    .actor-agent {
-      border-color: rgba(56, 189, 248, 0.32);
-      color: #bae6fd;
-      background: rgba(16, 56, 74, 0.4);
-    }
-
-    .assignee-human,
-    .actor-human {
-      border-color: rgba(245, 158, 11, 0.36);
-      color: #fde68a;
-      background: rgba(90, 54, 17, 0.42);
-    }
-
-    .assignee-neutral,
-    .actor-system {
-      color: #d4dee5;
-      background: rgba(24, 38, 50, 0.78);
-    }
-
-    .note-row,
-    .activity-row {
-      display: grid;
-      gap: 10px;
-      padding: 14px;
-    }
-
-    .note-path {
-      color: #c5d5df;
-      font-size: 13px;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-
-    .check-form,
-    .archive-form {
+    .task-check,
+    .done-check {
+      width: 20px;
+      height: 20px;
       margin: 0;
+      accent-color: var(--accent);
     }
 
-    .check-btn {
-      width: 24px;
-      height: 24px;
-      min-width: 24px;
-      border: 1px solid var(--line-strong);
-      border-radius: 8px;
-      background: rgba(10, 20, 28, 0.88);
-      color: transparent;
+    .task-input {
       padding: 0;
-      line-height: 1;
+      border: none;
+      background: transparent;
+      border-radius: 0;
     }
 
-    .check-btn.done {
-      color: #06202a;
-      background: linear-gradient(180deg, #7dd3fc, #34d399);
-      border-color: rgba(125, 211, 252, 0.92);
+    .task-input:focus,
+    .text-input:focus,
+    .note-title-input:focus,
+    .markdown-input:focus,
+    .path-input:focus,
+    .clean-editor:focus {
+      outline: 1px solid rgba(56, 189, 248, 0.55);
+      outline-offset: 2px;
     }
 
-    .mini-btn {
-      border: 1px solid var(--line);
-      background: rgba(9, 21, 32, 0.9);
+    .done-row {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .done-title {
+      color: #a8bac8;
+      text-decoration: line-through;
+    }
+
+    .muted {
       color: var(--muted);
-      padding: 7px 10px;
-      border-radius: 10px;
-      font-size: 11px;
-      line-height: 1.2;
-      min-width: 72px;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
     }
 
-    .mini-btn.danger {
-      border-color: rgba(248, 113, 113, 0.38);
+    .message {
+      color: #fed7aa;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .message.error {
       color: #fecaca;
-      background: rgba(82, 24, 24, 0.42);
-    }
-
-    .status-block {
-      display: grid;
-      gap: 12px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
-    }
-
-    .system-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .empty-state,
-    .empty-hero p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.7;
+      border-color: rgba(248, 113, 113, 0.34);
     }
 
     .empty-state {
-      padding: 16px;
-      border: 1px dashed var(--line-strong);
-      border-radius: 18px;
-      background: rgba(8, 18, 28, 0.5);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
     }
 
-    .no-project {
-      min-height: 420px;
+    .note-card {
+      overflow: hidden;
+    }
+
+    .note-toggle {
+      width: 100%;
+      border: none;
+      border-bottom: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      text-align: left;
+    }
+
+    .note-card.open .note-toggle {
+      border-bottom-color: var(--line);
+    }
+
+    .note-editor {
+      margin: 12px;
+      padding: 12px;
       display: grid;
-      place-items: center;
-      background:
-        radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 28%),
-        radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.12), transparent 32%),
-        var(--panel);
+      gap: 10px;
+      background: rgba(15, 25, 33, 0.92);
     }
 
-    .empty-hero {
-      max-width: 640px;
-      display: grid;
-      gap: 12px;
-      text-align: center;
-      padding: 20px;
+    .note-title-input {
+      font-size: 15px;
+      font-weight: 600;
     }
 
-    @keyframes rise-in {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
-    @media (max-width: 1280px) {
-      .mission-grid,
-      .workspace-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .signals-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
+    .toolbar button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(10, 18, 25, 0.94);
+      color: var(--text);
+      padding: 6px 9px;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
     }
 
-    @media (max-width: 980px) {
-      .app {
-        padding: 14px;
+    .clean-editor {
+      min-height: 240px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(8, 15, 21, 0.92);
+      padding: 12px;
+      overflow: auto;
+      line-height: 1.6;
+    }
+
+    .clean-editor h1,
+    .clean-editor h2,
+    .clean-editor h3,
+    .clean-editor p {
+      margin-top: 0;
+    }
+
+    .note-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    @media (max-width: 1120px) {
+      .layout {
+        grid-template-columns: 240px 1fr;
+        grid-template-areas:
+          "projects todo"
+          "notes notes";
       }
 
+      .pane-projects { grid-area: projects; }
+      .pane-todo { grid-area: todo; }
+      .pane-notes { grid-area: notes; }
+    }
+
+    @media (max-width: 820px) {
+      .shell {
+        padding: 10px;
+      }
+
+      .topbar,
       .layout {
         grid-template-columns: 1fr;
       }
 
-      .rail-panel {
-        position: static;
+      .layout {
+        grid-template-areas: none;
       }
 
-      .topbar,
-      .mission-head,
-      .panel-head,
-      .panel-head-inline {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .top-actions {
-        justify-content: flex-start;
-      }
-
-      .meta-grid,
-      .signals-grid,
-      .form-grid,
-      .field-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .topbar,
-      .panel,
-      .mission-card,
-      .signal-panel {
-        border-radius: 18px;
-      }
-
-      .task-shell {
-        grid-template-columns: auto 1fr;
-      }
-
-      .archive-form {
-        grid-column: 2;
-      }
-
-      .mission-head h2,
-      .empty-hero h2 {
-        font-size: 34px;
-      }
-
-      .subtitle {
-        font-size: 14px;
+      .pane-projects,
+      .pane-todo,
+      .pane-notes {
+        grid-area: auto;
       }
     }
   </style>
 </head>
 <body>
-  <div class="app">
+  <div class="shell">
     <header class="topbar">
-      <div class="title-wrap">
-        <div class="brand">
-          <div class="brand-badge"></div>
-          <div class="brand-block">
-            <h1>n10e</h1>
-            <div class="brand-note">local-first agent workspace</div>
-          </div>
-        </div>
-        <p class="subtitle">Plan the project once, keep the context durable on disk, and let any compatible agent pick it up without a long briefing.</p>
+      <div class="brand">
+        <h1>n10e</h1>
+        <p>Shared project context and status. Keep the plan simple, keep the notes durable, and let agents pick up the thread without a long briefing.</p>
       </div>
-
-      <div class="top-actions">
+      <div class="chips">
+        <span class="chip">knowledge hub</span>
         <span class="chip">local-first</span>
-        <span class="chip">mcp ready</span>
-        <span class="chip">:{{ server_port }}</span>
-        <span class="chip">{{ project_count }} initiatives</span>
-        <span class="chip">{{ task_count }} scoped tasks</span>
-        <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
-          <button class="action-btn" type="submit">refresh index</button>
-        </form>
       </div>
     </header>
 
-    <div class="layout">
-      <aside class="projects-col">
-        <section class="panel rail-panel">
-          <div class="panel-head-inline">
-            <div>
-              <div class="section-label">Initiatives</div>
-              <h3>Shared project memory</h3>
-            </div>
-            <span class="item-meta">{{ project_count }} total</span>
+    <main class="layout">
+      <section class="pane pane-projects">
+        <div class="pane-head">
+          <span>projects</span>
+          <div class="pane-head-actions">
+            <button class="icon-btn" id="projects-add" type="button">+</button>
           </div>
-          <p class="panel-copy">Choose a project to open its planning surface. Tasks, notes, and activity stay visible in one operator workspace.</p>
+        </div>
+        <div class="pane-body">
+          <div id="project-tray"></div>
+          <div id="project-list" class="project-list"></div>
+        </div>
+      </section>
 
-          <div
-            id="projects-panel"
-            hx-get="{{ projects_partial_url }}"
-            hx-trigger="load, every {{ poll_projects_ms }}ms, n10e-refresh from:body"
-            hx-swap="innerHTML"
-          >
-            {% include "partials/projects.html" %}
+      <section class="pane pane-todo">
+        <div class="pane-head">
+          <span>to-do</span>
+          <div class="pane-head-actions">
+            <span class="muted" id="todo-status">ready</span>
           </div>
-
+        </div>
+        <div class="pane-body">
+          <div id="task-message"></div>
+          <div class="task-list" id="active-task-list"></div>
           <div class="divider"></div>
+          <div class="small-label">done / changelog</div>
+          <div class="done-list" id="done-task-list"></div>
+        </div>
+      </section>
 
-          <form method="post" action="/projects" hx-post="/projects" hx-target="#projects-panel" hx-swap="innerHTML" class="project-create">
-            <div class="section-label">New initiative</div>
-            <div class="form-grid">
-              <input name="title" placeholder="project title" required>
-              <input name="owner" placeholder="owner or lead">
-            </div>
-            <button type="submit">Create project</button>
-          </form>
-        </section>
-      </aside>
-
-      <main class="workspace-col">
-        {% if has_selected_project %}
-        <section class="mission-grid">
-          <article class="mission-card">
-            <div class="section-label">Mission brief</div>
-            <div class="mission-head">
-              <h2>{{ selected_project_title }}</h2>
-              <span class="status-pill {{ selected_project_status_class }}">{{ selected_project_status }}</span>
-            </div>
-            <p class="mission-copy">This workspace is for planning alongside agents. Keep the execution queue explicit, add context notes as you learn, and use the activity log as the shared thread of record.</p>
-
-            <div class="meta-grid">
-              <div class="meta-card">
-                <span class="meta-label">Project ID</span>
-                <strong>{{ selected_project_id }}</strong>
-              </div>
-              <div class="meta-card">
-                <span class="meta-label">Owner</span>
-                <strong>{{ selected_project_owner }}</strong>
-              </div>
-              <div class="meta-card">
-                <span class="meta-label">Last updated</span>
-                <strong>{{ selected_project_updated_at }}</strong>
-              </div>
-              <div class="meta-card">
-                <span class="meta-label">Latest branch</span>
-                <strong>{{ latest_git_branch }}</strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="signal-panel">
-            <div class="section-label">Handoff posture</div>
-            <div class="signal-hero">
-              <div class="signal-value">{{ handoff_state }}</div>
-              <p class="signal-copy">{{ handoff_detail }}</p>
-            </div>
-
-            <div class="signals-grid">
-              <div class="signal-card">
-                <span class="meta-label">Open tasks</span>
-                <strong>{{ open_task_count }}</strong>
-                <span class="signal-note">Execution queue still in play.</span>
-              </div>
-              <div class="signal-card">
-                <span class="meta-label">Context notes</span>
-                <strong>{{ note_count }}</strong>
-                <span class="signal-note">Persistent context on disk.</span>
-              </div>
-              <div class="signal-card">
-                <span class="meta-label">Agent-owned</span>
-                <strong>{{ agent_task_count }}</strong>
-                <span class="signal-note">Tasks already assigned to agents.</span>
-              </div>
-              <div class="signal-card">
-                <span class="meta-label">Unassigned</span>
-                <strong>{{ unassigned_task_count }}</strong>
-                <span class="signal-note">Tasks still waiting for ownership.</span>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section class="workspace-grid">
-          <section class="panel column">
-            <div class="panel-head">
-              <div>
-                <div class="section-label">Execution queue</div>
-                <h3>Tasks in motion</h3>
-              </div>
-              <span class="item-meta">{{ selected_project_id }}</span>
-            </div>
-            <p class="panel-copy">Keep the plan explicit so any agent can pick up the project state quickly and act with awareness.</p>
-
-            <details>
-              <summary>Add task</summary>
-              <div>
-                <form method="post" action="/tasks" hx-post="/tasks" hx-target="#tasks-panel" hx-swap="innerHTML" class="quick-create">
-                  <input type="hidden" name="project_id" value="{{ selected_project_id }}">
-                  <input name="title" placeholder="task title" required>
-                  <div class="field-row">
-                    <select name="status">
-                      <option value="backlog">backlog</option>
-                      <option value="todo" selected>todo</option>
-                      <option value="in_progress">in_progress</option>
-                      <option value="blocked">blocked</option>
-                      <option value="done">done</option>
-                    </select>
-                    <select name="priority">
-                      <option value="P0">P0</option>
-                      <option value="P1">P1</option>
-                      <option value="P2" selected>P2</option>
-                      <option value="P3">P3</option>
-                    </select>
-                  </div>
-                  <input name="assignee" placeholder="assignee (agent:codex)">
-                  <button type="submit">Create task</button>
-                </form>
-              </div>
-            </details>
-
-            <div
-              id="tasks-panel"
-              hx-get="{{ tasks_partial_url }}"
-              hx-trigger="load, every {{ poll_tasks_ms }}ms, n10e-refresh from:body"
-              hx-swap="innerHTML"
-            >
-              {% include "partials/tasks.html" %}
-            </div>
-          </section>
-
-          <section class="panel column">
-            <div class="panel-head">
-              <div>
-                <div class="section-label">Context memory</div>
-                <h3>Notes that speed up handoff</h3>
-              </div>
-              <span class="item-meta">{{ note_count }} indexed</span>
-            </div>
-            <p class="panel-copy">Capture decisions, implementation clues, and plain-language handoff notes. Agents can retrieve this context without depending on a chat log.</p>
-
-            <details>
-              <summary>Add note</summary>
-              <div>
-                <form method="post" action="/notes" hx-post="/notes" hx-target="#notes-panel" hx-swap="innerHTML" class="quick-create">
-                  <input type="hidden" name="project_id" value="{{ selected_project_id }}">
-                  <input type="hidden" name="ui_project_id" value="{{ selected_project_id }}">
-                  <input name="title" placeholder="note title" required>
-                  <textarea name="body" placeholder="markdown summary, implementation notes, handoff context"></textarea>
-                  <button type="submit">Create note</button>
-                </form>
-              </div>
-            </details>
-
-            <div
-              id="notes-panel"
-              hx-get="{{ notes_partial_url }}"
-              hx-trigger="load, every {{ poll_notes_ms }}ms, n10e-refresh from:body"
-              hx-swap="innerHTML"
-            >
-              {% include "partials/notes.html" %}
-            </div>
-          </section>
-
-          <section class="panel column">
-            <div class="panel-head">
-              <div>
-                <div class="section-label">Operator log</div>
-                <h3>Activity and system state</h3>
-              </div>
-              <span class="item-meta">live stream</span>
-            </div>
-            <p class="panel-copy">Every mutation is recorded with actor and git context so handoffs stay inspectable after the fact.</p>
-
-            <div
-              id="activity-panel"
-              hx-get="/partials/activity"
-              hx-trigger="load, every {{ poll_activity_ms }}ms, n10e-refresh from:body"
-              hx-swap="innerHTML"
-            >
-              {% include "partials/activity.html" %}
-            </div>
-
-            <div class="status-block">
-              <div class="panel-head">
-                <div>
-                  <div class="section-label">Workspace state</div>
-                  <h3>Readiness signals</h3>
-                </div>
-                <span class="item-meta">local</span>
-              </div>
-
-              <div class="system-grid">
-                <div class="system-row">
-                  <span class="item-meta">latest activity</span>
-                  <span class="item-meta">{{ last_activity_at }}</span>
-                </div>
-                <div class="system-row">
-                  <span class="item-meta">recent summary</span>
-                  <span class="item-meta">{{ latest_activity_summary }}</span>
-                </div>
-                <div class="system-row">
-                  <span class="item-meta">done tasks</span>
-                  <span class="item-meta">{{ done_task_count }}</span>
-                </div>
-                <div class="system-row">
-                  <span class="item-meta">scoped workspace</span>
-                  <span class="item-meta">{% if has_scope %}{{ scope_query }}{% else %}global{% endif %}</span>
-                </div>
-              </div>
-
-              <form method="post" action="/reindex" hx-post="/reindex" hx-swap="none">
-                <button type="submit" style="width:100%;">Rescan workspace</button>
-              </form>
-            </div>
-          </section>
-        </section>
-        {% else %}
-        <section class="panel no-project">
-          <div class="empty-hero">
-            <div class="section-label">Workspace ready</div>
-            <h2>Select an initiative</h2>
-            <p>Choose a project from the left rail or create one to start building durable context for agents. The UI is meant to help you plan and inspect handoff quality, not just watch agents run.</p>
+      <section class="pane pane-notes">
+        <div class="pane-head">
+          <span>notes</span>
+          <div class="pane-head-actions">
+            <button class="mode-btn" type="button" data-note-mode="markdown">markdown</button>
+            <button class="mode-btn" type="button" data-note-mode="clean">clean</button>
+            <button class="icon-btn" id="notes-add" type="button">+</button>
           </div>
-        </section>
-        {% endif %}
-      </main>
-    </div>
+        </div>
+        <div class="pane-body">
+          <div id="note-message"></div>
+          <div id="notes-list" class="notes-list"></div>
+        </div>
+      </section>
+    </main>
   </div>
+
+  <script id="initial-state" type="application/json">{{ initial_state_json|safe }}</script>
+  <script>
+    const initialState = JSON.parse(document.getElementById("initial-state").textContent);
+    const noteModeKey = "n10e-note-mode";
+    const state = {
+      projects: initialState.projects || [],
+      selectedProjectId: initialState.selected_project_id || null,
+      workspace: initialState.workspace || null,
+      serverPort: initialState.server_port,
+      noteMode: localStorage.getItem(noteModeKey) || "markdown",
+      openNoteId: initialState.workspace?.suggested_open_note_id || null,
+      projectTrayMode: null,
+      projectInput: "",
+      projectSourceInput: "",
+      projectPickerFallback: false,
+      projectMessage: "",
+      taskMessage: "",
+      noteMessage: "",
+      taskDrafts: [],
+      taskEdits: {},
+      noteTitleEdits: {},
+      noteBodyEdits: {},
+      noteHtmlEdits: {},
+      taskTimers: {},
+      noteTimers: {},
+      draggedTaskId: null,
+      focusTaskId: null,
+      focusDraftKey: null,
+      focusNoteId: null,
+    };
+
+    const projectTray = document.getElementById("project-tray");
+    const projectList = document.getElementById("project-list");
+    const taskMessage = document.getElementById("task-message");
+    const noteMessage = document.getElementById("note-message");
+    const activeTaskList = document.getElementById("active-task-list");
+    const doneTaskList = document.getElementById("done-task-list");
+    const notesList = document.getElementById("notes-list");
+    const todoStatus = document.getElementById("todo-status");
+
+    document.getElementById("projects-add").addEventListener("click", () => {
+      state.projectMessage = "";
+      state.projectTrayMode = state.projectTrayMode ? null : "chooser";
+      render();
+    });
+
+    document.getElementById("notes-add").addEventListener("click", async () => {
+      if (!state.selectedProjectId) return;
+      const response = await fetchJson("/api/notes", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: state.selectedProjectId,
+          title: "Untitled note"
+        })
+      }, "note");
+      if (!response) return;
+      applyWorkspace(response.workspace, response.created_note_id);
+      state.focusNoteId = response.created_note_id;
+      render();
+    });
+
+    document.querySelectorAll("[data-note-mode]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const nextMode = button.dataset.noteMode;
+        if (nextMode === state.noteMode) return;
+        await saveOpenNote();
+        state.noteMode = nextMode;
+        localStorage.setItem(noteModeKey, nextMode);
+        render();
+      });
+    });
+
+    document.addEventListener("click", async (event) => {
+      const chooserBtn = event.target.closest("[data-project-chooser]");
+      if (chooserBtn) {
+        state.projectTrayMode = chooserBtn.dataset.projectChooser;
+        state.projectInput = "";
+        state.projectSourceInput = "";
+        state.projectPickerFallback = false;
+        render();
+        return;
+      }
+
+      if (event.target.closest("[data-project-tray-cancel]")) {
+        state.projectTrayMode = null;
+        state.projectInput = "";
+        state.projectSourceInput = "";
+        state.projectPickerFallback = false;
+        render();
+        return;
+      }
+
+      const projectButton = event.target.closest("[data-project-id]");
+      if (projectButton) {
+        const projectId = projectButton.dataset.projectId;
+        await selectProject(projectId);
+        return;
+      }
+
+      const noteToggle = event.target.closest("[data-note-id]");
+      if (noteToggle && noteToggle.dataset.noteToggle === "true") {
+        const noteId = noteToggle.dataset.noteId;
+        if (state.openNoteId === noteId) {
+          state.openNoteId = null;
+        } else {
+          await saveOpenNote();
+          state.openNoteId = noteId;
+        }
+        render();
+        return;
+      }
+
+      const toolbarButton = event.target.closest("[data-rich-command]");
+      if (toolbarButton) {
+        handleRichCommand(toolbarButton.dataset.richCommand);
+      }
+    });
+
+    document.addEventListener("input", (event) => {
+      const projectTitleInput = event.target.closest("[data-project-title-input]");
+      if (projectTitleInput) {
+        state.projectInput = projectTitleInput.value;
+        return;
+      }
+
+      const projectSourceInput = event.target.closest("[data-project-source-input]");
+      if (projectSourceInput) {
+        state.projectSourceInput = projectSourceInput.value;
+        return;
+      }
+
+      const taskInput = event.target.closest("[data-task-id]");
+      if (taskInput && taskInput.tagName === "INPUT") {
+        const taskId = taskInput.dataset.taskId;
+        state.taskEdits[taskId] = taskInput.value;
+        debounceTaskSave(taskId);
+        return;
+      }
+
+      const draftInput = event.target.closest("[data-task-draft-key]");
+      if (draftInput && draftInput.tagName === "INPUT") {
+        const draft = getDraft(draftInput.dataset.taskDraftKey);
+        if (draft) draft.title = draftInput.value;
+        return;
+      }
+
+      const noteTitle = event.target.closest("[data-note-title-id]");
+      if (noteTitle) {
+        state.noteTitleEdits[noteTitle.dataset.noteTitleId] = noteTitle.value;
+        debounceNoteSave(noteTitle.dataset.noteTitleId);
+        return;
+      }
+
+      const markdownBody = event.target.closest("[data-note-body-id]");
+      if (markdownBody && markdownBody.tagName === "TEXTAREA") {
+        state.noteBodyEdits[markdownBody.dataset.noteBodyId] = markdownBody.value;
+        debounceNoteSave(markdownBody.dataset.noteBodyId);
+        return;
+      }
+
+      const cleanEditor = event.target.closest("[data-note-clean-id]");
+      if (cleanEditor) {
+        state.noteHtmlEdits[cleanEditor.dataset.noteCleanId] = cleanEditor.innerHTML;
+        debounceNoteSave(cleanEditor.dataset.noteCleanId);
+      }
+    });
+
+    document.addEventListener("keydown", async (event) => {
+      const taskInput = event.target.closest("[data-task-id]");
+      if (taskInput && taskInput.tagName === "INPUT") {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          await saveTask(taskInput.dataset.taskId);
+          insertDraftAfter(taskInput.dataset.taskId);
+          render();
+        }
+        return;
+      }
+
+      const draftInput = event.target.closest("[data-task-draft-key]");
+      if (draftInput && draftInput.tagName === "INPUT") {
+        const draftKey = draftInput.dataset.taskDraftKey;
+        const draft = getDraft(draftKey);
+        if (!draft) return;
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          await commitDraftTask(draft);
+        } else if (event.key === "Backspace" && !draft.title) {
+          removeDraft(draftKey);
+          render();
+        } else if (event.key === "Escape") {
+          removeDraft(draftKey);
+          render();
+        }
+        return;
+      }
+
+      const projectInput = event.target.closest("[data-project-title-input], [data-project-source-input]");
+      if (projectInput && event.key === "Enter") {
+        event.preventDefault();
+        if (state.projectTrayMode === "new") {
+          await submitProjectCreate("new", state.projectInput, null);
+        } else if (state.projectTrayMode === "github") {
+          await submitProjectCreate("github", state.projectInput, state.projectSourceInput);
+        } else if (state.projectTrayMode === "local" && state.projectPickerFallback) {
+          await submitProjectCreate("local", state.projectInput, state.projectSourceInput);
+        }
+      }
+    });
+
+    document.addEventListener("blur", async (event) => {
+      const taskInput = event.target.closest("[data-task-id]");
+      if (taskInput && taskInput.tagName === "INPUT") {
+        await saveTask(taskInput.dataset.taskId);
+      }
+
+      const draftInput = event.target.closest("[data-task-draft-key]");
+      if (draftInput && draftInput.tagName === "INPUT") {
+        const draft = getDraft(draftInput.dataset.taskDraftKey);
+        if (!draft) return;
+        if (draft.title.trim()) {
+          await commitDraftTask(draft);
+        } else {
+          removeDraft(draft.key);
+          render();
+        }
+      }
+
+      const noteTitle = event.target.closest("[data-note-title-id]");
+      if (noteTitle) {
+        await saveNote(noteTitle.dataset.noteTitleId);
+      }
+
+      const markdownBody = event.target.closest("[data-note-body-id]");
+      if (markdownBody && markdownBody.tagName === "TEXTAREA") {
+        await saveNote(markdownBody.dataset.noteBodyId);
+      }
+
+      const cleanEditor = event.target.closest("[data-note-clean-id]");
+      if (cleanEditor) {
+        await saveNote(cleanEditor.dataset.noteCleanId);
+      }
+    }, true);
+
+    document.addEventListener("change", async (event) => {
+      const taskCheck = event.target.closest("[data-task-check-id]");
+      if (taskCheck) {
+        await toggleTask(taskCheck.dataset.taskCheckId, taskCheck.checked ? "done" : "todo");
+        return;
+      }
+
+      const doneCheck = event.target.closest("[data-done-check-id]");
+      if (doneCheck) {
+        await toggleTask(doneCheck.dataset.doneCheckId, doneCheck.checked ? "done" : "todo");
+      }
+    });
+
+    document.addEventListener("dragstart", (event) => {
+      const row = event.target.closest("[data-draggable-task-id]");
+      if (!row) return;
+      state.draggedTaskId = row.dataset.draggableTaskId;
+      row.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", state.draggedTaskId);
+    });
+
+    document.addEventListener("dragend", (event) => {
+      const row = event.target.closest("[data-draggable-task-id]");
+      if (row) row.classList.remove("dragging");
+    });
+
+    document.addEventListener("dragover", (event) => {
+      if (event.target.closest("[data-draggable-task-id]")) {
+        event.preventDefault();
+      }
+    });
+
+    document.addEventListener("drop", async (event) => {
+      const target = event.target.closest("[data-draggable-task-id]");
+      if (!target || !state.draggedTaskId || !state.workspace) return;
+      event.preventDefault();
+      const activeIds = state.workspace.active_tasks.map((task) => task.id);
+      const fromIndex = activeIds.indexOf(state.draggedTaskId);
+      const toIndex = activeIds.indexOf(target.dataset.draggableTaskId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+      activeIds.splice(toIndex, 0, activeIds.splice(fromIndex, 1)[0]);
+      const response = await fetchJson("/api/tasks/reorder", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: state.selectedProjectId,
+          ordered_active_task_ids: activeIds
+        })
+      }, "task");
+      if (!response) return;
+      applyWorkspace(response);
+      render();
+    });
+
+    async function selectProject(projectId) {
+      if (state.selectedProjectId === projectId) return;
+      await saveOpenNote();
+      const workspace = await fetchJson(`/api/projects/${projectId}/workspace`, {}, "project");
+      if (!workspace) return;
+      state.selectedProjectId = projectId;
+      applyWorkspace(workspace);
+      state.taskDrafts = [];
+      state.projectTrayMode = null;
+      syncLocation();
+      render();
+    }
+
+    async function submitProjectCreate(mode, title, sourceLocator) {
+      const response = await fetchJson("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({
+          mode,
+          title: title || null,
+          source_locator: sourceLocator || null
+        })
+      }, "project");
+      if (!response) return;
+      state.projects = response.projects;
+      state.selectedProjectId = response.selected_project_id;
+      applyWorkspace(response.workspace, response.workspace?.suggested_open_note_id || null);
+      state.projectTrayMode = null;
+      state.projectInput = "";
+      state.projectSourceInput = "";
+      state.projectPickerFallback = false;
+      syncLocation();
+      render();
+    }
+
+    async function pickLocalDirectory() {
+      const response = await fetchJson("/api/system/pick-directory", {
+        method: "POST"
+      }, "project", true);
+      if (!response) {
+        state.projectPickerFallback = true;
+        render();
+        return;
+      }
+      await submitProjectCreate("local", "", response.path);
+    }
+
+    async function commitDraftTask(draft) {
+      const response = await fetchJson("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: state.selectedProjectId,
+          title: draft.title,
+          after_task_id: draft.afterTaskId
+        })
+      }, "task");
+      if (!response) return;
+      removeDraft(draft.key);
+      applyWorkspace(response.workspace);
+      insertDraftAfter(response.created_task_id);
+      render();
+    }
+
+    async function toggleTask(taskId, status) {
+      const task = findTask(taskId);
+      if (!task) return;
+      const response = await fetchJson(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: task.revision,
+          status
+        })
+      }, "task");
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      render();
+    }
+
+    async function saveTask(taskId) {
+      if (!Object.prototype.hasOwnProperty.call(state.taskEdits, taskId)) return;
+      const task = findTask(taskId);
+      if (!task) return;
+      const title = state.taskEdits[taskId];
+      if (title === task.title) {
+        delete state.taskEdits[taskId];
+        return;
+      }
+      const response = await fetchJson(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: task.revision,
+          title
+        })
+      }, "task");
+      if (!response) return;
+      delete state.taskEdits[taskId];
+      state.workspace = response.workspace;
+      todoStatus.textContent = "saved";
+    }
+
+    async function saveOpenNote() {
+      if (!state.openNoteId) return;
+      await saveNote(state.openNoteId);
+    }
+
+    async function saveNote(noteId) {
+      if (!state.workspace) return;
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return;
+
+      const title = Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
+        ? state.noteTitleEdits[noteId]
+        : note.title;
+      const body = state.noteMode === "clean"
+        ? cleanHtmlToMarkdown(state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
+        : (Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)
+          ? state.noteBodyEdits[noteId]
+          : note.body);
+
+      if (title === note.title && body === note.body) {
+        delete state.noteTitleEdits[noteId];
+        delete state.noteBodyEdits[noteId];
+        delete state.noteHtmlEdits[noteId];
+        return;
+      }
+
+      const response = await fetchJson(`/api/notes/${noteId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: note.revision,
+          title,
+          body
+        })
+      }, "note");
+      if (!response) return;
+      delete state.noteTitleEdits[noteId];
+      delete state.noteBodyEdits[noteId];
+      delete state.noteHtmlEdits[noteId];
+      state.workspace = response.workspace;
+      noteMessage.innerHTML = "";
+    }
+
+    function debounceTaskSave(taskId) {
+      clearTimeout(state.taskTimers[taskId]);
+      todoStatus.textContent = "saving…";
+      state.taskTimers[taskId] = setTimeout(() => {
+        saveTask(taskId);
+      }, 400);
+    }
+
+    function debounceNoteSave(noteId) {
+      clearTimeout(state.noteTimers[noteId]);
+      state.noteTimers[noteId] = setTimeout(() => {
+        saveNote(noteId);
+      }, 500);
+    }
+
+    function applyWorkspace(workspace, preferredOpenNoteId = null) {
+      state.workspace = workspace;
+      state.openNoteId = preferredOpenNoteId || state.openNoteId || workspace?.suggested_open_note_id || null;
+      if (state.workspace && state.openNoteId) {
+        const exists = state.workspace.notes.some((note) => note.id === state.openNoteId);
+        if (!exists) {
+          state.openNoteId = state.workspace.suggested_open_note_id || null;
+        }
+      }
+      ensureDraftRow();
+      syncLocation();
+    }
+
+    function ensureDraftRow() {
+      if (!state.workspace) return;
+      if (state.workspace.active_tasks.length === 0 && state.taskDrafts.length === 0) {
+        insertDraftAfter(null);
+      }
+    }
+
+    function insertDraftAfter(afterTaskId) {
+      const key = `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      state.taskDrafts = state.taskDrafts.filter((draft) => draft.afterTaskId !== afterTaskId || draft.title);
+      state.taskDrafts.push({ key, afterTaskId, title: "" });
+      state.focusDraftKey = key;
+    }
+
+    function removeDraft(key) {
+      state.taskDrafts = state.taskDrafts.filter((draft) => draft.key !== key);
+      if (!state.taskDrafts.length && state.workspace?.active_tasks.length === 0) {
+        insertDraftAfter(null);
+      }
+    }
+
+    function getDraft(key) {
+      return state.taskDrafts.find((draft) => draft.key === key);
+    }
+
+    function findTask(taskId) {
+      if (!state.workspace) return null;
+      return state.workspace.active_tasks.find((task) => task.id === taskId)
+        || state.workspace.done_tasks.find((task) => task.id === taskId)
+        || null;
+    }
+
+    function render() {
+      renderProjectTray();
+      renderProjects();
+      renderTasks();
+      renderNotes();
+      updateModeButtons();
+      applyFocus();
+    }
+
+    function renderProjectTray() {
+      if (!state.projectTrayMode) {
+        projectTray.innerHTML = state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : "";
+        return;
+      }
+
+      if (state.projectTrayMode === "chooser") {
+        projectTray.innerHTML = `
+          <div class="inline-shell">
+            <div class="inline-row">
+              <button class="text-btn" type="button" data-project-chooser="new">new</button>
+              <button class="text-btn" type="button" data-project-chooser="local">local</button>
+              <button class="text-btn" type="button" data-project-chooser="github">github</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (state.projectTrayMode === "new") {
+        projectTray.innerHTML = `
+          <div class="inline-shell">
+            <input class="text-input" type="text" placeholder="project title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
+            <div class="inline-row">
+              <button class="text-btn" type="button" data-project-submit="new">create</button>
+              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
+            </div>
+          </div>
+        `;
+        projectTray.querySelector("[data-project-submit]").addEventListener("click", () => {
+          submitProjectCreate("new", state.projectInput, null);
+        });
+        return;
+      }
+
+      if (state.projectTrayMode === "github") {
+        projectTray.innerHTML = `
+          <div class="inline-shell">
+            <input class="text-input" type="text" placeholder="optional title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
+            <input class="path-input" type="text" placeholder="https://github.com/org/repo" value="${escapeAttribute(state.projectSourceInput)}" data-project-source-input>
+            <div class="inline-row">
+              <button class="text-btn" type="button" data-project-submit="github">connect</button>
+              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
+            </div>
+          </div>
+        `;
+        projectTray.querySelector("[data-project-submit]").addEventListener("click", () => {
+          submitProjectCreate("github", state.projectInput, state.projectSourceInput);
+        });
+        return;
+      }
+
+      if (state.projectTrayMode === "local") {
+        projectTray.innerHTML = `
+          <div class="inline-shell">
+            <div class="inline-row">
+              <button class="text-btn" type="button" data-pick-local>pick folder</button>
+              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
+            </div>
+            ${state.projectPickerFallback ? `
+              <input class="text-input" type="text" placeholder="optional title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
+              <input class="path-input" type="text" placeholder="/absolute/path/to/project" value="${escapeAttribute(state.projectSourceInput)}" data-project-source-input>
+              <div class="inline-row">
+                <button class="text-btn" type="button" data-project-submit="local">connect path</button>
+              </div>
+            ` : ""}
+          </div>
+        `;
+        projectTray.querySelector("[data-pick-local]").addEventListener("click", () => {
+          pickLocalDirectory();
+        });
+        const submit = projectTray.querySelector("[data-project-submit]");
+        if (submit) {
+          submit.addEventListener("click", () => {
+            submitProjectCreate("local", state.projectInput, state.projectSourceInput);
+          });
+        }
+      }
+    }
+
+    function renderProjects() {
+      if (!state.projects.length) {
+        projectList.innerHTML = `<div class="empty-state">No projects yet. Use the plus button to create a project, link a local folder, or connect a GitHub repo.</div>`;
+        return;
+      }
+
+      projectList.innerHTML = state.projects.map((project) => `
+        <button
+          class="project-card ${project.id === state.selectedProjectId ? "active" : ""}"
+          type="button"
+          data-project-id="${project.id}"
+        >
+          <span class="project-card-title">${escapeHtml(project.title)}</span>
+          <span class="source-badge">${sourceBadge(project.source_kind)}</span>
+        </button>
+      `).join("");
+    }
+
+    function renderTasks() {
+      taskMessage.innerHTML = state.taskMessage ? `<div class="message error">${escapeHtml(state.taskMessage)}</div>` : "";
+      if (!state.workspace) {
+        activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
+        doneTaskList.innerHTML = "";
+        todoStatus.textContent = "idle";
+        return;
+      }
+
+      ensureDraftRow();
+
+      const activeRows = [];
+      const draftsByAfter = new Map();
+      state.taskDrafts.forEach((draft) => {
+        const key = draft.afterTaskId ?? "__top__";
+        if (!draftsByAfter.has(key)) draftsByAfter.set(key, []);
+        draftsByAfter.get(key).push(draft);
+      });
+
+      if (draftsByAfter.has("__top__")) {
+        draftsByAfter.get("__top__").forEach((draft) => activeRows.push(renderDraftRow(draft)));
+      }
+
+      state.workspace.active_tasks.forEach((task) => {
+        activeRows.push(`
+          <div
+            class="task-row"
+            draggable="true"
+            data-draggable-task-id="${task.id}"
+          >
+            <span class="drag-handle">::</span>
+            <input class="task-check" type="checkbox" data-task-check-id="${task.id}">
+            <input class="task-input" type="text" value="${escapeAttribute(state.taskEdits[task.id] ?? task.title)}" placeholder="new task" data-task-id="${task.id}">
+          </div>
+        `);
+
+        const drafts = draftsByAfter.get(task.id);
+        if (drafts) {
+          drafts.forEach((draft) => activeRows.push(renderDraftRow(draft)));
+        }
+      });
+
+      activeTaskList.innerHTML = activeRows.join("");
+
+      if (!state.workspace.done_tasks.length) {
+        doneTaskList.innerHTML = `<div class="empty-state">Completed tasks will land here as a running changelog.</div>`;
+      } else {
+        doneTaskList.innerHTML = state.workspace.done_tasks.map((task) => `
+          <label class="done-row">
+            <input class="done-check" type="checkbox" checked data-done-check-id="${task.id}">
+            <span class="done-title">${escapeHtml(task.title || "Untitled task")}</span>
+            <span class="muted">${escapeHtml(task.completed_at_label || task.updated_at_label)}</span>
+          </label>
+        `).join("");
+      }
+
+      todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
+    }
+
+    function renderDraftRow(draft) {
+      return `
+        <div class="task-draft">
+          <span class="drag-handle">+</span>
+          <span></span>
+          <input
+            class="task-input"
+            type="text"
+            value="${escapeAttribute(draft.title)}"
+            placeholder="new task"
+            data-task-draft-key="${draft.key}"
+          >
+        </div>
+      `;
+    }
+
+    function renderNotes() {
+      noteMessage.innerHTML = state.noteMessage ? `<div class="message error">${escapeHtml(state.noteMessage)}</div>` : "";
+      if (!state.workspace) {
+        notesList.innerHTML = `<div class="empty-state">Select or create a project to start collecting notes.</div>`;
+        return;
+      }
+
+      if (!state.workspace.notes.length) {
+        notesList.innerHTML = `<div class="empty-state">Use the plus button to create the first project note.</div>`;
+        return;
+      }
+
+      notesList.innerHTML = state.workspace.notes.map((note) => {
+        const isOpen = state.openNoteId === note.id;
+        return `
+          <section class="note-card ${isOpen ? "open" : ""}">
+            <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true">
+              <span>${escapeHtml(note.title)}</span>
+              <span class="muted">${escapeHtml(note.updated_at_label)}</span>
+            </button>
+            ${isOpen ? renderOpenNote(note) : ""}
+          </section>
+        `;
+      }).join("");
+
+      hydrateCleanEditor();
+    }
+
+    function renderOpenNote(note) {
+      const title = state.noteTitleEdits[note.id] ?? note.title;
+      if (state.noteMode === "markdown") {
+        const body = state.noteBodyEdits[note.id] ?? note.body;
+        return `
+          <div class="note-editor">
+            <input class="note-title-input" type="text" value="${escapeAttribute(title)}" data-note-title-id="${note.id}">
+            <textarea class="markdown-input" data-note-body-id="${note.id}" placeholder="markdown project context">${escapeHtml(body)}</textarea>
+            <div class="note-meta">
+              <span>${escapeHtml(note.id)}</span>
+              <span>${escapeHtml(note.updated_at_label)}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="note-editor">
+          <input class="note-title-input" type="text" value="${escapeAttribute(title)}" data-note-title-id="${note.id}">
+          <div class="toolbar">
+            <button type="button" data-rich-command="bold">bold</button>
+            <button type="button" data-rich-command="italic">italic</button>
+            <button type="button" data-rich-command="h2">h2</button>
+            <button type="button" data-rich-command="bullet">list</button>
+            <button type="button" data-rich-command="checklist">check</button>
+            <button type="button" data-rich-command="link">link</button>
+          </div>
+          <div class="clean-editor" contenteditable="true" data-note-clean-id="${note.id}"></div>
+          <div class="note-meta">
+            <span>${escapeHtml(note.id)}</span>
+            <span>${escapeHtml(note.updated_at_label)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function hydrateCleanEditor() {
+      if (state.noteMode !== "clean" || !state.openNoteId || !state.workspace) return;
+      const note = state.workspace.notes.find((item) => item.id === state.openNoteId);
+      const editor = document.querySelector(`[data-note-clean-id="${state.openNoteId}"]`);
+      if (!note || !editor || editor.dataset.hydrated === "true") return;
+      editor.innerHTML = normalizeCleanHtml(state.noteHtmlEdits[note.id] ?? note.rendered_html);
+      editor.dataset.hydrated = "true";
+    }
+
+    function updateModeButtons() {
+      document.querySelectorAll("[data-note-mode]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.noteMode === state.noteMode);
+      });
+    }
+
+    function applyFocus() {
+      if (state.focusDraftKey) {
+        const input = document.querySelector(`[data-task-draft-key="${state.focusDraftKey}"]`);
+        if (input) {
+          input.focus();
+          state.focusDraftKey = null;
+          return;
+        }
+      }
+
+      if (state.focusNoteId) {
+        const input = document.querySelector(`[data-note-title-id="${state.focusNoteId}"]`);
+        if (input) {
+          input.focus();
+          input.select();
+          state.focusNoteId = null;
+        }
+      }
+    }
+
+    function sourceBadge(kind) {
+      if (kind === "local") return "L";
+      if (kind === "github") return "GH";
+      return "N";
+    }
+
+    function syncLocation() {
+      const url = new URL(window.location.href);
+      if (state.selectedProjectId) {
+        url.searchParams.set("project_id", state.selectedProjectId);
+      } else {
+        url.searchParams.delete("project_id");
+      }
+      history.replaceState({}, "", url.toString());
+    }
+
+    function handleRichCommand(command) {
+      const editor = document.querySelector(`[data-note-clean-id="${state.openNoteId}"]`);
+      if (!editor) return;
+      editor.focus();
+      if (command === "bold") {
+        document.execCommand("bold");
+      } else if (command === "italic") {
+        document.execCommand("italic");
+      } else if (command === "h2") {
+        document.execCommand("formatBlock", false, "h2");
+      } else if (command === "bullet") {
+        document.execCommand("insertUnorderedList");
+      } else if (command === "checklist") {
+        document.execCommand("insertHTML", false, "<ul><li><input type='checkbox'> checklist item</li></ul>");
+      } else if (command === "link") {
+        const href = window.prompt("Link URL");
+        if (href) document.execCommand("createLink", false, href);
+      }
+      state.noteHtmlEdits[state.openNoteId] = editor.innerHTML;
+      debounceNoteSave(state.openNoteId);
+    }
+
+    function normalizeCleanHtml(html) {
+      const container = document.createElement("div");
+      container.innerHTML = html || "<p></p>";
+      container.querySelectorAll("input[type='checkbox']").forEach((input) => {
+        input.removeAttribute("disabled");
+      });
+      return container.innerHTML;
+    }
+
+    function getCurrentCleanHtml(noteId) {
+      const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
+      return editor ? editor.innerHTML : null;
+    }
+
+    function cleanHtmlToMarkdown(html) {
+      const container = document.createElement("div");
+      container.innerHTML = html || "";
+      const markdown = serializeBlockChildren(container).trim();
+      return markdown ? `${markdown}\n` : "";
+    }
+
+    function serializeBlockChildren(node) {
+      const parts = [];
+      node.childNodes.forEach((child) => {
+        const chunk = serializeNode(child).trimEnd();
+        if (chunk) parts.push(chunk);
+      });
+      return parts.join("\n\n");
+    }
+
+    function serializeNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.textContent.replace(/\u00a0/g, " ");
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return "";
+      }
+
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br") return "\n";
+      if (tag === "h1") return `# ${serializeInline(node).trim()}`;
+      if (tag === "h2") return `## ${serializeInline(node).trim()}`;
+      if (tag === "h3") return `### ${serializeInline(node).trim()}`;
+      if (tag === "p" || tag === "div") return serializeInline(node).trim();
+      if (tag === "ul") {
+        return Array.from(node.children).map((child) => serializeListItem(child)).join("\n");
+      }
+      if (tag === "ol") {
+        return Array.from(node.children).map((child, index) => `${index + 1}. ${serializeInline(child).trim()}`).join("\n");
+      }
+      return serializeInline(node).trim();
+    }
+
+    function serializeListItem(node) {
+      if (!node || node.tagName.toLowerCase() !== "li") return "";
+      const checkbox = node.querySelector(":scope > input[type='checkbox']");
+      const checkboxPrefix = checkbox ? `- [${checkbox.checked ? "x" : " "}] ` : "- ";
+      const clone = node.cloneNode(true);
+      clone.querySelectorAll("input[type='checkbox']").forEach((input) => input.remove());
+      return `${checkboxPrefix}${serializeInline(clone).trim()}`;
+    }
+
+    function serializeInline(node) {
+      let text = "";
+      node.childNodes.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          text += child.textContent.replace(/\u00a0/g, " ");
+          return;
+        }
+        if (child.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = child.tagName.toLowerCase();
+        if (tag === "strong" || tag === "b") {
+          text += `**${serializeInline(child)}**`;
+        } else if (tag === "em" || tag === "i") {
+          text += `*${serializeInline(child)}*`;
+        } else if (tag === "a") {
+          text += `[${serializeInline(child)}](${child.getAttribute("href") || ""})`;
+        } else if (tag === "br") {
+          text += "\n";
+        } else if (tag === "input" && child.type === "checkbox") {
+          text += "";
+        } else {
+          text += serializeInline(child);
+        }
+      });
+      return text;
+    }
+
+    async function fetchJson(url, options = {}, channel = "task", allowFailure = false) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json"
+          },
+          ...options
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const message = payload?.error || `Request failed (${response.status})`;
+          if (channel === "project") state.projectMessage = message;
+          if (channel === "task") state.taskMessage = message;
+          if (channel === "note") state.noteMessage = message;
+          if (!allowFailure) render();
+          return null;
+        }
+        if (channel === "project") state.projectMessage = "";
+        if (channel === "task") state.taskMessage = "";
+        if (channel === "note") state.noteMessage = "";
+        return response.status === 204 ? null : response.json();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (channel === "project") state.projectMessage = message;
+        if (channel === "task") state.taskMessage = message;
+        if (channel === "note") state.noteMessage = message;
+        if (!allowFailure) render();
+        return null;
+      }
+    }
+
+    function escapeHtml(value = "") {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function escapeAttribute(value = "") {
+      return escapeHtml(value);
+    }
+
+    render();
+  </script>
 </body>
 </html>

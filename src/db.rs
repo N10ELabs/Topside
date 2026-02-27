@@ -10,8 +10,8 @@ use ulid::Ulid;
 use crate::activity::ActivityDraft;
 use crate::types::{
     ActivityItem, EntityFrontmatter, EntitySnapshot, EntityType, IndexedEntity, NoteItem,
-    ParsedEntity, ProjectItem, SearchFilters, SearchResult, TaskFilters, TaskItem, TaskPriority,
-    TaskStatus,
+    ParsedEntity, ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters,
+    TaskItem, TaskPriority, TaskStatus,
 };
 
 #[derive(Clone)]
@@ -71,7 +71,7 @@ impl Db {
                     continue;
                 }
 
-                conn.execute_batch(sql)
+                apply_migration(conn, name, sql)
                     .with_context(|| format!("failed applying migration {name}"))?;
                 conn.execute(
                     "INSERT INTO schema_migrations (name, applied_at) VALUES (?1, ?2)",
@@ -185,8 +185,8 @@ impl Db {
                         r#"
                         INSERT INTO tasks (
                             id, project_id, status, priority, assignee, due_at, path, title,
-                            created_at, updated_at, revision, archived
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                            created_at, updated_at, revision, archived, sort_order, completed_at
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                         ON CONFLICT(id) DO UPDATE SET
                             project_id = excluded.project_id,
                             status = excluded.status,
@@ -198,7 +198,9 @@ impl Db {
                             created_at = excluded.created_at,
                             updated_at = excluded.updated_at,
                             revision = excluded.revision,
-                            archived = excluded.archived
+                            archived = excluded.archived,
+                            sort_order = excluded.sort_order,
+                            completed_at = excluded.completed_at
                         "#,
                         params![
                             entity.id,
@@ -213,6 +215,8 @@ impl Db {
                             entity.updated_at.to_rfc3339(),
                             entity.revision,
                             if entity.archived { 1 } else { 0 },
+                            entity.sort_order,
+                            entity.completed_at.map(|v| v.to_rfc3339()),
                         ],
                     )?;
                     tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
@@ -221,11 +225,16 @@ impl Db {
                 EntityType::Project => {
                     tx.execute(
                         r#"
-                        INSERT INTO projects (id, status, owner, path, title, created_at, updated_at, revision, archived)
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                        INSERT INTO projects (
+                            id, status, owner, source_kind, source_locator, path, title,
+                            created_at, updated_at, revision, archived
+                        )
+                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                         ON CONFLICT(id) DO UPDATE SET
                             status = excluded.status,
                             owner = excluded.owner,
+                            source_kind = excluded.source_kind,
+                            source_locator = excluded.source_locator,
                             path = excluded.path,
                             title = excluded.title,
                             created_at = excluded.created_at,
@@ -237,6 +246,8 @@ impl Db {
                             entity.id,
                             entity.status,
                             entity.owner,
+                            entity.source_kind.as_ref().map(ProjectSourceKind::as_str),
+                            entity.source_locator,
                             path,
                             entity.title,
                             entity.created_at.to_rfc3339(),
@@ -392,14 +403,15 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, title, project_id, status, priority, assignee, due_at, path, updated_at, revision, archived
+                SELECT id, title, project_id, status, priority, assignee, due_at, created_at,
+                       sort_order, completed_at, path, updated_at, revision, archived
                 FROM tasks
                 WHERE (?1 IS NULL OR status = ?1)
                   AND (?2 IS NULL OR priority = ?2)
                   AND (?3 IS NULL OR project_id = ?3)
                   AND (?4 IS NULL OR assignee = ?4)
                   AND (?5 = 1 OR archived = 0)
-                ORDER BY updated_at DESC
+                ORDER BY created_at ASC
                 LIMIT ?6
                 "#,
             )?;
@@ -414,13 +426,22 @@ impl Db {
                     limit
                 ],
                 |row| {
-                    let status = parse_task_status(&row.get::<_, String>(3)?).map_err(to_sql_err)?;
-                    let priority = parse_task_priority(&row.get::<_, String>(4)?).map_err(to_sql_err)?;
+                    let status =
+                        parse_task_status(&row.get::<_, String>(3)?).map_err(to_sql_err)?;
+                    let priority =
+                        parse_task_priority(&row.get::<_, String>(4)?).map_err(to_sql_err)?;
                     let due_at = row
                         .get::<_, Option<String>>(6)?
                         .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
                         .map(|v| v.with_timezone(&Utc));
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
+                    let created_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
+                        .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
+                        .with_timezone(&Utc);
+                    let completed_at = row
+                        .get::<_, Option<String>>(9)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(11)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
 
@@ -432,10 +453,13 @@ impl Db {
                         priority,
                         assignee: row.get(5)?,
                         due_at,
-                        path: row.get(7)?,
+                        created_at,
+                        sort_order: row.get(8)?,
+                        completed_at,
+                        path: row.get(10)?,
                         updated_at,
-                        revision: row.get(9)?,
-                        archived: row.get::<_, i64>(10)? != 0,
+                        revision: row.get(12)?,
+                        archived: row.get::<_, i64>(13)? != 0,
                     })
                 },
             )?;
@@ -490,7 +514,7 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, title, status, owner, path, updated_at, revision, archived
+                SELECT id, title, status, owner, source_kind, source_locator, path, updated_at, revision, archived
                 FROM projects
                 WHERE (?1 = 1 OR archived = 0)
                 ORDER BY updated_at DESC
@@ -501,7 +525,7 @@ impl Db {
             let rows = stmt.query_map(
                 params![if include_archived { 1 } else { 0 }, limit as i64],
                 |row| {
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
                     Ok(ProjectItem {
@@ -509,10 +533,16 @@ impl Db {
                         title: row.get(1)?,
                         status: row.get(2)?,
                         owner: row.get(3)?,
-                        path: row.get(4)?,
+                        source_kind: row
+                            .get::<_, Option<String>>(4)?
+                            .map(|value| parse_project_source_kind(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        source_locator: row.get(5)?,
+                        path: row.get(6)?,
                         updated_at,
-                        revision: row.get(6)?,
-                        archived: row.get::<_, i64>(7)? != 0,
+                        revision: row.get(8)?,
+                        archived: row.get::<_, i64>(9)? != 0,
                     })
                 },
             )?;
@@ -740,6 +770,12 @@ fn parse_task_priority(value: &str) -> Result<TaskPriority> {
     serde_json::from_str::<TaskPriority>(&encoded).context("invalid task priority value in sqlite")
 }
 
+fn parse_project_source_kind(value: &str) -> Result<ProjectSourceKind> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<ProjectSourceKind>(&encoded)
+        .context("invalid project source kind value in sqlite")
+}
+
 fn to_sql_err(err: anyhow::Error) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
@@ -748,9 +784,50 @@ fn to_sql_err(err: anyhow::Error) -> rusqlite::Error {
     )
 }
 
-const MIGRATIONS: &[(&str, &str)] = &[(
-    "001_base",
-    r#"
+fn apply_migration(conn: &mut Connection, name: &str, sql: &str) -> Result<()> {
+    match name {
+        "002_project_sources_and_task_order" => apply_project_source_and_task_order_migration(conn),
+        _ => conn.execute_batch(sql).map_err(Into::into),
+    }
+}
+
+fn apply_project_source_and_task_order_migration(conn: &mut Connection) -> Result<()> {
+    if !has_column(conn, "tasks", "sort_order")? {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;")?;
+    }
+    if !has_column(conn, "tasks", "completed_at")? {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN completed_at TEXT;")?;
+    }
+    if !has_column(conn, "projects", "source_kind")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN source_kind TEXT;")?;
+    }
+    if !has_column(conn, "projects", "source_locator")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN source_locator TEXT;")?;
+    }
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_sort_order ON tasks(project_id, sort_order);
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_completed_at ON tasks(project_id, completed_at);
+        "#,
+    )?;
+    Ok(())
+}
+
+fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for row in rows {
+        if row? == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "001_base",
+        r#"
     CREATE TABLE IF NOT EXISTS files (
         path TEXT PRIMARY KEY,
         entity_id TEXT NOT NULL,
@@ -792,13 +869,17 @@ const MIGRATIONS: &[(&str, &str)] = &[(
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         revision TEXT NOT NULL,
-        archived INTEGER NOT NULL DEFAULT 0
+        archived INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        completed_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS projects (
         id TEXT PRIMARY KEY,
         status TEXT NOT NULL,
         owner TEXT,
+        source_kind TEXT,
+        source_locator TEXT,
         path TEXT NOT NULL,
         title TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -856,10 +937,14 @@ const MIGRATIONS: &[(&str, &str)] = &[(
     CREATE INDEX IF NOT EXISTS idx_entities_project ON entities(project_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_sort_order ON tasks(project_id, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_completed_at ON tasks(project_id, completed_at);
     CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
     CREATE INDEX IF NOT EXISTS idx_activity_occurred_at ON activity_events(occurred_at);
     "#,
-)];
+    ),
+    ("002_project_sources_and_task_order", ""),
+];
 
 #[allow(dead_code)]
 fn _frontmatter_passthrough(value: EntityFrontmatter) -> EntityFrontmatter {

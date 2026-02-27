@@ -110,9 +110,35 @@ pub enum ProjectStatus {
     Archived,
 }
 
+impl ProjectStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Archived => "archived",
+        }
+    }
+}
+
 impl Default for ProjectStatus {
     fn default() -> Self {
         Self::Active
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectSourceKind {
+    Local,
+    Github,
+}
+
+impl ProjectSourceKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Github => "github",
+        }
     }
 }
 
@@ -128,6 +154,10 @@ pub struct TaskFrontmatter {
     pub assignee: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub due_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub sort_order: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
@@ -145,6 +175,10 @@ pub struct ProjectFrontmatter {
     pub status: ProjectStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_kind: Option<ProjectSourceKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_locator: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
@@ -245,11 +279,7 @@ impl EntityFrontmatter {
     pub fn status(&self) -> Option<String> {
         match self {
             Self::Task(v) => Some(v.status.as_str().to_string()),
-            Self::Project(v) => Some(match v.status {
-                ProjectStatus::Active => "active".to_string(),
-                ProjectStatus::Paused => "paused".to_string(),
-                ProjectStatus::Archived => "archived".to_string(),
-            }),
+            Self::Project(v) => Some(v.status.as_str().to_string()),
             Self::Note(_) => None,
         }
     }
@@ -275,9 +305,37 @@ impl EntityFrontmatter {
         }
     }
 
+    pub fn sort_order(&self) -> Option<i64> {
+        match self {
+            Self::Task(v) => Some(v.sort_order),
+            _ => None,
+        }
+    }
+
+    pub fn completed_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Task(v) => v.completed_at,
+            _ => None,
+        }
+    }
+
     pub fn owner(&self) -> Option<&str> {
         match self {
             Self::Project(v) => v.owner.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn source_kind(&self) -> Option<ProjectSourceKind> {
+        match self {
+            Self::Project(v) => v.source_kind.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn source_locator(&self) -> Option<&str> {
+        match self {
+            Self::Project(v) => v.source_locator.as_deref(),
             _ => None,
         }
     }
@@ -326,7 +384,11 @@ pub struct IndexedEntity {
     pub priority: Option<String>,
     pub assignee: Option<String>,
     pub due_at: Option<DateTime<Utc>>,
+    pub sort_order: i64,
+    pub completed_at: Option<DateTime<Utc>>,
     pub owner: Option<String>,
+    pub source_kind: Option<ProjectSourceKind>,
+    pub source_locator: Option<String>,
     pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -393,6 +455,9 @@ pub struct TaskItem {
     pub priority: TaskPriority,
     pub assignee: String,
     pub due_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub sort_order: i64,
+    pub completed_at: Option<DateTime<Utc>>,
     pub path: String,
     pub updated_at: DateTime<Utc>,
     pub revision: String,
@@ -411,11 +476,25 @@ pub struct NoteItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteDetail {
+    pub id: String,
+    pub title: String,
+    pub project_id: Option<String>,
+    pub body: String,
+    pub path: String,
+    pub updated_at: DateTime<Utc>,
+    pub revision: String,
+    pub archived: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectItem {
     pub id: String,
     pub title: String,
     pub status: String,
     pub owner: Option<String>,
+    pub source_kind: Option<ProjectSourceKind>,
+    pub source_locator: Option<String>,
     pub path: String,
     pub updated_at: DateTime<Utc>,
     pub revision: String,
@@ -441,10 +520,23 @@ pub struct ActivityItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectWorkspace {
+    pub project: ProjectItem,
+    pub active_tasks: Vec<TaskItem>,
+    pub done_tasks: Vec<TaskItem>,
+    pub notes: Vec<NoteDetail>,
+    pub suggested_open_note_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateProjectPayload {
     pub title: String,
     #[serde(default)]
     pub owner: Option<String>,
+    #[serde(default)]
+    pub source_kind: Option<ProjectSourceKind>,
+    #[serde(default)]
+    pub source_locator: Option<String>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
     #[serde(default)]
@@ -463,6 +555,8 @@ pub struct CreateTaskPayload {
     pub assignee: Option<String>,
     #[serde(default)]
     pub due_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub sort_order: Option<i64>,
     #[serde(default)]
     pub tags: Option<Vec<String>>,
     #[serde(default)]
@@ -493,9 +587,17 @@ pub struct TaskPatch {
     #[serde(default)]
     pub due_at: Option<String>,
     #[serde(default)]
+    pub sort_order: Option<i64>,
+    #[serde(default)]
     pub tags: Option<Vec<String>>,
     #[serde(default)]
     pub body: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskReorderPayload {
+    pub project_id: String,
+    pub ordered_active_task_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
