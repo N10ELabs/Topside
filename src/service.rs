@@ -15,8 +15,8 @@ use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_ent
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
     EntitySnapshot, EntityType, NoteDetail, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
-    ProjectFrontmatter, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult, TaskFilters,
-    TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus,
+    ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult,
+    TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus,
 };
 
 #[derive(Debug, Error)]
@@ -553,6 +553,75 @@ impl AppService {
             .map_err(ServiceError::Other)
     }
 
+    pub fn update_project(
+        &self,
+        id: &str,
+        patch: ProjectPatch,
+        expected_revision: &str,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let (record, parsed) = self
+            .db
+            .parse_entity_from_disk(id)?
+            .context("project not found")?;
+
+        if record.entity_type != EntityType::Project {
+            return Err(anyhow::anyhow!("entity {id} is not a project").into());
+        }
+
+        self.enforce_revision(expected_revision, &parsed)?;
+
+        let (mut frontmatter, mut body) = split_project(parsed.frontmatter, parsed.body)?;
+
+        if let Some(value) = patch.title {
+            frontmatter.title = value;
+        }
+        if let Some(value) = patch.status {
+            frontmatter.status = value;
+        }
+        if let Some(value) = patch.owner {
+            frontmatter.owner = value;
+        }
+        if let Some(value) = patch.source_kind {
+            frontmatter.source_kind = value;
+        }
+        if let Some(value) = patch.source_locator {
+            frontmatter.source_locator = value;
+        }
+        if let Some(value) = patch.tags {
+            frontmatter.tags = Some(value);
+        }
+        if let Some(value) = patch.body {
+            body = value;
+        }
+
+        frontmatter.updated_at = Utc::now();
+
+        let before = record.revision.clone();
+        let mut entity = EntityFrontmatter::Project(frontmatter);
+        let rendered = render_entity_markdown(&mut entity, &body)?;
+        atomic_write(&record.path, &rendered)?;
+        let indexed = self.indexer.index_file(&record.path)?;
+
+        self.record_entity_activity(
+            actor,
+            EntityActivityMeta {
+                action: "update_project",
+                entity_type: EntityType::Project,
+                entity_id: id,
+                path: &record.path,
+                before_revision: Some(before),
+                after_revision: Some(indexed.revision.clone()),
+                summary: "Updated project",
+            },
+        )?;
+
+        self.db
+            .read_entity_snapshot(id)?
+            .context("updated project not found after indexing")
+            .map_err(ServiceError::Other)
+    }
+
     pub fn archive_entity(
         &self,
         id: &str,
@@ -737,6 +806,16 @@ fn split_note(frontmatter: EntityFrontmatter, body: String) -> Result<(NoteFront
     match frontmatter {
         EntityFrontmatter::Note(note) => Ok((note, body)),
         _ => anyhow::bail!("expected note frontmatter"),
+    }
+}
+
+fn split_project(
+    frontmatter: EntityFrontmatter,
+    body: String,
+) -> Result<(ProjectFrontmatter, String)> {
+    match frontmatter {
+        EntityFrontmatter::Project(project) => Ok((project, body)),
+        _ => anyhow::bail!("expected project frontmatter"),
     }
 }
 

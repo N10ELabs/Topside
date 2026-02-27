@@ -52,68 +52,28 @@
 
     .shell {
       min-height: 100vh;
-      display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 14px;
       padding: 14px;
-    }
-
-    .topbar {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 14px 16px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(14, 23, 31, 0.88);
-      box-shadow: var(--shadow);
-    }
-
-    .brand {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .brand h1 {
-      margin: 0;
-      font-size: 20px;
-      font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
-      letter-spacing: 0.08em;
-    }
-
-    .brand p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-      max-width: 720px;
-    }
-
-    .chips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .chip {
-      padding: 6px 10px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      color: var(--muted);
-      background: rgba(8, 18, 26, 0.8);
-      font-size: 12px;
-      font-family: "IBM Plex Mono", monospace;
     }
 
     .layout {
-      min-height: 0;
+      flex: 1;
+      min-height: calc(100vh - 28px);
       display: grid;
       gap: 12px;
-      grid-template-columns: 260px minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .layout.empty-app .pane-todo {
+      grid-column: 2 / -1;
+    }
+
+    .layout.empty-app .pane-todo .pane-head {
+      display: none;
+    }
+
+    .layout.empty-app .pane-notes {
+      display: none;
     }
 
     .pane {
@@ -127,15 +87,33 @@
       overflow: hidden;
     }
 
+    .pane-projects {
+      border: none;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+    }
+
     .pane-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       padding: 14px 16px;
+      min-height: 62px;
       border-bottom: 1px solid var(--line);
+    }
+
+    .pane-projects .pane-head {
+      border-bottom: none;
+    }
+
+    .pane-title {
       font-family: "IBM Plex Mono", monospace;
       font-size: 15px;
+      line-height: 1;
       text-transform: lowercase;
     }
 
@@ -154,9 +132,13 @@
       align-content: start;
     }
 
+    .pane-projects .pane-body {
+      padding: 0 12px 0 6px;
+      overflow: visible;
+    }
+
     .icon-btn,
-    .text-btn,
-    .mode-btn {
+    .text-btn {
       border: 1px solid var(--line);
       border-radius: 10px;
       background: rgba(9, 18, 25, 0.9);
@@ -174,7 +156,50 @@
       line-height: 1;
     }
 
-    .mode-btn.active,
+    .mode-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(9, 18, 25, 0.9);
+    }
+
+    .mode-btn {
+      width: 34px;
+      height: 34px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .mode-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .mode-btn.active {
+      color: var(--text);
+      border-color: rgba(56, 189, 248, 0.6);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.22);
+      background: rgba(16, 33, 46, 0.98);
+    }
+
+    .mode-btn:hover {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.58);
+    }
+
     .project-card.active {
       border-color: rgba(56, 189, 248, 0.6);
       box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.22);
@@ -241,13 +266,83 @@
       gap: 8px;
     }
 
+    .project-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+    }
+
     .project-card {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 12px;
+      padding: 10px 12px;
       text-align: left;
+    }
+
+    .pane-projects .project-card {
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      padding: 9px 10px;
+      box-shadow: none;
+    }
+
+    .pane-projects .project-card:hover {
+      background: rgba(16, 33, 46, 0.56);
+    }
+
+    .pane-projects .project-card.active {
+      border-color: transparent;
+      box-shadow: none;
+      background: rgba(16, 33, 46, 0.92);
+    }
+
+    .project-select {
+      width: 100%;
+    }
+
+    .project-actions-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+    }
+
+    .project-actions-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .project-row:hover .project-actions-btn,
+    .project-row:focus-within .project-actions-btn {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .project-actions-btn:hover,
+    .project-actions-btn:focus-visible {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
+      outline: none;
+    }
+
+    .pane-projects .inline-shell,
+    .pane-projects .empty-state,
+    .pane-projects .message {
+      border-radius: 10px;
+      background: rgba(10, 18, 25, 0.46);
     }
 
     .project-card-title {
@@ -255,19 +350,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-
-    .source-badge {
-      min-width: 34px;
-      height: 24px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      display: inline-grid;
-      place-items: center;
-      color: var(--muted);
-      font-size: 11px;
-      font-family: "IBM Plex Mono", monospace;
-      background: rgba(10, 18, 26, 0.9);
     }
 
     .section-title,
@@ -283,6 +365,10 @@
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
       margin: 4px 0;
+    }
+
+    .todo-history.hidden {
+      display: none;
     }
 
     .task-row,
@@ -442,6 +528,187 @@
       font-family: "IBM Plex Mono", monospace;
     }
 
+    .starter-shell {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px 10px;
+    }
+
+    .starter-card {
+      width: min(440px, 100%);
+      display: grid;
+      gap: 16px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(14, 24, 34, 0.96), rgba(10, 18, 25, 0.92));
+      box-shadow: 0 24px 60px rgba(2, 8, 14, 0.3);
+    }
+
+    .starter-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .starter-actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .starter-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+
+    .starter-btn.active {
+      background: linear-gradient(180deg, rgba(67, 97, 190, 0.95), rgba(54, 78, 154, 0.95));
+      box-shadow: inset 0 0 0 1px rgba(147, 184, 255, 0.16);
+    }
+
+    .starter-btn:not(.active) {
+      color: #bcc9d7;
+    }
+
+    .starter-btn:hover {
+      background-color: rgba(17, 30, 40, 0.72);
+    }
+
+    .starter-btn:not(.active):hover,
+    .starter-btn:not(.active):focus-visible {
+      background: linear-gradient(180deg, rgba(67, 97, 190, 0.95), rgba(54, 78, 154, 0.95));
+      box-shadow: inset 0 0 0 1px rgba(147, 184, 255, 0.16);
+      color: var(--text);
+    }
+
+    .starter-btn.active:hover,
+    .starter-btn.active:focus-visible {
+      background: linear-gradient(180deg, rgba(77, 109, 208, 0.98), rgba(60, 85, 172, 0.98));
+    }
+
+    .starter-btn-icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .overlay-shell {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(4, 9, 14, 0.58);
+      backdrop-filter: blur(8px);
+      z-index: 30;
+    }
+
+    .overlay-shell.open {
+      display: flex;
+    }
+
+    .overlay-card {
+      width: min(560px, 100%);
+      max-height: min(720px, calc(100vh - 48px));
+      overflow: auto;
+      display: grid;
+      gap: 18px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(14, 24, 34, 0.98), rgba(10, 18, 25, 0.96));
+      box-shadow: 0 26px 60px rgba(2, 8, 14, 0.42);
+    }
+
+    .overlay-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .overlay-title {
+      display: grid;
+      gap: 6px;
+    }
+
+    .overlay-title h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .overlay-section {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(9, 18, 25, 0.62);
+    }
+
+    .overlay-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .overlay-actions,
+    .overlay-inline-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .overlay-value {
+      color: #cbd7e3;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
+    .overlay-muted {
+      color: var(--muted);
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .overlay-message {
+      color: #fed7aa;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .overlay-message.error {
+      color: #fecaca;
+    }
+
+    .danger-btn {
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #fecaca;
+    }
+
+    .disabled-note {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     @media (max-width: 1120px) {
       .layout {
         grid-template-columns: 240px 1fr;
@@ -460,12 +727,9 @@
         padding: 10px;
       }
 
-      .topbar,
       .layout {
+        min-height: calc(100vh - 20px);
         grid-template-columns: 1fr;
-      }
-
-      .layout {
         grid-template-areas: none;
       }
 
@@ -474,26 +738,33 @@
       .pane-notes {
         grid-area: auto;
       }
+
+      .pane-projects {
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 10px;
+      }
+
+      .pane-projects .pane-head {
+        padding: 14px 16px;
+      }
+
+      .pane-projects .pane-body {
+        padding: 0;
+      }
+
+      .layout.empty-app .pane-todo {
+        grid-column: auto;
+      }
     }
   </style>
 </head>
 <body>
   <div class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <h1>n10e</h1>
-        <p>Shared project context and status. Keep the plan simple, keep the notes durable, and let agents pick up the thread without a long briefing.</p>
-      </div>
-      <div class="chips">
-        <span class="chip">knowledge hub</span>
-        <span class="chip">local-first</span>
-      </div>
-    </header>
-
     <main class="layout">
       <section class="pane pane-projects">
         <div class="pane-head">
-          <span>projects</span>
+          <span class="pane-title">projects</span>
           <div class="pane-head-actions">
             <button class="icon-btn" id="projects-add" type="button">+</button>
           </div>
@@ -506,7 +777,7 @@
 
       <section class="pane pane-todo">
         <div class="pane-head">
-          <span>to-do</span>
+          <span class="pane-title">to-do</span>
           <div class="pane-head-actions">
             <span class="muted" id="todo-status">ready</span>
           </div>
@@ -514,18 +785,35 @@
         <div class="pane-body">
           <div id="task-message"></div>
           <div class="task-list" id="active-task-list"></div>
-          <div class="divider"></div>
-          <div class="small-label">done / changelog</div>
-          <div class="done-list" id="done-task-list"></div>
+          <div class="todo-history" id="todo-history">
+            <div class="divider"></div>
+            <div class="small-label">done / changelog</div>
+            <div class="done-list" id="done-task-list"></div>
+          </div>
         </div>
       </section>
 
       <section class="pane pane-notes">
         <div class="pane-head">
-          <span>notes</span>
+          <span class="pane-title">notes</span>
           <div class="pane-head-actions">
-            <button class="mode-btn" type="button" data-note-mode="markdown">markdown</button>
-            <button class="mode-btn" type="button" data-note-mode="clean">clean</button>
+            <div class="mode-toggle" aria-label="Notes view mode">
+              <button class="mode-btn" type="button" data-note-mode="clean" aria-label="Clean view" title="Clean view">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3h6l5 5v13H8z"></path>
+                  <path d="M14 3v5h5"></path>
+                  <path d="M10 13h7"></path>
+                  <path d="M10 17h7"></path>
+                </svg>
+              </button>
+              <button class="mode-btn" type="button" data-note-mode="markdown" aria-label="Markdown view" title="Markdown view">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m8 8-4 4 4 4"></path>
+                  <path d="m16 8 4 4-4 4"></path>
+                  <path d="m13 6-2 12"></path>
+                </svg>
+              </button>
+            </div>
             <button class="icon-btn" id="notes-add" type="button">+</button>
           </div>
         </div>
@@ -537,7 +825,35 @@
     </main>
   </div>
 
+  <div id="project-settings-overlay"></div>
+
   <script id="initial-state" type="application/json">{{ initial_state_json|safe }}</script>
+  {% if dev_reload_enabled %}
+  <script>
+    (() => {
+      let currentReloadToken = "{{ dev_reload_token }}";
+
+      async function pollReloadToken() {
+        try {
+          const response = await fetch("/__dev/reload-token", { cache: "no-store" });
+          if (response.ok) {
+            const payload = await response.json();
+            if (payload.token !== currentReloadToken) {
+              window.location.reload();
+              return;
+            }
+          }
+        } catch (_error) {
+          // Ignore transient failures while the dev server is rebuilding.
+        }
+
+        window.setTimeout(pollReloadToken, 1000);
+      }
+
+      window.setTimeout(pollReloadToken, 1000);
+    })();
+  </script>
+  {% endif %}
   <script>
     const initialState = JSON.parse(document.getElementById("initial-state").textContent);
     const noteModeKey = "n10e-note-mode";
@@ -566,6 +882,13 @@
       focusTaskId: null,
       focusDraftKey: null,
       focusNoteId: null,
+      projectSettingsId: null,
+      projectSettingsTitle: "",
+      projectSettingsSourceMode: null,
+      projectSettingsSourceInput: "",
+      projectSettingsMessage: "",
+      projectSettingsPickerFallback: false,
+      emptyAppAction: "local",
     };
 
     const projectTray = document.getElementById("project-tray");
@@ -576,6 +899,9 @@
     const doneTaskList = document.getElementById("done-task-list");
     const notesList = document.getElementById("notes-list");
     const todoStatus = document.getElementById("todo-status");
+    const todoHistory = document.getElementById("todo-history");
+    const layout = document.querySelector(".layout");
+    const projectSettingsOverlay = document.getElementById("project-settings-overlay");
 
     document.getElementById("projects-add").addEventListener("click", () => {
       state.projectMessage = "";
@@ -610,12 +936,49 @@
     });
 
     document.addEventListener("click", async (event) => {
-      const chooserBtn = event.target.closest("[data-project-chooser]");
-      if (chooserBtn) {
-        state.projectTrayMode = chooserBtn.dataset.projectChooser;
+      const emptyAction = event.target.closest("[data-empty-action]");
+      if (emptyAction) {
+        const action = emptyAction.dataset.emptyAction;
+        state.emptyAppAction = action;
+        updateStarterButtons();
+        state.projectMessage = "";
         state.projectInput = "";
         state.projectSourceInput = "";
         state.projectPickerFallback = false;
+
+        if (action === "local") {
+          state.projectTrayMode = null;
+          render();
+          await pickLocalDirectory();
+          return;
+        }
+
+        if (action === "new") {
+          state.projectTrayMode = "new";
+          render();
+          return;
+        }
+
+        if (action === "github") {
+          state.projectTrayMode = "github";
+          render();
+          return;
+        }
+      }
+
+      const chooserBtn = event.target.closest("[data-project-chooser]");
+      if (chooserBtn) {
+        const mode = chooserBtn.dataset.projectChooser;
+        state.projectInput = "";
+        state.projectSourceInput = "";
+        state.projectPickerFallback = false;
+        if (mode === "local") {
+          state.projectTrayMode = null;
+          render();
+          await pickLocalDirectory();
+          return;
+        }
+        state.projectTrayMode = mode;
         render();
         return;
       }
@@ -629,11 +992,81 @@
         return;
       }
 
-      const projectButton = event.target.closest("[data-project-id]");
+      const projectMenuButton = event.target.closest("[data-project-menu-id]");
+      if (projectMenuButton) {
+        openProjectSettings(projectMenuButton.dataset.projectMenuId);
+        return;
+      }
+
+      const projectButton = event.target.closest("[data-project-select-id]");
       if (projectButton) {
-        const projectId = projectButton.dataset.projectId;
+        const projectId = projectButton.dataset.projectSelectId;
         await selectProject(projectId);
         return;
+      }
+
+      const settingsClose = event.target.closest("[data-project-settings-close]");
+      const settingsBackdrop = event.target instanceof HTMLElement
+        ? event.target.dataset.projectSettingsBackdrop === "true"
+        : false;
+      if (settingsClose || settingsBackdrop) {
+        closeProjectSettings();
+        return;
+      }
+
+      const settingsAction = event.target.closest("[data-project-settings-action]");
+      if (settingsAction) {
+        const action = settingsAction.dataset.projectSettingsAction;
+
+        if (action === "save-name") {
+          await saveProjectSettingsName();
+          return;
+        }
+
+        if (action === "open-source") {
+          await openProjectSource();
+          return;
+        }
+
+        if (action === "link-local") {
+          state.projectSettingsSourceMode = "local";
+          state.projectSettingsSourceInput = "";
+          state.projectSettingsPickerFallback = false;
+          renderProjectSettings();
+          await pickProjectSettingsDirectory();
+          return;
+        }
+
+        if (action === "link-github") {
+          state.projectSettingsSourceMode = "github";
+          state.projectSettingsSourceInput = currentProjectSourceLocator();
+          state.projectSettingsPickerFallback = false;
+          renderProjectSettings();
+          return;
+        }
+
+        if (action === "cancel-link") {
+          state.projectSettingsSourceMode = null;
+          state.projectSettingsSourceInput = "";
+          state.projectSettingsPickerFallback = false;
+          renderProjectSettings();
+          return;
+        }
+
+        if (action === "save-link") {
+          await saveProjectSourceLink();
+          return;
+        }
+
+        if (action === "unlink-source") {
+          await unlinkProjectSource();
+          return;
+        }
+
+        if (action === "archive-project") {
+          await archiveProjectFromSettings();
+          return;
+        }
       }
 
       const noteToggle = event.target.closest("[data-note-id]");
@@ -655,6 +1088,20 @@
       }
     });
 
+    document.addEventListener("mouseover", (event) => {
+      const emptyAction = event.target.closest("[data-empty-action]");
+      if (!emptyAction) return;
+      state.emptyAppAction = emptyAction.dataset.emptyAction;
+      updateStarterButtons();
+    });
+
+    document.addEventListener("focusin", (event) => {
+      const emptyAction = event.target.closest("[data-empty-action]");
+      if (!emptyAction) return;
+      state.emptyAppAction = emptyAction.dataset.emptyAction;
+      updateStarterButtons();
+    });
+
     document.addEventListener("input", (event) => {
       const projectTitleInput = event.target.closest("[data-project-title-input]");
       if (projectTitleInput) {
@@ -665,6 +1112,18 @@
       const projectSourceInput = event.target.closest("[data-project-source-input]");
       if (projectSourceInput) {
         state.projectSourceInput = projectSourceInput.value;
+        return;
+      }
+
+      const projectSettingsTitleInput = event.target.closest("[data-project-settings-title]");
+      if (projectSettingsTitleInput) {
+        state.projectSettingsTitle = projectSettingsTitleInput.value;
+        return;
+      }
+
+      const projectSettingsSourceInput = event.target.closest("[data-project-settings-source]");
+      if (projectSettingsSourceInput) {
+        state.projectSettingsSourceInput = projectSettingsSourceInput.value;
         return;
       }
 
@@ -744,6 +1203,21 @@
           await submitProjectCreate("github", state.projectInput, state.projectSourceInput);
         } else if (state.projectTrayMode === "local" && state.projectPickerFallback) {
           await submitProjectCreate("local", state.projectInput, state.projectSourceInput);
+        }
+      }
+
+      const projectSettingsInput = event.target.closest("[data-project-settings-title], [data-project-settings-source]");
+      if (projectSettingsInput) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeProjectSettings();
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          if (projectSettingsInput.hasAttribute("data-project-settings-title")) {
+            await saveProjectSettingsName();
+          } else if (projectSettingsInput.hasAttribute("data-project-settings-source")) {
+            await saveProjectSourceLink();
+          }
         }
       }
     });
@@ -859,14 +1333,11 @@
         })
       }, "project");
       if (!response) return;
-      state.projects = response.projects;
-      state.selectedProjectId = response.selected_project_id;
-      applyWorkspace(response.workspace, response.workspace?.suggested_open_note_id || null);
+      applyUiState(response);
       state.projectTrayMode = null;
       state.projectInput = "";
       state.projectSourceInput = "";
       state.projectPickerFallback = false;
-      syncLocation();
       render();
     }
 
@@ -875,6 +1346,11 @@
         method: "POST"
       }, "project", true);
       if (!response) {
+        if (isDirectoryPickerCanceled(state.projectMessage)) {
+          state.projectMessage = "";
+          state.projectSettingsMessage = "";
+          return;
+        }
         state.projectPickerFallback = true;
         render();
         return;
@@ -994,6 +1470,12 @@
 
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
       state.workspace = workspace;
+      if (!workspace) {
+        state.openNoteId = null;
+        state.taskDrafts = [];
+        syncLocation();
+        return;
+      }
       state.openNoteId = preferredOpenNoteId || state.openNoteId || workspace?.suggested_open_note_id || null;
       if (state.workspace && state.openNoteId) {
         const exists = state.workspace.notes.some((note) => note.id === state.openNoteId);
@@ -1003,6 +1485,12 @@
       }
       ensureDraftRow();
       syncLocation();
+    }
+
+    function applyUiState(payload) {
+      state.projects = payload.projects || [];
+      state.selectedProjectId = payload.selected_project_id || null;
+      applyWorkspace(payload.workspace || null, payload.workspace?.suggested_open_note_id || null);
     }
 
     function ensureDraftRow() {
@@ -1038,10 +1526,13 @@
     }
 
     function render() {
+      layout.classList.toggle("empty-app", state.projects.length === 0);
       renderProjectTray();
       renderProjects();
       renderTasks();
       renderNotes();
+      renderProjectSettings();
+      updateStarterButtons();
       updateModeButtons();
       applyFocus();
     }
@@ -1128,30 +1619,350 @@
 
     function renderProjects() {
       if (!state.projects.length) {
-        projectList.innerHTML = `<div class="empty-state">No projects yet. Use the plus button to create a project, link a local folder, or connect a GitHub repo.</div>`;
+        projectList.innerHTML = `<div class="empty-state">No projects yet.</div>`;
         return;
       }
 
       projectList.innerHTML = state.projects.map((project) => `
-        <button
-          class="project-card ${project.id === state.selectedProjectId ? "active" : ""}"
-          type="button"
-          data-project-id="${project.id}"
-        >
-          <span class="project-card-title">${escapeHtml(project.title)}</span>
-          <span class="source-badge">${sourceBadge(project.source_kind)}</span>
-        </button>
+        <div class="project-row">
+          <button
+            class="project-card project-select ${project.id === state.selectedProjectId ? "active" : ""}"
+            type="button"
+            data-project-select-id="${project.id}"
+          >
+            <span class="project-card-title">${escapeHtml(project.title)}</span>
+          </button>
+          <button
+            class="project-actions-btn"
+            type="button"
+            aria-label="Project settings"
+            title="Project settings"
+            data-project-menu-id="${project.id}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.8"></circle>
+              <circle cx="12" cy="12" r="1.8"></circle>
+              <circle cx="12" cy="19" r="1.8"></circle>
+            </svg>
+          </button>
+        </div>
       `).join("");
+    }
+
+    function renderProjectSettings() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) {
+        projectSettingsOverlay.innerHTML = "";
+        return;
+      }
+
+      const sourceKind = effectiveProjectSourceKind(project);
+      const sourceLocator = currentProjectSourceLocator();
+      const sourceLabel = sourceKind === "local"
+        ? "Linked folder"
+        : sourceKind === "github"
+          ? "Connected repository"
+          : "No source linked";
+
+      projectSettingsOverlay.innerHTML = `
+        <div class="overlay-shell open" data-project-settings-backdrop="true">
+          <section class="overlay-card" role="dialog" aria-modal="true" aria-label="Project settings">
+            <div class="overlay-head">
+              <div class="overlay-title">
+                <div class="small-label">project settings</div>
+                <h2>${escapeHtml(project.title)}</h2>
+              </div>
+              <button class="icon-btn" type="button" data-project-settings-close aria-label="Close project settings">+</button>
+            </div>
+            ${state.projectSettingsMessage ? `<div class="overlay-message error">${escapeHtml(state.projectSettingsMessage)}</div>` : ""}
+            <section class="overlay-section">
+              <div class="overlay-section-head">
+                <div class="small-label">name</div>
+              </div>
+              <input
+                class="text-input"
+                type="text"
+                value="${escapeAttribute(state.projectSettingsTitle)}"
+                data-project-settings-title
+              >
+              <div class="overlay-inline-actions">
+                <button class="text-btn" type="button" data-project-settings-action="save-name">save name</button>
+              </div>
+            </section>
+            <section class="overlay-section">
+              <div class="overlay-section-head">
+                <div class="small-label">source</div>
+              </div>
+              <div class="overlay-value">${escapeHtml(sourceLabel)}</div>
+              <div class="overlay-muted">${sourceLocator ? escapeHtml(sourceLocator) : "This project is currently local to n10e only."}</div>
+              ${renderProjectSettingsSourceControls(sourceKind, sourceLocator)}
+            </section>
+            <section class="overlay-section">
+              <div class="overlay-section-head">
+                <div class="small-label">danger</div>
+              </div>
+              <div class="overlay-inline-actions">
+                <button class="text-btn danger-btn" type="button" data-project-settings-action="archive-project">archive project</button>
+              </div>
+              <div class="disabled-note">Permanent delete stays out of the UI for now.</div>
+            </section>
+          </section>
+        </div>
+      `;
+
+      const closeButton = projectSettingsOverlay.querySelector("[data-project-settings-close]");
+      if (closeButton) {
+        closeButton.textContent = "×";
+      }
+    }
+
+    function renderProjectSettingsSourceControls(sourceKind, sourceLocator) {
+      if (state.projectSettingsSourceMode === "local") {
+        return `
+          <div class="overlay-actions">
+            <button class="text-btn" type="button" data-project-settings-action="link-local">pick folder</button>
+            <button class="text-btn" type="button" data-project-settings-action="cancel-link">cancel</button>
+          </div>
+          ${state.projectSettingsPickerFallback ? `
+            <input
+              class="path-input"
+              type="text"
+              value="${escapeAttribute(state.projectSettingsSourceInput)}"
+              placeholder="/absolute/path/to/project"
+              data-project-settings-source
+            >
+            <div class="overlay-inline-actions">
+              <button class="text-btn" type="button" data-project-settings-action="save-link">save folder</button>
+            </div>
+          ` : ""}
+        `;
+      }
+
+      if (state.projectSettingsSourceMode === "github") {
+        return `
+          <input
+            class="path-input"
+            type="text"
+            value="${escapeAttribute(state.projectSettingsSourceInput)}"
+            placeholder="https://github.com/org/repo"
+            data-project-settings-source
+          >
+          <div class="overlay-inline-actions">
+            <button class="text-btn" type="button" data-project-settings-action="save-link">save repository</button>
+            <button class="text-btn" type="button" data-project-settings-action="cancel-link">cancel</button>
+          </div>
+        `;
+      }
+
+      const openLabel = sourceKind === "local"
+        ? "open folder"
+        : sourceKind === "github"
+          ? "open repository"
+          : null;
+      const relinkLocalLabel = sourceKind === "local" ? "relink folder" : "link folder";
+      const relinkGithubLabel = sourceKind === "github" ? "relink repository" : "connect repository";
+
+      return `
+        <div class="overlay-actions">
+          ${openLabel && sourceLocator ? `<button class="text-btn" type="button" data-project-settings-action="open-source">${openLabel}</button>` : ""}
+          <button class="text-btn" type="button" data-project-settings-action="link-local">${relinkLocalLabel}</button>
+          <button class="text-btn" type="button" data-project-settings-action="link-github">${relinkGithubLabel}</button>
+          ${sourceKind ? `<button class="text-btn" type="button" data-project-settings-action="unlink-source">unlink source</button>` : ""}
+        </div>
+      `;
+    }
+
+    function openProjectSettings(projectId) {
+      const project = getProjectById(projectId);
+      if (!project) return;
+      state.projectSettingsId = projectId;
+      state.projectSettingsTitle = project.title;
+      state.projectSettingsSourceMode = null;
+      state.projectSettingsSourceInput = "";
+      state.projectSettingsMessage = "";
+      state.projectSettingsPickerFallback = false;
+      renderProjectSettings();
+    }
+
+    function closeProjectSettings() {
+      state.projectSettingsId = null;
+      state.projectSettingsTitle = "";
+      state.projectSettingsSourceMode = null;
+      state.projectSettingsSourceInput = "";
+      state.projectSettingsMessage = "";
+      state.projectSettingsPickerFallback = false;
+      renderProjectSettings();
+    }
+
+    function getProjectById(projectId) {
+      if (!projectId) return null;
+      if (state.workspace?.project?.id === projectId) return state.workspace.project;
+      return state.projects.find((project) => project.id === projectId) || null;
+    }
+
+    function effectiveProjectSourceKind(project) {
+      return project?.source_kind || null;
+    }
+
+    function currentProjectSourceLocator() {
+      return getProjectById(state.projectSettingsId)?.source_locator || "";
+    }
+
+    async function saveProjectSettingsName() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const title = state.projectSettingsTitle.trim();
+      if (!title) {
+        state.projectSettingsMessage = "project title is required";
+        renderProjectSettings();
+        return;
+      }
+
+      const response = await fetchJson(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: project.revision,
+          current_project_id: state.selectedProjectId,
+          title
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      state.projectSettingsTitle = getProjectById(project.id)?.title || title;
+      state.projectSettingsMessage = "";
+      render();
+    }
+
+    async function pickProjectSettingsDirectory() {
+      const response = await fetchJson("/api/system/pick-directory", {
+        method: "POST"
+      }, "project", true);
+      if (!response) {
+        if (isDirectoryPickerCanceled(state.projectMessage)) {
+          state.projectMessage = "";
+          state.projectSettingsMessage = "";
+          renderProjectSettings();
+          return;
+        }
+        state.projectSettingsPickerFallback = true;
+        renderProjectSettings();
+        return;
+      }
+
+      state.projectSettingsSourceInput = response.path;
+      await saveProjectSourceLink("local", response.path);
+    }
+
+    async function saveProjectSourceLink(forcedKind = null, forcedLocator = null) {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const sourceKind = forcedKind || state.projectSettingsSourceMode;
+      const sourceLocator = (forcedLocator || state.projectSettingsSourceInput || "").trim();
+      if (!sourceKind || !sourceLocator) {
+        state.projectSettingsMessage = "source link is incomplete";
+        renderProjectSettings();
+        return;
+      }
+
+      const response = await fetchJson(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: project.revision,
+          current_project_id: state.selectedProjectId,
+          source_kind: sourceKind,
+          source_locator: sourceLocator
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      state.projectSettingsSourceMode = null;
+      state.projectSettingsSourceInput = "";
+      state.projectSettingsMessage = "";
+      state.projectSettingsPickerFallback = false;
+      render();
+    }
+
+    async function unlinkProjectSource() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const response = await fetchJson(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: project.revision,
+          current_project_id: state.selectedProjectId,
+          clear_source: true
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      state.projectSettingsSourceMode = null;
+      state.projectSettingsSourceInput = "";
+      state.projectSettingsMessage = "";
+      state.projectSettingsPickerFallback = false;
+      render();
+    }
+
+    async function openProjectSource() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project || !project.source_locator) return;
+
+      if (project.source_kind === "github") {
+        window.open(project.source_locator, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      if (project.source_kind === "local") {
+        await fetchJson("/api/system/open-path", {
+          method: "POST",
+          body: JSON.stringify({ path: project.source_locator })
+        }, "project");
+      }
+    }
+
+    async function archiveProjectFromSettings() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+      if (!window.confirm(`Archive ${project.title}?`)) return;
+
+      const response = await fetchJson(`/api/projects/${project.id}/archive`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: project.revision,
+          current_project_id: state.selectedProjectId === project.id ? null : state.selectedProjectId
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      closeProjectSettings();
+      render();
     }
 
     function renderTasks() {
       taskMessage.innerHTML = state.taskMessage ? `<div class="message error">${escapeHtml(state.taskMessage)}</div>` : "";
+      if (!state.projects.length) {
+        activeTaskList.innerHTML = renderEmptyAppState();
+        doneTaskList.innerHTML = "";
+        todoHistory.classList.add("hidden");
+        todoStatus.textContent = "";
+        return;
+      }
+
       if (!state.workspace) {
         activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
         doneTaskList.innerHTML = "";
+        todoHistory.classList.add("hidden");
         todoStatus.textContent = "idle";
         return;
       }
+
+      todoHistory.classList.remove("hidden");
 
       ensureDraftRow();
 
@@ -1203,6 +2014,46 @@
       todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
     }
 
+    function renderEmptyAppState() {
+      return `
+        <div class="starter-shell">
+          <section class="starter-card">
+            <div class="starter-label">Get Started</div>
+            <div class="starter-actions">
+              <button class="starter-btn ${state.emptyAppAction === "local" ? "active" : ""}" type="button" data-empty-action="local">
+                <svg class="starter-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7h6l2 2h10v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2"></path>
+                </svg>
+                <span>Select Project</span>
+              </button>
+              <button class="starter-btn ${state.emptyAppAction === "new" ? "active" : ""}" type="button" data-empty-action="new">
+                <svg class="starter-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14"></path>
+                  <path d="M5 12h14"></path>
+                </svg>
+                <span>Create New Project</span>
+              </button>
+              <button class="starter-btn ${state.emptyAppAction === "github" ? "active" : ""}" type="button" data-empty-action="github">
+                <svg class="starter-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 19V5h8l4 4v10z"></path>
+                  <path d="M14 5v4h4"></path>
+                  <path d="M9 13h6"></path>
+                </svg>
+                <span>Connect Repository</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function updateStarterButtons() {
+      document.querySelectorAll("[data-empty-action]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.emptyAction === state.emptyAppAction);
+      });
+    }
+
     function renderDraftRow(draft) {
       return `
         <div class="task-draft">
@@ -1221,6 +2072,11 @@
 
     function renderNotes() {
       noteMessage.innerHTML = state.noteMessage ? `<div class="message error">${escapeHtml(state.noteMessage)}</div>` : "";
+      if (!state.projects.length) {
+        notesList.innerHTML = "";
+        return;
+      }
+
       if (!state.workspace) {
         notesList.innerHTML = `<div class="empty-state">Select or create a project to start collecting notes.</div>`;
         return;
@@ -1318,12 +2174,6 @@
       }
     }
 
-    function sourceBadge(kind) {
-      if (kind === "local") return "L";
-      if (kind === "github") return "GH";
-      return "N";
-    }
-
     function syncLocation() {
       const url = new URL(window.location.href);
       if (state.selectedProjectId) {
@@ -1375,6 +2225,13 @@
       container.innerHTML = html || "";
       const markdown = serializeBlockChildren(container).trim();
       return markdown ? `${markdown}\n` : "";
+    }
+
+    function isDirectoryPickerCanceled(message = "") {
+      const value = String(message).toLowerCase();
+      return value.includes("user canceled")
+        || value.includes("user cancelled")
+        || value.includes("(-128)");
     }
 
     function serializeBlockChildren(node) {
@@ -1455,19 +2312,28 @@
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
           const message = payload?.error || `Request failed (${response.status})`;
-          if (channel === "project") state.projectMessage = message;
+          if (channel === "project") {
+            state.projectMessage = message;
+            if (state.projectSettingsId) state.projectSettingsMessage = message;
+          }
           if (channel === "task") state.taskMessage = message;
           if (channel === "note") state.noteMessage = message;
           if (!allowFailure) render();
           return null;
         }
-        if (channel === "project") state.projectMessage = "";
+        if (channel === "project") {
+          state.projectMessage = "";
+          state.projectSettingsMessage = "";
+        }
         if (channel === "task") state.taskMessage = "";
         if (channel === "note") state.noteMessage = "";
         return response.status === 204 ? null : response.json();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (channel === "project") state.projectMessage = message;
+        if (channel === "project") {
+          state.projectMessage = message;
+          if (state.projectSettingsId) state.projectSettingsMessage = message;
+        }
         if (channel === "task") state.taskMessage = message;
         if (channel === "note") state.noteMessage = message;
         if (!allowFailure) render();

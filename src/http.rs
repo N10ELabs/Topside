@@ -14,21 +14,25 @@ use crate::config::PollConfig;
 use crate::markdown::render_markdown_html;
 use crate::service::{AppService, ServiceError};
 use crate::types::{
-    Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectSourceKind,
-    ProjectWorkspace, TaskPatch, TaskStatus,
+    Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectPatch,
+    ProjectSourceKind, ProjectWorkspace, TaskPatch, TaskStatus,
 };
 
 #[derive(Clone)]
 pub struct WebState {
     pub service: Arc<AppService>,
     pub poll: PollConfig,
+    pub dev_reload_token: Option<String>,
 }
 
 pub fn router(state: Arc<WebState>) -> Router {
     Router::new()
         .route("/", get(dashboard))
+        .route("/__dev/reload-token", get(dev_reload_token))
         .route("/reindex", post(reindex_now))
         .route("/api/projects", get(api_projects).post(api_create_project))
+        .route("/api/projects/{id}", patch(api_update_project))
+        .route("/api/projects/{id}/archive", post(api_archive_project))
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/{id}", patch(api_update_task))
@@ -36,6 +40,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/notes", post(api_create_note))
         .route("/api/notes/{id}", patch(api_update_note))
         .route("/api/system/pick-directory", post(api_pick_directory))
+        .route("/api/system/open-path", post(api_open_path))
         .with_state(state)
 }
 
@@ -43,6 +48,8 @@ pub fn router(state: Arc<WebState>) -> Router {
 #[template(path = "index.html")]
 struct DashboardTemplate {
     initial_state_json: String,
+    dev_reload_enabled: bool,
+    dev_reload_token: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -69,6 +76,7 @@ struct UiStatePayload {
 struct ProjectSummary {
     id: String,
     title: String,
+    revision: String,
     source_kind: Option<String>,
     source_locator: Option<String>,
 }
@@ -137,6 +145,17 @@ struct UpdateTaskRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct UpdateProjectRequest {
+    expected_revision: String,
+    current_project_id: Option<String>,
+    title: Option<String>,
+    source_kind: Option<String>,
+    source_locator: Option<String>,
+    #[serde(default)]
+    clear_source: bool,
+}
+
+#[derive(Debug, Deserialize)]
 struct ReorderTasksRequest {
     project_id: String,
     ordered_active_task_ids: Vec<String>,
@@ -158,6 +177,22 @@ struct UpdateNoteRequest {
 #[derive(Debug, Serialize)]
 struct PickDirectoryResponse {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedRevisionRequest {
+    expected_revision: String,
+    current_project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenPathRequest {
+    path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DevReloadTokenPayload {
+    token: String,
 }
 
 type ApiResult<T> = Result<Json<T>, (StatusCode, Json<ApiError>)>;
@@ -191,9 +226,21 @@ async fn dashboard(
 
     let template = DashboardTemplate {
         initial_state_json: serde_json::to_string(&initial_state).map_err(internal_err)?,
+        dev_reload_enabled: state.dev_reload_token.is_some(),
+        dev_reload_token: state.dev_reload_token.clone().unwrap_or_default(),
     };
 
     Ok(Html(template.render().map_err(internal_err)?))
+}
+
+async fn dev_reload_token(
+    State(state): State<Arc<WebState>>,
+) -> Result<Json<DevReloadTokenPayload>, StatusCode> {
+    let Some(token) = state.dev_reload_token.clone() else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+
+    Ok(Json(DevReloadTokenPayload { token }))
 }
 
 async fn reindex_now(
@@ -246,21 +293,46 @@ async fn api_create_project(
         )
         .map_err(map_service_err_json)?;
 
-    let projects = state
-        .service
-        .list_projects(200, false)
-        .map_err(internal_api_err)?;
-    let workspace = state
-        .service
-        .load_project_workspace(&created.id)
-        .map_err(internal_api_err)?;
+    let payload =
+        build_ui_state_payload(&state.service, Some(created.id)).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
 
-    Ok(Json(UiStatePayload {
-        projects: projects.into_iter().map(map_project_summary).collect(),
-        selected_project_id: Some(created.id),
-        workspace: Some(map_workspace_payload(workspace)),
-        server_port: state.service.config.server.port,
-    }))
+async fn api_update_project(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<UpdateProjectRequest>,
+) -> ApiResult<UiStatePayload> {
+    let patch = project_patch_from_request(&request).map_err(bad_request_json)?;
+
+    state
+        .service
+        .update_project(
+            &id,
+            patch,
+            &request.expected_revision,
+            Actor::human("operator"),
+        )
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id.clone()));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_archive_project(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .archive_entity(&id, &request.expected_revision, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let payload = build_ui_state_payload(&state.service, request.current_project_id)
+        .map_err(internal_api_err)?;
+    Ok(Json(payload))
 }
 
 async fn api_create_task(
@@ -420,6 +492,13 @@ async fn api_pick_directory() -> ApiResult<PickDirectoryResponse> {
     Ok(Json(PickDirectoryResponse { path }))
 }
 
+async fn api_open_path(
+    Json(request): Json<OpenPathRequest>,
+) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    open_path(&request.path).map_err(internal_api_err)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 fn parse_task_status(value: Option<&str>) -> Result<Option<TaskStatus>, String> {
     let Some(value) = value else {
         return Ok(None);
@@ -462,6 +541,39 @@ fn project_payload_parts(
     }
 }
 
+fn project_patch_from_request(request: &UpdateProjectRequest) -> Result<ProjectPatch, String> {
+    let mut patch = ProjectPatch {
+        title: normalize_optional(request.title.clone()),
+        ..ProjectPatch::default()
+    };
+
+    if request.clear_source {
+        patch.source_kind = Some(None);
+        patch.source_locator = Some(None);
+        return Ok(patch);
+    }
+
+    if let Some(source_kind) = request.source_kind.as_deref() {
+        let locator = normalize_optional(request.source_locator.clone())
+            .ok_or_else(|| "source_locator is required when setting a source".to_string())?;
+
+        match source_kind {
+            "local" => {
+                let canonical = canonicalize_local_source(&locator)?;
+                patch.source_kind = Some(Some(ProjectSourceKind::Local));
+                patch.source_locator = Some(Some(canonical.to_string_lossy().to_string()));
+            }
+            "github" => {
+                patch.source_kind = Some(Some(ProjectSourceKind::Github));
+                patch.source_locator = Some(Some(locator));
+            }
+            other => return Err(format!("unsupported source_kind: {other}")),
+        }
+    }
+
+    Ok(patch)
+}
+
 fn resolve_selected_project(
     projects: &[ProjectItem],
     requested: Option<&str>,
@@ -494,9 +606,30 @@ fn map_project_summary(project: ProjectItem) -> ProjectSummary {
     ProjectSummary {
         id: project.id,
         title: project.title,
+        revision: project.revision,
         source_kind: project.source_kind.map(|kind| kind.as_str().to_string()),
         source_locator: project.source_locator,
     }
+}
+
+fn build_ui_state_payload(
+    service: &AppService,
+    requested_project_id: Option<String>,
+) -> Result<UiStatePayload, anyhow::Error> {
+    let projects = service.list_projects(200, false)?;
+    let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
+    let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
+    let workspace = match selected_project_id.as_deref() {
+        Some(project_id) => Some(service.load_project_workspace(project_id)?),
+        None => None,
+    };
+
+    Ok(UiStatePayload {
+        projects: projects.into_iter().map(map_project_summary).collect(),
+        selected_project_id,
+        workspace: workspace.map(map_workspace_payload),
+        server_port: service.config.server.port,
+    })
 }
 
 fn map_task_payload(task: crate::types::TaskItem) -> TaskPayload {
@@ -621,7 +754,21 @@ fn pick_directory() -> Result<String, anyhow::Error> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+#[cfg(target_os = "macos")]
+fn open_path(path: &str) -> Result<(), anyhow::Error> {
+    let status = Command::new("open").arg(path).status()?;
+    if !status.success() {
+        anyhow::bail!("failed opening path");
+    }
+    Ok(())
+}
+
 #[cfg(not(target_os = "macos"))]
 fn pick_directory() -> Result<String, anyhow::Error> {
     anyhow::bail!("directory picker is only available on macOS")
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_path(_path: &str) -> Result<(), anyhow::Error> {
+    anyhow::bail!("opening local paths is only available on macOS")
 }

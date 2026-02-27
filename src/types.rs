@@ -612,6 +612,17 @@ pub struct NotePatch {
     pub body: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ProjectPatch {
+    pub title: Option<String>,
+    pub status: Option<ProjectStatus>,
+    pub owner: Option<Option<String>>,
+    pub source_kind: Option<Option<ProjectSourceKind>>,
+    pub source_locator: Option<Option<String>>,
+    pub tags: Option<Vec<String>>,
+    pub body: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Actor {
     pub kind: String,

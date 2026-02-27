@@ -29,6 +29,7 @@ async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
     let state = Arc::new(WebState {
         poll: service.config.poll.clone(),
         service: Arc::new(service),
+        dev_reload_token: None,
     });
     let app = router(state.clone());
 
@@ -76,6 +77,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     let state = Arc::new(WebState {
         poll: service.config.poll.clone(),
         service: Arc::new(service.clone()),
+        dev_reload_token: None,
     });
     let app = router(state);
 
@@ -138,5 +140,134 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .await?;
 
     assert_eq!(stale_response.status(), StatusCode::CONFLICT);
+    Ok(())
+}
+
+#[tokio::test]
+async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let dev_state = Arc::new(WebState {
+        poll: service.config.poll.clone(),
+        service: Arc::new(service.clone()),
+        dev_reload_token: Some("reload-7".to_string()),
+    });
+    let dev_app = router(dev_state);
+
+    let token_response = dev_app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/__dev/reload-token")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(token_response.status(), StatusCode::OK);
+    let token_body = to_bytes(token_response.into_body(), usize::MAX).await?;
+    let token_json = String::from_utf8(token_body.to_vec())?;
+    assert!(token_json.contains("reload-7"));
+
+    let html_response = dev_app
+        .clone()
+        .oneshot(Request::builder().uri("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(html_response.status(), StatusCode::OK);
+    let html_body = to_bytes(html_response.into_body(), usize::MAX).await?;
+    let html = String::from_utf8(html_body.to_vec())?;
+    assert!(html.contains("/__dev/reload-token"));
+
+    let non_dev_state = Arc::new(WebState {
+        poll: service.config.poll.clone(),
+        service: Arc::new(service),
+        dev_reload_token: None,
+    });
+    let non_dev_app = router(non_dev_state);
+
+    let missing_response = non_dev_app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/__dev/reload-token")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(missing_response.status(), StatusCode::NOT_FOUND);
+
+    let non_dev_html_response = non_dev_app
+        .oneshot(Request::builder().uri("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(non_dev_html_response.status(), StatusCode::OK);
+    let non_dev_html_body = to_bytes(non_dev_html_response.into_body(), usize::MAX).await?;
+    let non_dev_html = String::from_utf8(non_dev_html_body.to_vec())?;
+    assert!(!non_dev_html.contains("/__dev/reload-token"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn project_http_mutations_cover_settings_actions() -> Result<()> {
+    let (tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Settings Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        poll: service.config.poll.clone(),
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let rename_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/projects/{}", project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\",\"current_project_id\":\"{}\",\"title\":\"Renamed Project\",\"source_kind\":\"local\",\"source_locator\":\"{}\"}}",
+                    project.revision,
+                    project.id,
+                    tmp.path().display()
+                )))?,
+        )
+        .await?;
+    assert_eq!(rename_response.status(), StatusCode::OK);
+
+    let projects = service.list_projects(10, false)?;
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].title, "Renamed Project");
+    assert_eq!(
+        projects[0].source_kind.as_ref().map(|kind| kind.as_str()),
+        Some("local")
+    );
+
+    let archive_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/projects/{}/archive", project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\",\"current_project_id\":null}}",
+                    projects[0].revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+
+    assert!(service.list_projects(10, false)?.is_empty());
+    assert_eq!(service.list_projects(10, true)?.len(), 1);
+
     Ok(())
 }

@@ -3,6 +3,7 @@ pub mod bench;
 pub mod config;
 pub mod constants;
 pub mod db;
+pub mod dev;
 pub mod doctor;
 pub mod git;
 pub mod http;

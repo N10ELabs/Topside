@@ -9,3 +9,13 @@ script = ""
 name = "Run"
 icon = "run"
 command = "cargo run -- --workspace /tmp/n10e-demo serve"
+
+[[actions]]
+name = "dev"
+icon = "tool"
+command = '''
+cd "/Users/anthonymarti/Desktop/N10E LABS Code/n10e-01"
+mkdir -p .dev-workspace
+cargo run -- init .dev-workspace
+cargo run -- --workspace .dev-workspace dev
+'''

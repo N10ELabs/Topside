@@ -9,6 +9,7 @@ use tracing::info;
 use n10e::bench::{run_bench, seed_synthetic_corpus};
 use n10e::config::AppConfig;
 use n10e::constants::PROJECT_CODENAME;
+use n10e::dev::run_dev_supervisor;
 use n10e::doctor::run_doctor;
 use n10e::http::{WebState, router};
 use n10e::mcp::{run_stdio_server_forever, spawn_stdio_server};
@@ -33,6 +34,7 @@ enum Commands {
         path: Option<PathBuf>,
     },
     Serve,
+    Dev,
     Reindex,
     Import {
         #[arg(value_name = "SOURCE_PATH")]
@@ -61,6 +63,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Init { path } => cmd_init(path),
         Commands::Serve => cmd_serve(cli.workspace).await,
+        Commands::Dev => run_dev_supervisor(cli.workspace).await,
         Commands::Reindex => cmd_reindex(cli.workspace),
         Commands::Import { path } => cmd_import(cli.workspace, path),
         Commands::Doctor => cmd_doctor(cli.workspace),
@@ -97,6 +100,7 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let state = Arc::new(WebState {
         service,
         poll: config.poll.clone(),
+        dev_reload_token: std::env::var("N10E_DEV_RELOAD_TOKEN").ok(),
     });
 
     let app = router(state);

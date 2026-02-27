@@ -1,0 +1,27 @@
+codename = "n10e-01"
+workspace_root = "/Users/anthonymarti/Desktop/N10E LABS Code/n10e-01/.dev-workspace"
+
+[dirs]
+projects = "projects"
+tasks = "tasks"
+notes = "notes"
+agents = "agents"
+archive = "archive"
+
+[server]
+host = "127.0.0.1"
+port = 7410
+
+[poll]
+activity_interval_ms = 2000
+tasks_interval_ms = 1500
+notes_interval_ms = 2500
+
+[index]
+debounce_ms = 350
+startup_full_scan = true
+
+[search]
+default_limit = 20
+bm25_k1 = 1.2000000476837158
+bm25_b = 0.75
