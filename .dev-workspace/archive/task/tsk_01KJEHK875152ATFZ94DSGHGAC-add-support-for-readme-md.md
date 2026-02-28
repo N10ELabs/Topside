@@ -1,19 +1,19 @@
 ---
 id: tsk_01KJEHK875152ATFZ94DSGHGAC
 type: task
-title: Add support for `README.md`
+title: dwad
 project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 status: todo
 priority: P2
 assignee: agent:unassigned
-sort_order: 3
+sort_order: 4
 sync_kind: repo_markdown
 sync_path: docs/to-do.md
 sync_key: 021eae89a17fe3fe
 sync_managed: true
 created_at: 2026-02-27T03:17:08.453063+00:00
-updated_at: 2026-02-27T03:17:08.453063+00:00
-revision: 04002f39546b5b93aced59eeb3daa74f4f9acb911c342057b63daf8e71e976ff
+updated_at: 2026-02-28T01:37:31.278827+00:00
+revision: d0b06da9da0a51d5253b0bb6014a48be283b66bd86caf15ebc6f1b95fabda116
 ---
 Synced from repo file `docs/to-do.md`.
 

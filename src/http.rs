@@ -38,6 +38,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/{id}", patch(api_update_task))
+        .route("/api/tasks/{id}/archive", post(api_archive_task))
         .route("/api/tasks/reorder", post(api_reorder_tasks))
         .route("/api/notes", post(api_create_note))
         .route("/api/notes/{id}", patch(api_update_note))
@@ -99,7 +100,9 @@ struct TaskPayload {
     id: String,
     title: String,
     revision: String,
+    completed_at_iso: Option<String>,
     completed_at_label: Option<String>,
+    updated_at_iso: String,
     updated_at_label: String,
     sort_order: i64,
 }
@@ -111,6 +114,7 @@ struct NotePayload {
     body: String,
     rendered_html: String,
     revision: String,
+    updated_at_iso: String,
     updated_at_label: String,
 }
 
@@ -441,6 +445,32 @@ async fn api_reorder_tasks(
     Ok(Json(map_workspace_payload(workspace)))
 }
 
+async fn api_archive_task(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<TaskMutationResponse> {
+    let archived = state
+        .service
+        .archive_entity(&id, &request.expected_revision, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let project_id = archived
+        .frontmatter
+        .project_id()
+        .map(ToString::to_string)
+        .ok_or_else(|| bad_request_json("archived task was missing project_id"))?;
+    let workspace = state
+        .service
+        .load_project_workspace(&project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(TaskMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_task_id: None,
+    }))
+}
+
 async fn api_create_note(
     State(state): State<Arc<WebState>>,
     Json(request): Json<CreateNoteRequest>,
@@ -670,12 +700,19 @@ fn build_ui_state_payload(
 }
 
 fn map_task_payload(task: crate::types::TaskItem) -> TaskPayload {
+    let completed_at_iso = task.completed_at.as_ref().map(chrono::DateTime::to_rfc3339);
+    let completed_at_label = task.completed_at.map(format_timestamp);
+    let updated_at_iso = task.updated_at.to_rfc3339();
+    let updated_at_label = format_timestamp(task.updated_at);
+
     TaskPayload {
         id: task.id,
         title: task.title,
         revision: task.revision,
-        completed_at_label: task.completed_at.map(format_timestamp),
-        updated_at_label: format_timestamp(task.updated_at),
+        completed_at_iso,
+        completed_at_label,
+        updated_at_iso,
+        updated_at_label,
         sort_order: task.sort_order,
     }
 }
@@ -687,6 +724,7 @@ fn map_note_payload(note: crate::types::NoteDetail) -> NotePayload {
         body: note.body.clone(),
         rendered_html: render_markdown_html(&note.body),
         revision: note.revision,
+        updated_at_iso: note.updated_at.to_rfc3339(),
         updated_at_label: format_timestamp(note.updated_at),
     }
 }

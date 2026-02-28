@@ -6,9 +6,9 @@ project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 status: todo
 priority: P2
 assignee: agent:unassigned
-sort_order: 1
+sort_order: 3
 created_at: 2026-02-27T03:15:37.954248+00:00
-updated_at: 2026-02-27T03:17:33.722922+00:00
-revision: 8b8e6e19968beefdb726cf2a41c60b1454975b1f9e1a263f1642465402f5e3f0
+updated_at: 2026-02-28T01:37:31.278827+00:00
+revision: de9ff30c441c82d65ccbd4d457ce2417f92ec85f613a73c256ec995c63298c55
 ---
 

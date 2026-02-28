@@ -211,7 +211,6 @@
     .task-row,
     .task-draft,
     .note-card,
-    .note-editor,
     .done-row,
     .empty-state,
     .message {
@@ -235,6 +234,51 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .project-chooser-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .project-chooser-btn {
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(12, 23, 32, 0.94), rgba(8, 15, 22, 0.98));
+      color: var(--muted);
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      transition: transform 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+    }
+
+    .project-chooser-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .project-chooser-btn[data-project-chooser="new"] {
+      color: #67e8f9;
+    }
+
+    .project-chooser-btn[data-project-chooser="local"] {
+      color: #86efac;
+    }
+
+    .project-chooser-btn[data-project-chooser="github"] {
+      color: #d4dde7;
+    }
+
+    .project-chooser-btn:hover,
+    .project-chooser-btn:focus-visible {
+      color: var(--text);
+      border-color: var(--line-strong);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+      background: linear-gradient(180deg, rgba(15, 30, 42, 0.96), rgba(10, 20, 28, 0.98));
+      transform: translateY(-1px);
+      outline: none;
     }
 
     .text-input,
@@ -267,10 +311,7 @@
     }
 
     .project-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 6px;
+      position: relative;
     }
 
     .project-card {
@@ -283,21 +324,23 @@
     }
 
     .pane-projects .project-card {
-      border: none;
-      border-radius: 10px;
-      background: transparent;
-      padding: 9px 10px;
-      box-shadow: none;
+      border: 1px solid rgba(147, 184, 207, 0.36);
+      border-radius: 12px;
+      background: rgba(8, 16, 23, 0.4);
+      padding: 9px 42px 9px 10px;
+      box-shadow: inset 0 0 0 1px rgba(3, 9, 14, 0.16);
+      transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
     }
 
     .pane-projects .project-card:hover {
+      border-color: rgba(147, 184, 207, 0.52);
       background: rgba(16, 33, 46, 0.56);
     }
 
     .pane-projects .project-card.active {
-      border-color: transparent;
-      box-shadow: none;
-      background: rgba(16, 33, 46, 0.92);
+      border-color: rgba(56, 189, 248, 0.58);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+      background: rgba(16, 33, 46, 0.9);
     }
 
     .project-select {
@@ -315,6 +358,12 @@
       place-items: center;
       padding: 0;
       opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      z-index: 1;
       transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
     }
 
@@ -324,13 +373,10 @@
       fill: currentColor;
     }
 
-    .project-card.active + .project-actions-btn {
-      opacity: 1;
-    }
-
     .project-row:hover .project-actions-btn,
     .project-row:focus-within .project-actions-btn {
       opacity: 1;
+      pointer-events: auto;
     }
 
     .project-actions-btn:hover,
@@ -377,23 +423,67 @@
     .task-draft,
     .done-row {
       display: grid;
-      grid-template-columns: auto auto minmax(0, 1fr);
       gap: 10px;
       align-items: center;
       padding: 10px 12px;
+      position: relative;
+    }
+
+    .task-row,
+    .task-draft {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .task-list {
+      --task-list-gap: 8px;
+    }
+
+    .task-row {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      cursor: grab;
     }
 
     .task-row.dragging {
       opacity: 0.5;
+      cursor: grabbing;
     }
 
-    .drag-handle {
-      width: 20px;
-      color: var(--muted);
-      cursor: grab;
-      user-select: none;
-      text-align: center;
-      font-family: "IBM Plex Mono", monospace;
+    .task-row.drop-before::before,
+    .task-row.drop-after::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.22);
+      pointer-events: none;
+    }
+
+    .task-row.drop-before::before {
+      top: calc((var(--task-list-gap, 8px) / -2) - 1px);
+    }
+
+    .task-row.drop-after::after {
+      bottom: calc((var(--task-list-gap, 8px) / -2) - 1px);
+    }
+
+    .task-row.is-heading,
+    .task-draft.is-heading {
+      border: none;
+      background: transparent;
+      border-radius: 0;
+      padding-top: 12px;
+      padding-bottom: 4px;
+    }
+
+    .task-row.is-heading {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .task-draft.is-heading {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .task-check,
@@ -404,11 +494,68 @@
       accent-color: var(--accent);
     }
 
+    .task-heading-marker {
+      width: 20px;
+      color: var(--accent);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .task-heading-marker.empty {
+      opacity: 0;
+    }
+
     .task-input {
       padding: 0;
       border: none;
       background: transparent;
       border-radius: 0;
+    }
+
+    .task-heading-input {
+      font-weight: 700;
+      font-size: 16px;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      color: #7dd3fc;
+    }
+
+    .task-row.is-heading .task-heading-input,
+    .task-draft.is-heading .task-heading-input {
+      padding-left: 0;
+    }
+
+    .task-delete-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+    }
+
+    .task-delete-btn:hover,
+    .task-delete-btn:focus-visible,
+    .task-row:hover .task-delete-btn,
+    .task-row:focus-within .task-delete-btn {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-delete-btn:hover,
+    .task-delete-btn:focus-visible {
+      color: #fecaca;
+      background: rgba(248, 113, 113, 0.16);
+      outline: none;
     }
 
     .task-input:focus,
@@ -423,6 +570,22 @@
 
     .done-row {
       grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .done-section-heading {
+      padding: 10px 12px 2px;
+      color: #7dd3fc;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+
+    .task-row.is-heading .task-input:focus,
+    .task-draft.is-heading .task-input:focus {
+      outline: none;
+      outline-offset: 0;
+      box-shadow: none;
     }
 
     .done-title {
@@ -474,17 +637,63 @@
       border-bottom-color: var(--line);
     }
 
-    .note-editor {
-      margin: 12px;
+    .note-head-open {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       padding: 12px;
+      padding-bottom: 6px;
+    }
+
+    .note-editor {
+      padding: 0 12px 12px;
       display: grid;
       gap: 10px;
-      background: rgba(15, 25, 33, 0.92);
+      background: transparent;
     }
 
     .note-title-input {
       font-size: 15px;
       font-weight: 600;
+    }
+
+    .note-title-inline {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+
+    .note-title-inline::placeholder {
+      color: var(--muted);
+    }
+
+    .note-title-inline:focus {
+      outline: none;
+      box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.55);
+    }
+
+    .note-collapse {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .note-collapse:hover,
+    .note-collapse:focus-visible {
+      color: var(--text);
+      outline: none;
     }
 
     .toolbar {
@@ -503,14 +712,69 @@
       font-family: "IBM Plex Mono", monospace;
     }
 
+    .toolbar.note-toolbar {
+      gap: 8px;
+      padding: 2px 0 4px;
+    }
+
+    .toolbar.note-toolbar button {
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 4px 0;
+      color: var(--muted);
+    }
+
+    .toolbar.note-toolbar button:hover,
+    .toolbar.note-toolbar button:focus-visible {
+      color: var(--text);
+      outline: none;
+      border-bottom-color: rgba(56, 189, 248, 0.55);
+    }
+
+    .markdown-input.note-body-input {
+      min-height: 320px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 2px 0 0;
+      resize: vertical;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .markdown-input.note-body-input::placeholder {
+      color: var(--muted);
+    }
+
+    .markdown-input.note-body-input:focus {
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.55);
+    }
+
     .clean-editor {
-      min-height: 240px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: rgba(8, 15, 21, 0.92);
-      padding: 12px;
+      min-height: 320px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 4px 0 0;
       overflow: auto;
-      line-height: 1.6;
+      line-height: 1.75;
+      font-size: 15px;
+    }
+
+    .clean-editor:empty::before {
+      content: attr(data-placeholder);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .clean-editor:focus {
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.55);
     }
 
     .clean-editor h1,
@@ -518,16 +782,6 @@
     .clean-editor h3,
     .clean-editor p {
       margin-top: 0;
-    }
-
-    .note-meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 12px;
-      font-family: "IBM Plex Mono", monospace;
     }
 
     .starter-shell {
@@ -904,6 +1158,16 @@
     const todoHistory = document.getElementById("todo-history");
     const layout = document.querySelector(".layout");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
+    const doneTimestampFormatter = typeof Intl !== "undefined"
+      ? new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short"
+      })
+      : null;
 
     document.getElementById("projects-add").addEventListener("click", () => {
       state.projectMessage = "";
@@ -1009,6 +1273,14 @@
         return;
       }
 
+      const taskDeleteButton = event.target.closest("[data-task-delete-id]");
+      if (taskDeleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await deleteTask(taskDeleteButton.dataset.taskDeleteId);
+        return;
+      }
+
       const settingsClose = event.target.closest("[data-project-settings-close]");
       const settingsBackdrop = event.target instanceof HTMLElement
         ? event.target.dataset.projectSettingsBackdrop === "true"
@@ -1111,6 +1383,21 @@
       updateStarterButtons();
     });
 
+    document.addEventListener("focusin", (event) => {
+      const taskInput = event.target.closest("[data-task-id]");
+      if (taskInput && taskInput.tagName === "INPUT") {
+        const task = findTask(taskInput.dataset.taskId);
+        expandHeadingInput(taskInput, state.taskEdits[taskInput.dataset.taskId] ?? task?.title ?? taskInput.value);
+        return;
+      }
+
+      const draftInput = event.target.closest("[data-task-draft-key]");
+      if (draftInput && draftInput.tagName === "INPUT") {
+        const draft = getDraft(draftInput.dataset.taskDraftKey);
+        expandHeadingInput(draftInput, draft?.title ?? draftInput.value);
+      }
+    });
+
     document.addEventListener("input", (event) => {
       const projectTitleInput = event.target.closest("[data-project-title-input]");
       if (projectTitleInput) {
@@ -1175,7 +1462,10 @@
     document.addEventListener("keydown", async (event) => {
       const taskInput = event.target.closest("[data-task-id]");
       if (taskInput && taskInput.tagName === "INPUT") {
-        if (event.key === "Enter") {
+        if (isHeaderShortcut(event)) {
+          event.preventDefault();
+          toggleTaskHeading(taskInput.dataset.taskId);
+        } else if (event.key === "Enter") {
           event.preventDefault();
           await saveTask(taskInput.dataset.taskId);
           insertDraftAfter(taskInput.dataset.taskId);
@@ -1190,7 +1480,10 @@
         const draft = getDraft(draftKey);
         if (!draft) return;
 
-        if (event.key === "Enter") {
+        if (isHeaderShortcut(event)) {
+          event.preventDefault();
+          toggleDraftHeading(draftKey);
+        } else if (event.key === "Enter") {
           event.preventDefault();
           await commitDraftTask(draft);
         } else if (event.key === "Backspace" && !draft.title) {
@@ -1235,6 +1528,8 @@
       const taskInput = event.target.closest("[data-task-id]");
       if (taskInput && taskInput.tagName === "INPUT") {
         await saveTask(taskInput.dataset.taskId);
+        const task = findTask(taskInput.dataset.taskId);
+        collapseHeadingInput(taskInput, state.taskEdits[taskInput.dataset.taskId] ?? task?.title ?? taskInput.value);
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
@@ -1293,23 +1588,51 @@
     document.addEventListener("dragend", (event) => {
       const row = event.target.closest("[data-draggable-task-id]");
       if (row) row.classList.remove("dragging");
+      state.draggedTaskId = null;
+      clearTaskDropIndicator();
     });
 
     document.addEventListener("dragover", (event) => {
-      if (event.target.closest("[data-draggable-task-id]")) {
-        event.preventDefault();
+      if (!state.draggedTaskId) return;
+      const taskList = event.target.closest("#active-task-list");
+      if (!taskList) {
+        clearTaskDropIndicator();
+        return;
       }
+
+      const dropLocation = resolveTaskDropLocation(event.clientY);
+      if (!dropLocation) {
+        clearTaskDropIndicator();
+        return;
+      }
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      setTaskDropIndicator(dropLocation.taskId, dropLocation.position);
     });
 
     document.addEventListener("drop", async (event) => {
-      const target = event.target.closest("[data-draggable-task-id]");
-      if (!target || !state.draggedTaskId || !state.workspace) return;
+      const taskList = event.target.closest("#active-task-list");
+      if (!taskList || !state.draggedTaskId || !state.workspace) return;
       event.preventDefault();
+      const dropLocation = resolveTaskDropLocation(event.clientY);
+      clearTaskDropIndicator();
+      if (!dropLocation || dropLocation.taskId === state.draggedTaskId) return;
+
       const activeIds = state.workspace.active_tasks.map((task) => task.id);
       const fromIndex = activeIds.indexOf(state.draggedTaskId);
-      const toIndex = activeIds.indexOf(target.dataset.draggableTaskId);
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
-      activeIds.splice(toIndex, 0, activeIds.splice(fromIndex, 1)[0]);
+      if (fromIndex === -1) return;
+
+      const [movedTaskId] = activeIds.splice(fromIndex, 1);
+      const targetIndex = activeIds.indexOf(dropLocation.taskId);
+      if (targetIndex === -1) return;
+      const insertionIndex = dropLocation.position === "after"
+        ? targetIndex + 1
+        : targetIndex;
+      activeIds.splice(insertionIndex, 0, movedTaskId);
+
       const response = await fetchJson("/api/tasks/reorder", {
         method: "POST",
         body: JSON.stringify({
@@ -1421,11 +1744,36 @@
       delete state.taskEdits[taskId];
       state.workspace = response.workspace;
       todoStatus.textContent = "saved";
+      const activeElement = document.activeElement instanceof HTMLElement
+        ? document.activeElement.closest("[data-task-id]")
+        : null;
+      if (!activeElement || activeElement.dataset.taskId !== taskId) {
+        render();
+      }
     }
 
     async function saveOpenNote() {
       if (!state.openNoteId) return;
       await saveNote(state.openNoteId);
+    }
+
+    async function deleteTask(taskId) {
+      const task = findTask(taskId);
+      if (!task) return;
+
+      clearTimeout(state.taskTimers[taskId]);
+      delete state.taskTimers[taskId];
+      delete state.taskEdits[taskId];
+
+      const response = await fetchJson(`/api/tasks/${taskId}/archive`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: task.revision
+        })
+      }, "task");
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      render();
     }
 
     async function saveNote(noteId) {
@@ -1461,7 +1809,7 @@
       delete state.noteTitleEdits[noteId];
       delete state.noteBodyEdits[noteId];
       delete state.noteHtmlEdits[noteId];
-      state.workspace = response.workspace;
+      state.workspace = mergeWorkspacePreservingNoteOrder(state.workspace, response.workspace);
       noteMessage.innerHTML = "";
     }
 
@@ -1478,6 +1826,37 @@
       state.noteTimers[noteId] = setTimeout(() => {
         saveNote(noteId);
       }, 500);
+    }
+
+    function mergeWorkspacePreservingNoteOrder(currentWorkspace, nextWorkspace) {
+      if (!nextWorkspace || !currentWorkspace) return nextWorkspace;
+
+      const currentNotes = Array.isArray(currentWorkspace.notes) ? currentWorkspace.notes : [];
+      const nextNotes = Array.isArray(nextWorkspace.notes) ? nextWorkspace.notes : [];
+      if (!currentNotes.length || !nextNotes.length) {
+        return nextWorkspace;
+      }
+
+      const nextNotesById = new Map(nextNotes.map((note) => [note.id, note]));
+      const mergedNotes = [];
+
+      currentNotes.forEach((note) => {
+        const updated = nextNotesById.get(note.id);
+        if (!updated) return;
+        mergedNotes.push(updated);
+        nextNotesById.delete(note.id);
+      });
+
+      nextNotes.forEach((note) => {
+        if (!nextNotesById.has(note.id)) return;
+        mergedNotes.push(note);
+        nextNotesById.delete(note.id);
+      });
+
+      return {
+        ...nextWorkspace,
+        notes: mergedNotes
+      };
     }
 
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
@@ -1537,6 +1916,228 @@
         || null;
     }
 
+    function isHeaderShortcut(event) {
+      return (event.metaKey || event.ctrlKey)
+        && event.shiftKey
+        && String(event.key).toLowerCase() === "h";
+    }
+
+    function toHeadingTitle(title = "") {
+      const rawTitle = String(title);
+      if (isMarkdownTaskHeading(rawTitle)) return rawTitle;
+      const trimmed = rawTitle.trim();
+      return trimmed ? `## ${trimmed}` : "## ";
+    }
+
+    function toggleHeadingTitle(title = "") {
+      const rawTitle = String(title);
+      return isMarkdownTaskHeading(rawTitle)
+        ? getVisibleTaskTitle(rawTitle)
+        : toHeadingTitle(rawTitle);
+    }
+
+    function toggleTaskHeading(taskId) {
+      if (!taskId) return;
+      const task = findTask(taskId);
+      const rawTitle = state.taskEdits[taskId] ?? task?.title ?? "";
+      const nextTitle = toggleHeadingTitle(rawTitle);
+      if (nextTitle === rawTitle) return;
+
+      state.taskEdits[taskId] = nextTitle;
+      state.focusTaskId = taskId;
+      debounceTaskSave(taskId);
+      render();
+    }
+
+    function toggleDraftHeading(draftKey) {
+      const draft = getDraft(draftKey);
+      if (!draft) return;
+
+      const nextTitle = toggleHeadingTitle(draft.title);
+      if (nextTitle === draft.title) return;
+
+      draft.title = nextTitle;
+      state.focusDraftKey = draft.key;
+      render();
+    }
+
+    function clearTaskDropIndicator() {
+      document.querySelectorAll(".task-row.drop-before, .task-row.drop-after").forEach((row) => {
+        row.classList.remove("drop-before", "drop-after");
+      });
+    }
+
+    function setTaskDropIndicator(taskId, position) {
+      if (!taskId || !position) {
+        clearTaskDropIndicator();
+        return;
+      }
+
+      document.querySelectorAll(".task-row").forEach((row) => {
+        const isTarget = row.dataset.draggableTaskId === taskId;
+        row.classList.toggle("drop-before", isTarget && position === "before");
+        row.classList.toggle("drop-after", isTarget && position === "after");
+      });
+    }
+
+    function resolveTaskDropLocation(clientY) {
+      const rows = Array.from(activeTaskList.querySelectorAll("[data-draggable-task-id]"));
+      if (!rows.length) return null;
+
+      for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        const midpoint = rect.top + (rect.height / 2);
+        if (clientY < midpoint) {
+          return {
+            taskId: row.dataset.draggableTaskId,
+            position: "before"
+          };
+        }
+      }
+
+      const lastRow = rows[rows.length - 1];
+      return {
+        taskId: lastRow.dataset.draggableTaskId,
+        position: "after"
+      };
+    }
+
+    function getTaskHeadingLabel(title = "") {
+      const match = /^\s*##(?=\s|$)\s*(.*)$/.exec(String(title));
+      if (!match) return null;
+      return match[1];
+    }
+
+    function isMarkdownTaskHeading(title = "") {
+      return getTaskHeadingLabel(title) !== null;
+    }
+
+    function getVisibleTaskTitle(title = "") {
+      const headingLabel = getTaskHeadingLabel(title);
+      return headingLabel !== null ? headingLabel : String(title);
+    }
+
+    function expandHeadingInput(input, rawTitle = "") {
+      const headingLabel = getTaskHeadingLabel(rawTitle);
+      if (!input || headingLabel === null || input.value !== headingLabel) return;
+
+      const rawValue = String(rawTitle);
+      input.value = rawValue;
+      window.requestAnimationFrame(() => {
+        try {
+          input.setSelectionRange(rawValue.length, rawValue.length);
+        } catch (_error) {
+          // Ignore selection errors for non-text input states.
+        }
+      });
+    }
+
+    function collapseHeadingInput(input, rawTitle = "") {
+      const headingLabel = getTaskHeadingLabel(rawTitle);
+      if (!input || headingLabel === null) return;
+      input.value = headingLabel;
+    }
+
+    function buildTaskSectionMap(workspace) {
+      const sectionMap = new Map();
+      if (!workspace) return sectionMap;
+
+      const orderedTasks = [...workspace.active_tasks, ...workspace.done_tasks]
+        .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id));
+
+      let currentSection = null;
+      orderedTasks.forEach((task) => {
+        const headingLabel = getTaskHeadingLabel(task.title);
+        if (headingLabel !== null) {
+          currentSection = headingLabel || null;
+          sectionMap.set(task.id, currentSection);
+          return;
+        }
+
+        sectionMap.set(task.id, currentSection);
+      });
+
+      return sectionMap;
+    }
+
+    function renderDoneTaskList(doneTasks, sectionMap) {
+      const rows = [];
+      let lastSection = null;
+
+      doneTasks.forEach((task) => {
+        const sectionLabel = sectionMap.get(task.id) || null;
+        if (sectionLabel !== lastSection) {
+          if (sectionLabel) {
+            rows.push(renderDoneSectionHeading(sectionLabel));
+          }
+          lastSection = sectionLabel;
+        }
+
+        rows.push(renderDoneTaskRow(task));
+      });
+
+      return rows.join("");
+    }
+
+    function renderDoneSectionHeading(title) {
+      return `<div class="done-section-heading">${escapeHtml(title)}</div>`;
+    }
+
+    function renderActiveTaskRow(task) {
+      const title = state.taskEdits[task.id] ?? task.title;
+      const isHeading = isMarkdownTaskHeading(title);
+      const visibleTitle = getVisibleTaskTitle(title);
+
+      return `
+        <div
+          class="task-row${isHeading ? " is-heading" : ""}"
+          draggable="true"
+          data-draggable-task-id="${task.id}"
+        >
+          ${isHeading ? "" : `<input class="task-check" type="checkbox" data-task-check-id="${task.id}">`}
+          <input
+            class="task-input${isHeading ? " task-heading-input" : ""}"
+            type="text"
+            value="${escapeAttribute(visibleTitle)}"
+            placeholder="new task or ## section"
+            data-task-id="${task.id}"
+          >
+          <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
+        </div>
+      `;
+    }
+
+    function renderDoneTaskRow(task) {
+      return `
+        <label class="done-row">
+          <input class="done-check" type="checkbox" checked data-done-check-id="${task.id}">
+          <span class="done-title">${escapeHtml(getVisibleTaskTitle(task.title || "Untitled task"))}</span>
+          <span class="muted">${escapeHtml(formatDoneTaskTimestamp(task))}</span>
+        </label>
+      `;
+    }
+
+    function formatDoneTaskTimestamp(task) {
+      return formatLocalTimestamp(
+        task.completed_at_iso || task.updated_at_iso,
+        task.completed_at_label || task.updated_at_label || ""
+      );
+    }
+
+    function formatLocalTimestamp(isoValue, fallbackLabel = "") {
+      if (!isoValue) return fallbackLabel;
+      const parsed = new Date(isoValue);
+      if (Number.isNaN(parsed.getTime())) return fallbackLabel;
+      if (doneTimestampFormatter) {
+        try {
+          return doneTimestampFormatter.format(parsed);
+        } catch (_error) {
+          // Fall through to the browser default formatter.
+        }
+      }
+      return parsed.toLocaleString();
+    }
+
     function render() {
       layout.classList.toggle("empty-app", state.projects.length === 0);
       renderProjectTray();
@@ -1558,10 +2159,25 @@
       if (state.projectTrayMode === "chooser") {
         projectTray.innerHTML = `
           <div class="inline-shell">
-            <div class="inline-row">
-              <button class="text-btn" type="button" data-project-chooser="new">new</button>
-              <button class="text-btn" type="button" data-project-chooser="local">local</button>
-              <button class="text-btn" type="button" data-project-chooser="github">github</button>
+            <div class="project-chooser-grid">
+              <button class="project-chooser-btn" type="button" data-project-chooser="new" aria-label="Create a project in n10e" title="Create a project in n10e">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
+                </svg>
+              </button>
+              <button class="project-chooser-btn" type="button" data-project-chooser="local" aria-label="Link a local folder" title="Link a local folder">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3.5 9a2 2 0 0 1 2-2h4.1l1.8 2H18.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
+                </svg>
+              </button>
+              <button class="project-chooser-btn" type="button" data-project-chooser="github" aria-label="Connect a GitHub repository" title="Connect a GitHub repository">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="8" cy="8" r="2.2" fill="currentColor"></circle>
+                  <circle cx="8" cy="18" r="2.2" fill="currentColor"></circle>
+                  <circle cx="16" cy="14" r="2.2" fill="currentColor"></circle>
+                  <path d="M10.2 8H14a2 2 0 0 1 2 2v1.8M8 10.4v5.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+              </button>
             </div>
           </div>
         `;
@@ -2051,17 +2667,7 @@
       }
 
       state.workspace.active_tasks.forEach((task) => {
-        activeRows.push(`
-          <div
-            class="task-row"
-            draggable="true"
-            data-draggable-task-id="${task.id}"
-          >
-            <span class="drag-handle">::</span>
-            <input class="task-check" type="checkbox" data-task-check-id="${task.id}">
-            <input class="task-input" type="text" value="${escapeAttribute(state.taskEdits[task.id] ?? task.title)}" placeholder="new task" data-task-id="${task.id}">
-          </div>
-        `);
+        activeRows.push(renderActiveTaskRow(task));
 
         const drafts = draftsByAfter.get(task.id);
         if (drafts) {
@@ -2074,13 +2680,8 @@
       if (!state.workspace.done_tasks.length) {
         doneTaskList.innerHTML = `<div class="empty-state">Completed tasks will land here as a running changelog.</div>`;
       } else {
-        doneTaskList.innerHTML = state.workspace.done_tasks.map((task) => `
-          <label class="done-row">
-            <input class="done-check" type="checkbox" checked data-done-check-id="${task.id}">
-            <span class="done-title">${escapeHtml(task.title || "Untitled task")}</span>
-            <span class="muted">${escapeHtml(task.completed_at_label || task.updated_at_label)}</span>
-          </label>
-        `).join("");
+        const taskSectionMap = buildTaskSectionMap(state.workspace);
+        doneTaskList.innerHTML = renderDoneTaskList(state.workspace.done_tasks, taskSectionMap);
       }
 
       todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
@@ -2127,15 +2728,17 @@
     }
 
     function renderDraftRow(draft) {
+      const isHeading = isMarkdownTaskHeading(draft.title);
+      const visibleTitle = getVisibleTaskTitle(draft.title);
+
       return `
-        <div class="task-draft">
-          <span class="drag-handle">+</span>
-          <span></span>
+        <div class="task-draft${isHeading ? " is-heading" : ""}">
+          ${isHeading ? "" : '<span class="task-heading-marker empty" aria-hidden="true"></span>'}
           <input
-            class="task-input"
+            class="task-input${isHeading ? " task-heading-input" : ""}"
             type="text"
-            value="${escapeAttribute(draft.title)}"
-            placeholder="new task"
+            value="${escapeAttribute(visibleTitle)}"
+            placeholder="new task or ## section"
             data-task-draft-key="${draft.key}"
           >
         </div>
@@ -2161,12 +2764,20 @@
 
       notesList.innerHTML = state.workspace.notes.map((note) => {
         const isOpen = state.openNoteId === note.id;
+        const title = state.noteTitleEdits[note.id] ?? note.title;
         return `
           <section class="note-card ${isOpen ? "open" : ""}">
-            <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true">
-              <span>${escapeHtml(note.title)}</span>
-              <span class="muted">${escapeHtml(note.updated_at_label)}</span>
-            </button>
+            ${isOpen ? `
+              <div class="note-head-open">
+                <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
+                <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-label="Collapse note" title="Collapse note">hide</button>
+              </div>
+            ` : `
+              <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true">
+                <span>${escapeHtml(note.title)}</span>
+                <span class="muted">${escapeHtml(formatLocalTimestamp(note.updated_at_iso, note.updated_at_label))}</span>
+              </button>
+            `}
             ${isOpen ? renderOpenNote(note) : ""}
           </section>
         `;
@@ -2176,25 +2787,18 @@
     }
 
     function renderOpenNote(note) {
-      const title = state.noteTitleEdits[note.id] ?? note.title;
       if (state.noteMode === "markdown") {
         const body = state.noteBodyEdits[note.id] ?? note.body;
         return `
           <div class="note-editor">
-            <input class="note-title-input" type="text" value="${escapeAttribute(title)}" data-note-title-id="${note.id}">
-            <textarea class="markdown-input" data-note-body-id="${note.id}" placeholder="markdown project context">${escapeHtml(body)}</textarea>
-            <div class="note-meta">
-              <span>${escapeHtml(note.id)}</span>
-              <span>${escapeHtml(note.updated_at_label)}</span>
-            </div>
+            <textarea class="markdown-input note-body-input" data-note-body-id="${note.id}" placeholder="Capture context, decisions, links, or a handoff note...">${escapeHtml(body)}</textarea>
           </div>
         `;
       }
 
       return `
         <div class="note-editor">
-          <input class="note-title-input" type="text" value="${escapeAttribute(title)}" data-note-title-id="${note.id}">
-          <div class="toolbar">
+          <div class="toolbar note-toolbar">
             <button type="button" data-rich-command="bold">bold</button>
             <button type="button" data-rich-command="italic">italic</button>
             <button type="button" data-rich-command="h2">h2</button>
@@ -2202,11 +2806,7 @@
             <button type="button" data-rich-command="checklist">check</button>
             <button type="button" data-rich-command="link">link</button>
           </div>
-          <div class="clean-editor" contenteditable="true" data-note-clean-id="${note.id}"></div>
-          <div class="note-meta">
-            <span>${escapeHtml(note.id)}</span>
-            <span>${escapeHtml(note.updated_at_label)}</span>
-          </div>
+          <div class="clean-editor" contenteditable="true" data-note-clean-id="${note.id}" data-placeholder="Capture context, decisions, links, or a handoff note..."></div>
         </div>
       `;
     }
@@ -2227,10 +2827,25 @@
     }
 
     function applyFocus() {
-      if (state.focusDraftKey) {
-        const input = document.querySelector(`[data-task-draft-key="${state.focusDraftKey}"]`);
+      if (state.focusTaskId) {
+        const taskId = state.focusTaskId;
+        const input = document.querySelector(`[data-task-id="${taskId}"]`);
         if (input) {
+          const task = findTask(taskId);
           input.focus();
+          expandHeadingInput(input, state.taskEdits[taskId] ?? task?.title ?? input.value);
+          state.focusTaskId = null;
+          return;
+        }
+      }
+
+      if (state.focusDraftKey) {
+        const draftKey = state.focusDraftKey;
+        const input = document.querySelector(`[data-task-draft-key="${draftKey}"]`);
+        if (input) {
+          const draft = getDraft(draftKey);
+          input.focus();
+          expandHeadingInput(input, draft?.title ?? input.value);
           state.focusDraftKey = null;
           return;
         }
@@ -2280,7 +2895,7 @@
 
     function normalizeCleanHtml(html) {
       const container = document.createElement("div");
-      container.innerHTML = html || "<p></p>";
+      container.innerHTML = html || "";
       container.querySelectorAll("input[type='checkbox']").forEach((input) => {
         input.removeAttribute("disabled");
       });

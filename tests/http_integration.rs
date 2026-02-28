@@ -127,6 +127,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     assert_eq!(update_response.status(), StatusCode::OK);
 
     let stale_response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("PATCH")
@@ -140,6 +141,41 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .await?;
 
     assert_eq!(stale_response.status(), StatusCode::CONFLICT);
+
+    let updated_tasks = service.list_tasks(&TaskFilters {
+        status: None,
+        priority: None,
+        project_id: Some(project.id.clone()),
+        assignee: None,
+        include_archived: false,
+        limit: Some(10),
+    })?;
+    assert_eq!(updated_tasks.len(), 1);
+
+    let archive_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/tasks/{}/archive", task.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\"}}",
+                    updated_tasks[0].revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+
+    let remaining_tasks = service.list_tasks(&TaskFilters {
+        status: None,
+        priority: None,
+        project_id: Some(project.id.clone()),
+        assignee: None,
+        include_archived: false,
+        limit: Some(10),
+    })?;
+    assert!(remaining_tasks.is_empty());
     Ok(())
 }
 
