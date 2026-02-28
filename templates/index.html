@@ -19,6 +19,9 @@
       --success: #34d399;
       --danger: #f87171;
       --shadow: 0 18px 48px rgba(2, 8, 14, 0.38);
+      --pane-head-height: 62px;
+      --pane-head-pad-y: 10px;
+      --pane-control-size: 34px;
     }
 
     * {
@@ -101,8 +104,8 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 14px 16px;
-      min-height: 62px;
+      height: var(--pane-head-height);
+      padding: var(--pane-head-pad-y) 16px;
       border-bottom: 1px solid var(--line);
     }
 
@@ -115,12 +118,24 @@
       font-size: 15px;
       line-height: 1;
       text-transform: lowercase;
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--pane-control-size);
     }
 
     .pane-head-actions {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
+      min-height: var(--pane-control-size);
+    }
+
+    .pane-head .muted {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--pane-control-size);
+      line-height: 1;
     }
 
     .pane-body {
@@ -147,8 +162,8 @@
     }
 
     .icon-btn {
-      width: 34px;
-      height: 34px;
+      width: var(--pane-control-size);
+      height: var(--pane-control-size);
       display: inline-grid;
       place-items: center;
       padding: 0;
@@ -160,15 +175,15 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px;
+      padding: 2px;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 12px;
       background: rgba(9, 18, 25, 0.9);
     }
 
     .mode-btn {
-      width: 34px;
-      height: 34px;
+      width: var(--pane-control-size);
+      height: var(--pane-control-size);
       border: none;
       border-radius: 10px;
       background: transparent;
@@ -419,6 +434,19 @@
       display: none;
     }
 
+    .todo-history {
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .todo-history-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
     .task-row,
     .task-draft,
     .done-row {
@@ -436,6 +464,14 @@
 
     .task-list {
       --task-list-gap: 8px;
+    }
+
+    .done-list {
+      max-height: min(38vh, 340px);
+      overflow-y: auto;
+      padding-right: 4px;
+      scrollbar-gutter: stable;
+      align-content: start;
     }
 
     .task-row {
@@ -591,6 +627,25 @@
     .done-title {
       color: #a8bac8;
       text-decoration: line-through;
+    }
+
+    .todo-export-btn {
+      flex: 0 0 auto;
+    }
+
+    .todo-export-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .todo-export-btn:disabled {
+      opacity: 0.42;
+      cursor: default;
     }
 
     .muted {
@@ -1002,7 +1057,7 @@
       }
 
       .pane-projects .pane-head {
-        padding: 14px 16px;
+        padding: var(--pane-head-pad-y) 16px;
       }
 
       .pane-projects .pane-body {
@@ -1043,7 +1098,15 @@
           <div class="task-list" id="active-task-list"></div>
           <div class="todo-history" id="todo-history">
             <div class="divider"></div>
-            <div class="small-label">done / changelog</div>
+            <div class="todo-history-head">
+              <div class="small-label">done / changelog</div>
+              <button class="icon-btn todo-export-btn" id="changelog-export" type="button" aria-label="Copy changelog" title="Copy changelog">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+                  <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+                </svg>
+              </button>
+            </div>
             <div class="done-list" id="done-task-list"></div>
           </div>
         </div>
@@ -1134,6 +1197,7 @@
       noteHtmlEdits: {},
       taskTimers: {},
       noteTimers: {},
+      todoStatusTimer: null,
       draggedTaskId: null,
       focusTaskId: null,
       focusDraftKey: null,
@@ -1156,6 +1220,7 @@
     const notesList = document.getElementById("notes-list");
     const todoStatus = document.getElementById("todo-status");
     const todoHistory = document.getElementById("todo-history");
+    const changelogExportButton = document.getElementById("changelog-export");
     const layout = document.querySelector(".layout");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
     const doneTimestampFormatter = typeof Intl !== "undefined"
@@ -1168,6 +1233,10 @@
         timeZoneName: "short"
       })
       : null;
+
+    changelogExportButton.addEventListener("click", () => {
+      exportChangelog();
+    });
 
     document.getElementById("projects-add").addEventListener("click", () => {
       state.projectMessage = "";
@@ -2138,6 +2207,79 @@
       return parsed.toLocaleString();
     }
 
+    function resetTodoStatusLabel() {
+      if (!state.projects.length) {
+        todoStatus.textContent = "";
+      } else if (!state.workspace) {
+        todoStatus.textContent = "idle";
+      } else {
+        todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
+      }
+    }
+
+    function flashTodoStatus(label, duration = 1800) {
+      if (state.todoStatusTimer) {
+        window.clearTimeout(state.todoStatusTimer);
+      }
+      todoStatus.textContent = label;
+      state.todoStatusTimer = window.setTimeout(() => {
+        state.todoStatusTimer = null;
+        resetTodoStatusLabel();
+      }, duration);
+    }
+
+    function buildChangelogExportText() {
+      if (!state.workspace || !state.workspace.done_tasks.length) return "";
+
+      const sectionMap = buildTaskSectionMap(state.workspace);
+      const exportStamp = formatLocalTimestamp(new Date().toISOString(), new Date().toLocaleString());
+      const lines = [
+        `# ${state.workspace.project.title} changelog`,
+        `Exported ${exportStamp}`,
+        ""
+      ];
+
+      let lastSection = null;
+      state.workspace.done_tasks.forEach((task) => {
+        const sectionLabel = sectionMap.get(task.id) || null;
+        if (sectionLabel !== lastSection) {
+          if (lines[lines.length - 1] !== "") {
+            lines.push("");
+          }
+          if (sectionLabel) {
+            lines.push(`## ${sectionLabel}`);
+          }
+          lastSection = sectionLabel;
+        }
+
+        lines.push(`- [x] ${getVisibleTaskTitle(task.title || "Untitled task")} (${formatDoneTaskTimestamp(task)})`);
+      });
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    async function exportChangelog() {
+      const exportText = buildChangelogExportText();
+      if (!exportText) return;
+
+      let copied = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(exportText);
+          copied = true;
+        } catch (_error) {
+          copied = false;
+        }
+      }
+
+      if (!copied) {
+        const manualCopy = window.prompt("Copy changelog", exportText);
+        if (manualCopy === null) return;
+      }
+
+      flashTodoStatus(copied ? "changelog copied" : "changelog ready");
+    }
+
     function render() {
       layout.classList.toggle("empty-app", state.projects.length === 0);
       renderProjectTray();
@@ -2638,7 +2780,8 @@
         activeTaskList.innerHTML = renderEmptyAppState();
         doneTaskList.innerHTML = "";
         todoHistory.classList.add("hidden");
-        todoStatus.textContent = "";
+        changelogExportButton.disabled = true;
+        resetTodoStatusLabel();
         return;
       }
 
@@ -2646,7 +2789,8 @@
         activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
         doneTaskList.innerHTML = "";
         todoHistory.classList.add("hidden");
-        todoStatus.textContent = "idle";
+        changelogExportButton.disabled = true;
+        resetTodoStatusLabel();
         return;
       }
 
@@ -2684,7 +2828,8 @@
         doneTaskList.innerHTML = renderDoneTaskList(state.workspace.done_tasks, taskSectionMap);
       }
 
-      todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
+      changelogExportButton.disabled = state.workspace.done_tasks.length === 0;
+      resetTodoStatusLabel();
     }
 
     function renderEmptyAppState() {
