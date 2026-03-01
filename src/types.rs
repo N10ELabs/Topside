@@ -693,12 +693,6 @@ pub struct TaskPatch {
     pub body: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskReorderPayload {
-    pub project_id: String,
-    pub ordered_active_task_ids: Vec<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NotePatch {
     #[serde(default)]

@@ -10,7 +10,6 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
-use crate::config::PollConfig;
 use crate::markdown::render_markdown_html;
 use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ServiceError};
@@ -22,7 +21,6 @@ use crate::types::{
 #[derive(Clone)]
 pub struct WebState {
     pub service: Arc<AppService>,
-    pub poll: PollConfig,
     pub dev_reload_token: Option<String>,
 }
 

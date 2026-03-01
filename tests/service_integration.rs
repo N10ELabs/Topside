@@ -58,6 +58,10 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
         Actor::human("tester"),
     )?;
 
+    let workspace = service.load_project_workspace(&project.id)?;
+    assert_eq!(workspace.notes.len(), 1);
+    assert!(workspace.notes[0].body.contains("Reference project"));
+
     let conn = rusqlite::Connection::open(service.config.db_path())?;
     let link_count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM entity_links WHERE source_id = ?1",

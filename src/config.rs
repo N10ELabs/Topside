@@ -12,7 +12,6 @@ pub struct AppConfig {
     pub workspace_root: PathBuf,
     pub dirs: DirConfig,
     pub server: ServerConfig,
-    pub poll: PollConfig,
     pub index: IndexConfig,
     pub search: SearchConfig,
 }
@@ -30,13 +29,6 @@ pub struct DirConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PollConfig {
-    pub activity_interval_ms: u64,
-    pub tasks_interval_ms: u64,
-    pub notes_interval_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +51,6 @@ impl AppConfig {
             workspace_root,
             dirs: DirConfig::default(),
             server: ServerConfig::default(),
-            poll: PollConfig::default(),
             index: IndexConfig::default(),
             search: SearchConfig::default(),
         }
@@ -196,16 +187,6 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_string(),
             port: 7410,
-        }
-    }
-}
-
-impl Default for PollConfig {
-    fn default() -> Self {
-        Self {
-            activity_interval_ms: 2_000,
-            tasks_interval_ms: 1_500,
-            notes_interval_ms: 2_500,
         }
     }
 }

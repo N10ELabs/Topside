@@ -12,11 +12,6 @@ archive = "archive"
 host = "127.0.0.1"
 port = 7410
 
-[poll]
-activity_interval_ms = 2000
-tasks_interval_ms = 1500
-notes_interval_ms = 2500
-
 [index]
 debounce_ms = 350
 startup_full_scan = true

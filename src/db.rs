@@ -9,9 +9,9 @@ use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
 use crate::types::{
-    ActivityItem, EntityFrontmatter, EntitySnapshot, EntityType, IndexedEntity, NoteItem,
-    ParsedEntity, ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters,
-    TaskItem, TaskPriority, TaskStatus, TaskSyncKind,
+    ActivityItem, EntitySnapshot, EntityType, IndexedEntity, NoteDetail, NoteItem, ParsedEntity,
+    ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters, TaskItem,
+    TaskPriority, TaskStatus, TaskSyncKind,
 };
 
 #[derive(Clone)]
@@ -536,6 +536,53 @@ impl Db {
         })
     }
 
+    pub fn list_note_details_for_project(
+        &self,
+        project_id: &str,
+        limit: usize,
+        include_archived: bool,
+    ) -> Result<Vec<NoteDetail>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT n.id, n.project_id, e.title, e.body, e.path, n.updated_at, n.revision, n.archived
+                FROM notes n
+                INNER JOIN entities e ON e.id = n.id
+                WHERE n.project_id = ?1
+                  AND (?2 = 1 OR n.archived = 0)
+                ORDER BY n.updated_at DESC
+                LIMIT ?3
+                "#,
+            )?;
+
+            let rows = stmt.query_map(
+                params![project_id, if include_archived { 1 } else { 0 }, limit as i64],
+                |row| {
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                        .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
+                        .with_timezone(&Utc);
+
+                    Ok(NoteDetail {
+                        id: row.get(0)?,
+                        project_id: row.get(1)?,
+                        title: row.get(2)?,
+                        body: row.get(3)?,
+                        path: row.get(4)?,
+                        updated_at,
+                        revision: row.get(6)?,
+                        archived: row.get::<_, i64>(7)? != 0,
+                    })
+                },
+            )?;
+
+            let mut out = Vec::new();
+            for row in rows {
+                out.push(row?);
+            }
+            Ok(out)
+        })
+    }
+
     pub fn list_projects(&self, limit: usize, include_archived: bool) -> Result<Vec<ProjectItem>> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
@@ -1028,8 +1075,3 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("002_project_sources_and_task_order", ""),
     ("003_project_and_task_sync_metadata", ""),
 ];
-
-#[allow(dead_code)]
-fn _frontmatter_passthrough(value: EntityFrontmatter) -> EntityFrontmatter {
-    value
-}

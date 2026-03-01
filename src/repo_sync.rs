@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
@@ -179,12 +179,6 @@ fn is_ignored(path: &Path) -> bool {
         value == ".git" || value == ".n10e"
     })
 }
-
-#[allow(dead_code)]
-fn _path_passthrough(path: PathBuf) -> PathBuf {
-    path
-}
-
 #[cfg(test)]
 mod tests {
     use super::{TODO_FILE_NAMES, scan_repo_todo_files};

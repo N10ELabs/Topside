@@ -18,14 +18,14 @@ Last updated: 2026-02-26
 - [x] Added project creation from dashboard so users can create valid project IDs before creating tasks.
 - [x] Added HTTP-layer project existence validation for task and note creation/update paths (returns 400 instead of opaque 500).
 - [x] Normalized blank note `project_id` to optional/none behavior.
-- [x] Added local htmx route behavior and fallback form wiring for create actions.
+- [x] Added local JSON route behavior and fallback UI handling for create actions.
 - [x] Reworked dashboard UI toward the provided mockup style: dark shell, status strip, tri-pane layout, document-view center panel, event-log rail.
 - [x] Updated dashboard stats context (`server_port`, `task_count`, `project_count`, `note_count`) and surfaced in UI.
 - [x] Started Obsidian-style interaction model: project list in left rail with project-scoped workspace tabs.
 - [x] Added selected-project routing (`/?project_id=...`) that scopes center-pane tasks/notes and quick-capture forms.
-- [x] Added project-scoped partial polling (`/partials/tasks`, `/partials/notes`, `/partials/projects`) with preserved tab context.
+- [x] Added project-scoped workspace fetches (`/api/projects/{id}/workspace`) with preserved tab context.
 - [x] Refined interaction model to a Workbench-style tri-column workspace: Tasks, Notes, and Recent Activity/System Status under selected project.
-- [x] Added functional reindex actions (`POST /reindex`) from topbar and system status panel with htmx refresh trigger fan-out.
+- [x] Added functional reindex actions (`POST /reindex`) from topbar and system status panel with workspace refresh.
 - [x] Simplified task interaction to checklist-style rows with quick done toggle and archive action.
 
 ## 1) Summary Goals
@@ -53,7 +53,7 @@ Last updated: 2026-02-26
 - [x] Rust stable + single-process run model.
 - [x] Axum HTTP + embedded MCP runtime.
 - [x] SQLite via rusqlite + FTS5.
-- [x] Askama + htmx + polling + ETag partials.
+- [x] Askama + JSON API + in-page JavaScript state controller.
 - [x] Startup full scan + watcher + debounced incremental indexing.
 - [x] Overflow/needs-rescan handling triggers full rescan.
 - [x] `expected_revision` optimistic lock on mutable write paths.
@@ -82,7 +82,7 @@ Last updated: 2026-02-26
 
 ### Config (`n10e.toml`)
 
-- [x] `codename`, `workspace_root`, `dirs`, `server`, `poll`, `index`, `search` sections.
+- [x] `codename`, `workspace_root`, `dirs`, `server`, `index`, `search` sections.
 
 ### Markdown Schemas
 
@@ -116,14 +116,21 @@ Last updated: 2026-02-26
 ### HTTP/UI Surface
 
 - [x] `GET /`
-- [x] `GET /partials/tasks`
-- [x] `GET /partials/notes`
-- [x] `GET /partials/activity`
-- [x] `POST /tasks`
-- [x] `PATCH /tasks/{id}`
-- [x] `POST /notes`
-- [x] `PATCH /notes/{id}`
-- [x] `POST /archive/{entity_id}`
+- [x] `POST /reindex`
+- [x] `GET /api/projects`
+- [x] `POST /api/projects`
+- [x] `PATCH /api/projects/{id}`
+- [x] `POST /api/projects/{id}/archive`
+- [x] `POST /api/projects/{id}/sync`
+- [x] `GET /api/projects/{id}/workspace`
+- [x] `POST /api/tasks`
+- [x] `PATCH /api/tasks/{id}`
+- [x] `POST /api/tasks/{id}/archive`
+- [x] `POST /api/tasks/reorder`
+- [x] `POST /api/notes`
+- [x] `PATCH /api/notes/{id}`
+- [x] `POST /api/system/pick-directory`
+- [x] `POST /api/system/open-path`
 - [x] Keep auth out of V0 (trusted localhost).
 - [x] Use the UI as an operator workspace for planning and context inspection, not just a mutation shell.
 
@@ -176,9 +183,9 @@ Last updated: 2026-02-26
 
 ### Week 4: Workspace Core
 
-- [x] Build Askama templates + htmx endpoints.
+- [x] Build Askama templates + JSON endpoints.
 - [x] Deliver task planning surface + note explorer + compact activity panel.
-- [x] Add ETag-based polling partials and basic actions.
+- [x] Add workspace refresh behavior and basic actions.
 - [x] Add project creation workflow in workspace UI.
 - [x] Harden form behavior with project ID validation and clearer bad-request handling.
 - [x] Complete mockup-inspired UI redesign pass (dark tri-pane workspace shell).
@@ -211,7 +218,7 @@ Last updated: 2026-02-26
 - [x] Automated conflict-path test (stale `expected_revision`) prevents overwrite.
 - [x] Automated archive-path tests verify preserved queryability/state.
 - [ ] Automated backlink tests for create/update/rename path scenarios.
-- [x] Automated workspace mutation + htmx refresh tests.
+- [x] Automated workspace mutation tests.
 
 ### Compatibility
 

@@ -8,14 +8,14 @@ use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
 use crate::config::AppConfig;
-use crate::db::{Db, StoredEntityRecord};
+use crate::db::Db;
 use crate::git::read_git_context;
 use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
 use crate::repo_sync::{derive_sync_source_key, render_synced_task_body, scan_repo_todo_files};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
-    EntitySnapshot, EntityType, NoteDetail, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
+    EntitySnapshot, EntityType, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
     ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult,
     TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus, TaskSyncKind,
 };
@@ -152,26 +152,9 @@ impl AppService {
                 .then(right.updated_at.cmp(&left.updated_at))
         });
 
-        let mut notes = self.list_notes(200, false)?;
-        notes.retain(|note| note.project_id.as_deref() == Some(project_id));
-
-        let mut note_details = Vec::new();
-        for note in notes {
-            let Some(snapshot) = self.read_entity(&note.id)? else {
-                continue;
-            };
-            note_details.push(NoteDetail {
-                id: snapshot.id,
-                title: snapshot.title,
-                project_id: snapshot.frontmatter.project_id().map(ToString::to_string),
-                body: snapshot.body,
-                path: snapshot.path,
-                updated_at: snapshot.frontmatter.updated_at(),
-                revision: snapshot.revision,
-                archived: snapshot.archived,
-            });
-        }
-        note_details.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+        let note_details = self
+            .db
+            .list_note_details_for_project(project_id, 200, false)?;
 
         let suggested_open_note_id = note_details.first().map(|note| note.id.clone());
 
@@ -1058,12 +1041,4 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
         .with_context(|| format!("failed renaming {} -> {}", tmp.display(), path.display()))?;
 
     Ok(())
-}
-
-#[allow(dead_code)]
-fn _task_defaults(_status: TaskStatus, _priority: TaskPriority) {}
-
-#[allow(dead_code)]
-fn _record_passthrough(record: StoredEntityRecord) -> StoredEntityRecord {
-    record
 }

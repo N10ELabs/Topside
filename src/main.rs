@@ -99,7 +99,6 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
 
     let state = Arc::new(WebState {
         service,
-        poll: config.poll.clone(),
         dev_reload_token: std::env::var("N10E_DEV_RELOAD_TOKEN").ok(),
     });
 

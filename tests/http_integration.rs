@@ -27,7 +27,6 @@ async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
     )?;
 
     let state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service),
         dev_reload_token: None,
     });
@@ -75,7 +74,6 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     )?;
 
     let state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service.clone()),
         dev_reload_token: None,
     });
@@ -184,7 +182,6 @@ async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
     let dev_state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service.clone()),
         dev_reload_token: Some("reload-7".to_string()),
     });
@@ -213,7 +210,6 @@ async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     assert!(html.contains("/__dev/reload-token"));
 
     let non_dev_state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service),
         dev_reload_token: None,
     });
@@ -257,7 +253,6 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
     )?;
 
     let state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service.clone()),
         dev_reload_token: None,
     });
@@ -330,7 +325,6 @@ async fn project_sync_endpoint_imports_repo_tasks() -> Result<()> {
     )?;
 
     let state = Arc::new(WebState {
-        poll: service.config.poll.clone(),
         service: Arc::new(service.clone()),
         dev_reload_token: None,
     });
