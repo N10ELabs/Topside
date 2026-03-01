@@ -10,7 +10,7 @@ The goal is not to become another generic agent dashboard. The goal is to make p
 
 V0 foundation implemented:
 - Rust single binary (`n10e`)
-- Commands: `init`, `serve`, `reindex`, `import`, `doctor`, `bench`
+- Commands: `init`, `serve`, `open`, `bundle-app`, `reindex`, `import`, `doctor`, `bench`
 - Markdown frontmatter schemas for `task`, `project`, `note`
 - SQLite migrations, FTS5 search, reverse wiki-link indexing
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
@@ -33,6 +33,10 @@ cargo install --path .
 ```bash
 cargo run -- init /path/to/workspace
 cargo run -- --workspace /path/to/workspace serve
+cargo run -- --workspace /path/to/workspace open
+cargo run -- bundle-app --output-dir ./dist
+cargo run -- bundle-app --output-dir ./dist --icon /path/to/n10e.icns
+./scripts/package-macos-release.sh --output-dir ./dist
 ```
 
 Workspace default URL: `http://127.0.0.1:7410`
@@ -42,6 +46,8 @@ Workspace default URL: `http://127.0.0.1:7410`
 ```bash
 n10e init [PATH]
 n10e --workspace <PATH> serve
+n10e --workspace <PATH> open
+n10e bundle-app --output-dir ./dist [--icon /path/to/n10e.icns]
 n10e --workspace <PATH> reindex
 n10e --workspace <PATH> import <SOURCE_PATH>
 n10e --workspace <PATH> doctor
@@ -74,6 +80,12 @@ See [docs/SCHEMA.md](docs/SCHEMA.md).
 
 See [docs/MCP.md](docs/MCP.md).
 Compatibility tracking: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+
+## macOS Packaging
+
+Use `n10e bundle-app` to create a local `n10e.app` bundle. Pass `--icon` with a `.icns` file if you want the bundle to carry a custom app icon.
+
+Use `./scripts/package-macos-release.sh` to build the release binary, generate `dist/n10e.app`, and package it into `dist/n10e-macos.dmg`. Pass `--sign-identity` if you want the script to codesign the `.app` and `.dmg`.
 
 ## Architecture
 

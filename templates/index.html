@@ -6,6 +6,7 @@
   <title>n10e</title>
   <style>
     :root {
+      --app-height: 100vh;
       --bg: #0b1218;
       --panel: #101b24;
       --panel-soft: #13212b;
@@ -15,6 +16,11 @@
       --muted: #8fa4b5;
       --accent: #38bdf8;
       --accent-soft: rgba(56, 189, 248, 0.18);
+      --scrollbar-size: 8px;
+      --scrollbar-clearance: calc(var(--scrollbar-size) + 8px);
+      --scrollbar-track: rgba(56, 189, 248, 0.12);
+      --scrollbar-thumb: rgba(56, 189, 248, 0.68);
+      --scrollbar-thumb-hover: rgba(125, 211, 252, 0.84);
       --warm: #f59e0b;
       --success: #34d399;
       --danger: #f87171;
@@ -22,25 +28,119 @@
       --pane-head-height: 62px;
       --pane-head-pad-y: 10px;
       --pane-control-size: 34px;
+      --pane-title-leading-offset: 24px;
+      --task-row-min-height: 44px;
+      --changelog-list-height: min(38vh, 340px);
+      --changelog-pane-height: min(calc(38vh + var(--pane-head-height) + 25px), 427px);
+    }
+
+    @supports (height: 100dvh) {
+      :root {
+        --app-height: 100dvh;
+      }
     }
 
     * {
       box-sizing: border-box;
+      scrollbar-width: none;
+      scrollbar-color: transparent transparent;
+    }
+
+    *::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background: transparent;
+      border: 0 solid transparent;
+      border-radius: 999px;
+      box-shadow: none;
+    }
+
+    .scroll-indicator-overlay {
+      position: absolute;
+      top: 0;
+      right: 2px;
+      height: 0;
+      width: var(--scrollbar-size);
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      border-radius: 999px;
+      background: var(--scrollbar-track);
+      transform: translateX(3px);
+      transition: opacity 180ms ease, transform 180ms ease;
+      z-index: 3;
+    }
+
+    .scroll-indicator-overlay.is-scrollable {
+      visibility: visible;
+    }
+
+    .scroll-indicator-overlay.scroll-active {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .scroll-indicator-thumb {
+      width: 100%;
+      height: 0;
+      border: 1px solid var(--scrollbar-track);
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--scrollbar-thumb-hover), var(--scrollbar-thumb));
+      box-shadow: inset 0 0 0 1px rgba(232, 240, 245, 0.06);
+      transform: translateY(0);
+      transition: transform 60ms linear, height 60ms linear;
+    }
+
+    *::-webkit-scrollbar-corner {
+      background: transparent;
     }
 
     html {
+      height: 100%;
       color-scheme: dark;
+      overflow: hidden;
     }
 
     body {
       margin: 0;
-      min-height: 100vh;
+      height: 100%;
       color: var(--text);
       background:
         radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 28%),
         radial-gradient(circle at top right, rgba(245, 158, 11, 0.1), transparent 24%),
         linear-gradient(180deg, #0a1117, #0b1218);
       font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    html[data-n10e-desktop="true"] body {
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.09), transparent 26%),
+        linear-gradient(180deg, #091219, #0b1218);
+    }
+
+    html[data-n10e-desktop="true"] .shell {
+      padding: 8px;
+    }
+
+    html[data-n10e-desktop="true"] .layout {
+      gap: 8px;
+    }
+
+    html[data-n10e-desktop="true"] .pane {
+      box-shadow: 0 12px 28px rgba(2, 8, 14, 0.28);
+    }
+
+    html[data-n10e-desktop="true"] .pane-projects .pane-body {
+      padding-top: 6px;
     }
 
     button,
@@ -54,24 +154,37 @@
     }
 
     .shell {
-      min-height: 100vh;
+      height: var(--app-height);
       padding: 14px;
       display: flex;
+      overflow: hidden;
     }
 
     .layout {
       flex: 1;
-      min-height: calc(100vh - 28px);
+      min-height: 0;
+      height: 100%;
       display: grid;
       gap: 12px;
       grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
     }
 
-    .layout.empty-app .pane-todo {
+    .todo-stack {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .layout.empty-app .todo-stack {
       grid-column: 2 / -1;
     }
 
     .layout.empty-app .pane-todo .pane-head {
+      display: none;
+    }
+
+    .layout.empty-app .pane-changelog {
       display: none;
     }
 
@@ -99,6 +212,24 @@
       overflow: visible;
     }
 
+    .pane-todo {
+      flex: 1 1 auto;
+    }
+
+    .pane-changelog {
+      flex: 0 0 auto;
+      height: var(--changelog-pane-height);
+      transition: height 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+    }
+
+    .pane-changelog.collapsed {
+      height: var(--pane-head-height);
+    }
+
+    .pane-changelog.collapsed .pane-head {
+      border-bottom-color: transparent;
+    }
+
     .pane-head {
       display: flex;
       align-items: center;
@@ -121,6 +252,57 @@
       display: inline-flex;
       align-items: center;
       min-height: var(--pane-control-size);
+    }
+
+    .pane-head > .pane-title:not(.pane-title-collapsible) {
+      padding-left: var(--pane-title-leading-offset);
+    }
+
+    .pane-title-collapsible {
+      gap: 6px;
+    }
+
+    .pane-title-toggle {
+      width: 18px;
+      height: 18px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 160ms ease, transform 180ms ease, color 160ms ease, background-color 160ms ease;
+    }
+
+    .pane-title-toggle svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 220ms ease;
+    }
+
+    .pane-title-toggle:hover,
+    .pane-title-toggle:focus-visible {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
+      outline: none;
+    }
+
+    .pane-changelog .pane-head:hover .pane-title-toggle,
+    .pane-changelog .pane-head:focus-within .pane-title-toggle {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .pane-changelog.collapsed .pane-title-toggle svg {
+      transform: rotate(-90deg);
     }
 
     .pane-head-actions {
@@ -149,7 +331,28 @@
 
     .pane-projects .pane-body {
       padding: 0 12px 0 6px;
-      overflow: visible;
+      overflow: auto;
+    }
+
+    .pane-todo .pane-body {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .pane-changelog .pane-body {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 160ms ease, transform 220ms ease;
+    }
+
+    .pane-changelog.collapsed .pane-body {
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
     }
 
     .icon-btn,
@@ -323,6 +526,7 @@
     .notes-list {
       display: grid;
       gap: 8px;
+      align-content: start;
     }
 
     .project-row {
@@ -424,27 +628,8 @@
       font-family: "IBM Plex Mono", monospace;
     }
 
-    .divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
-      margin: 4px 0;
-    }
-
-    .todo-history.hidden {
-      display: none;
-    }
-
-    .todo-history {
-      display: grid;
-      gap: 8px;
-      min-height: 0;
-    }
-
-    .todo-history-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+    .hidden {
+      display: none !important;
     }
 
     .task-row,
@@ -453,6 +638,7 @@
       display: grid;
       gap: 10px;
       align-items: center;
+      min-height: var(--task-row-min-height);
       padding: 10px 12px;
       position: relative;
     }
@@ -466,11 +652,20 @@
       --task-list-gap: 8px;
     }
 
-    .done-list {
-      max-height: min(38vh, 340px);
+    .pane-todo .pane-body > .task-list {
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
-      padding-right: 4px;
-      scrollbar-gutter: stable;
+      padding-right: var(--scrollbar-clearance);
+      scrollbar-gutter: auto;
+    }
+
+    .done-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: var(--scrollbar-clearance);
+      scrollbar-gutter: auto;
       align-content: start;
     }
 
@@ -510,16 +705,19 @@
       border: none;
       background: transparent;
       border-radius: 0;
-      padding-top: 12px;
-      padding-bottom: 4px;
+      min-height: 36px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+      z-index: 0;
     }
 
     .task-row.is-heading {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
     }
 
     .task-draft.is-heading {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr);
     }
 
     .task-check,
@@ -564,6 +762,78 @@
       padding-left: 0;
     }
 
+    .task-section-toggle,
+    .task-section-toggle-spacer {
+      width: 20px;
+      height: 20px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    .task-section-toggle {
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      position: relative;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-4px);
+      transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, background-color 120ms ease;
+    }
+
+    .task-section-toggle::before {
+      content: "";
+      position: absolute;
+      inset: -7px;
+    }
+
+    .task-row.is-heading:hover .task-section-toggle,
+    .task-row.is-heading:focus-within .task-section-toggle,
+    .task-row.is-heading.is-collapsed .task-section-toggle {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
+
+    .task-section-toggle svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 120ms ease;
+    }
+
+    .task-section-toggle[aria-expanded="true"] svg {
+      transform: rotate(90deg);
+    }
+
+    .task-section-toggle:hover,
+    .task-section-toggle:focus-visible {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
+      outline: none;
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      .task-row.is-heading .task-section-toggle {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateX(0);
+      }
+
+      .task-row.is-heading .task-copy-btn {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+
     .task-delete-btn {
       width: 22px;
       height: 22px;
@@ -591,6 +861,46 @@
     .task-delete-btn:focus-visible {
       color: #fecaca;
       background: rgba(248, 113, 113, 0.16);
+      outline: none;
+    }
+
+    .task-copy-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+    }
+
+    .task-copy-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .task-copy-btn:hover,
+    .task-copy-btn:focus-visible,
+    .task-row.is-heading:hover .task-copy-btn,
+    .task-row.is-heading:focus-within .task-copy-btn {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-copy-btn:hover,
+    .task-copy-btn:focus-visible {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
       outline: none;
     }
 
@@ -936,7 +1246,7 @@
 
     .overlay-card {
       width: min(560px, 100%);
-      max-height: min(720px, calc(100vh - 48px));
+      max-height: min(720px, calc(var(--app-height) - 48px));
       overflow: auto;
       display: grid;
       gap: 18px;
@@ -1029,7 +1339,7 @@
       }
 
       .pane-projects { grid-area: projects; }
-      .pane-todo { grid-area: todo; }
+      .todo-stack { grid-area: todo; }
       .pane-notes { grid-area: notes; }
     }
 
@@ -1039,13 +1349,14 @@
       }
 
       .layout {
-        min-height: calc(100vh - 20px);
+        min-height: 0;
+        height: 100%;
         grid-template-columns: 1fr;
         grid-template-areas: none;
       }
 
       .pane-projects,
-      .pane-todo,
+      .todo-stack,
       .pane-notes {
         grid-area: auto;
       }
@@ -1064,7 +1375,7 @@
         padding: 0;
       }
 
-      .layout.empty-app .pane-todo {
+      .layout.empty-app .todo-stack {
         grid-column: auto;
       }
     }
@@ -1086,20 +1397,31 @@
         </div>
       </section>
 
-      <section class="pane pane-todo">
-        <div class="pane-head">
-          <span class="pane-title">to-do</span>
-          <div class="pane-head-actions">
-            <span class="muted" id="todo-status">ready</span>
+      <div class="todo-stack">
+        <section class="pane pane-todo">
+          <div class="pane-head">
+            <span class="pane-title">to-do</span>
+            <div class="pane-head-actions">
+              <span class="muted" id="todo-status">ready</span>
+            </div>
           </div>
-        </div>
-        <div class="pane-body">
-          <div id="task-message"></div>
-          <div class="task-list" id="active-task-list"></div>
-          <div class="todo-history" id="todo-history">
-            <div class="divider"></div>
-            <div class="todo-history-head">
-              <div class="small-label">done / changelog</div>
+          <div class="pane-body">
+            <div id="task-message"></div>
+            <div class="task-list" id="active-task-list"></div>
+          </div>
+        </section>
+
+        <section class="pane pane-changelog" id="changelog-pane">
+          <div class="pane-head">
+            <div class="pane-title pane-title-collapsible">
+              <button class="pane-title-toggle" id="changelog-toggle" type="button" aria-expanded="true" aria-controls="changelog-body" aria-label="Collapse changelog" title="Collapse changelog">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m7 10 5 5 5-5"></path>
+                </svg>
+              </button>
+              <span>changelog</span>
+            </div>
+            <div class="pane-head-actions">
               <button class="icon-btn todo-export-btn" id="changelog-export" type="button" aria-label="Copy changelog" title="Copy changelog">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
@@ -1107,10 +1429,12 @@
                 </svg>
               </button>
             </div>
+          </div>
+          <div class="pane-body" id="changelog-body">
             <div class="done-list" id="done-task-list"></div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <section class="pane pane-notes">
         <div class="pane-head">
@@ -1176,12 +1500,16 @@
   <script>
     const initialState = JSON.parse(document.getElementById("initial-state").textContent);
     const noteModeKey = "n10e-note-mode";
+    const changelogCollapseKey = "n10e-changelog-collapsed";
+    const taskSectionCollapseKey = "n10e-task-sections-collapsed";
     const state = {
       projects: initialState.projects || [],
       selectedProjectId: initialState.selected_project_id || null,
       workspace: initialState.workspace || null,
       serverPort: initialState.server_port,
       noteMode: localStorage.getItem(noteModeKey) || "markdown",
+      changelogCollapsed: localStorage.getItem(changelogCollapseKey) === "true",
+      collapsedTaskSections: loadCollapsedTaskSections(),
       openNoteId: initialState.workspace?.suggested_open_note_id || null,
       projectTrayMode: null,
       projectInput: "",
@@ -1219,7 +1547,8 @@
     const doneTaskList = document.getElementById("done-task-list");
     const notesList = document.getElementById("notes-list");
     const todoStatus = document.getElementById("todo-status");
-    const todoHistory = document.getElementById("todo-history");
+    const changelogPane = document.getElementById("changelog-pane");
+    const changelogToggleButton = document.getElementById("changelog-toggle");
     const changelogExportButton = document.getElementById("changelog-export");
     const layout = document.querySelector(".layout");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
@@ -1233,9 +1562,21 @@
         timeZoneName: "short"
       })
       : null;
+    const scrollRevealTimers = new WeakMap();
+    const scrollIndicators = new WeakMap();
 
     changelogExportButton.addEventListener("click", () => {
       exportChangelog();
+    });
+
+    changelogToggleButton.addEventListener("click", () => {
+      state.changelogCollapsed = !state.changelogCollapsed;
+      localStorage.setItem(changelogCollapseKey, String(state.changelogCollapsed));
+      renderChangelogPane();
+      refreshScrollRevealBindings();
+      window.setTimeout(() => {
+        refreshScrollRevealBindings();
+      }, 240);
     });
 
     document.getElementById("projects-add").addEventListener("click", () => {
@@ -1347,6 +1688,22 @@
         event.preventDefault();
         event.stopPropagation();
         await deleteTask(taskDeleteButton.dataset.taskDeleteId);
+        return;
+      }
+
+      const taskSectionToggle = event.target.closest("[data-task-section-toggle-id]");
+      if (taskSectionToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleTaskSection(taskSectionToggle.dataset.taskSectionToggleId);
+        return;
+      }
+
+      const taskSectionCopyButton = event.target.closest("[data-task-section-copy-id]");
+      if (taskSectionCopyButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await copyTaskSection(taskSectionCopyButton.dataset.taskSectionCopyId);
         return;
       }
 
@@ -1536,8 +1893,12 @@
           toggleTaskHeading(taskInput.dataset.taskId);
         } else if (event.key === "Enter") {
           event.preventDefault();
-          await saveTask(taskInput.dataset.taskId);
-          insertDraftAfter(taskInput.dataset.taskId);
+          const taskId = taskInput.dataset.taskId;
+          await saveTask(taskId);
+          if (isTaskSectionCollapsed(taskId)) {
+            setTaskSectionCollapsed(taskId, false);
+          }
+          insertDraftAfter(taskId);
           render();
         }
         return;
@@ -1974,6 +2335,64 @@
       }
     }
 
+    function loadCollapsedTaskSections() {
+      try {
+        const rawValue = localStorage.getItem(taskSectionCollapseKey);
+        if (!rawValue) return {};
+        const parsedValue = JSON.parse(rawValue);
+        return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
+      } catch (_error) {
+        return {};
+      }
+    }
+
+    function saveCollapsedTaskSections() {
+      try {
+        localStorage.setItem(taskSectionCollapseKey, JSON.stringify(state.collapsedTaskSections));
+      } catch (_error) {
+        // Ignore storage failures and keep the in-memory state active.
+      }
+    }
+
+    function getProjectCollapsedTaskSections(projectId = state.selectedProjectId) {
+      if (!projectId) return {};
+      const sections = state.collapsedTaskSections?.[projectId];
+      return sections && typeof sections === "object" ? sections : {};
+    }
+
+    function isTaskSectionCollapsed(taskId, projectId = state.selectedProjectId) {
+      if (!taskId || !projectId) return false;
+      return getProjectCollapsedTaskSections(projectId)[taskId] === true;
+    }
+
+    function setTaskSectionCollapsed(taskId, collapsed) {
+      if (!taskId || !state.selectedProjectId) return;
+
+      const projectId = state.selectedProjectId;
+      const nextProjectSections = { ...getProjectCollapsedTaskSections(projectId) };
+      if (collapsed) {
+        nextProjectSections[taskId] = true;
+      } else {
+        delete nextProjectSections[taskId];
+      }
+
+      const nextSections = { ...state.collapsedTaskSections };
+      if (Object.keys(nextProjectSections).length) {
+        nextSections[projectId] = nextProjectSections;
+      } else {
+        delete nextSections[projectId];
+      }
+
+      state.collapsedTaskSections = nextSections;
+      saveCollapsedTaskSections();
+    }
+
+    function toggleTaskSection(taskId) {
+      if (!taskId) return;
+      setTaskSectionCollapsed(taskId, !isTaskSectionCollapsed(taskId));
+      render();
+    }
+
     function getDraft(key) {
       return state.taskDrafts.find((draft) => draft.key === key);
     }
@@ -2107,6 +2526,41 @@
       input.value = headingLabel;
     }
 
+    function buildActiveTaskSectionState(activeTasks, draftsByAfter) {
+      const sections = new Map();
+      const hiddenTaskIds = new Set();
+      let currentSectionTaskId = null;
+
+      activeTasks.forEach((task) => {
+        const title = state.taskEdits[task.id] ?? task.title;
+        const headingLabel = getTaskHeadingLabel(title);
+
+        if (headingLabel !== null) {
+          currentSectionTaskId = headingLabel ? task.id : null;
+          if (currentSectionTaskId) {
+            sections.set(task.id, {
+              collapsed: isTaskSectionCollapsed(task.id),
+              itemCount: draftsByAfter.get(task.id)?.length || 0
+            });
+          }
+          return;
+        }
+
+        if (!currentSectionTaskId) return;
+
+        const section = sections.get(currentSectionTaskId);
+        if (!section) return;
+
+        section.itemCount += 1;
+        section.itemCount += draftsByAfter.get(task.id)?.length || 0;
+        if (section.collapsed) {
+          hiddenTaskIds.add(task.id);
+        }
+      });
+
+      return { sections, hiddenTaskIds };
+    }
+
     function buildTaskSectionMap(workspace) {
       const sectionMap = new Map();
       if (!workspace) return sectionMap;
@@ -2127,6 +2581,37 @@
       });
 
       return sectionMap;
+    }
+
+    function buildTaskSectionCopyText(sectionTaskId) {
+      if (!state.workspace || !sectionTaskId) return "";
+
+      const lines = [];
+      let inTargetSection = false;
+
+      for (const task of state.workspace.active_tasks) {
+        const rawTitle = state.taskEdits[task.id] ?? task.title;
+        const headingLabel = getTaskHeadingLabel(rawTitle);
+
+        if (headingLabel !== null) {
+          if (task.id === sectionTaskId) {
+            lines.push(`## ${headingLabel}`);
+            inTargetSection = true;
+            continue;
+          }
+
+          if (inTargetSection) {
+            break;
+          }
+
+          continue;
+        }
+
+        if (!inTargetSection) continue;
+        lines.push(`- [ ] ${getVisibleTaskTitle(rawTitle || "Untitled task")}`);
+      }
+
+      return lines.join("\n").trim();
     }
 
     function renderDoneTaskList(doneTasks, sectionMap) {
@@ -2152,18 +2637,49 @@
       return `<div class="done-section-heading">${escapeHtml(title)}</div>`;
     }
 
-    function renderActiveTaskRow(task) {
+    function renderActiveTaskRow(task, sectionState = null) {
       const title = state.taskEdits[task.id] ?? task.title;
       const isHeading = isMarkdownTaskHeading(title);
       const visibleTitle = getVisibleTaskTitle(title);
+      const canCollapse = isHeading && sectionState?.itemCount > 0;
+      const isCollapsed = canCollapse && sectionState.collapsed;
+      const copyControl = isHeading
+        ? `
+          <button class="task-copy-btn" type="button" draggable="false" data-task-section-copy-id="${task.id}" aria-label="Copy section" title="Copy section">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+              <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+            </svg>
+          </button>
+        `
+        : "";
+      const leadingControl = isHeading
+        ? (canCollapse
+          ? `
+            <button
+              class="task-section-toggle"
+              type="button"
+              draggable="false"
+              data-task-section-toggle-id="${task.id}"
+              aria-expanded="${isCollapsed ? "false" : "true"}"
+              aria-label="${isCollapsed ? "Expand section" : "Collapse section"}"
+              title="${isCollapsed ? "Expand section" : "Collapse section"}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+            </button>
+          `
+          : '<span class="task-section-toggle-spacer" aria-hidden="true"></span>')
+        : `<input class="task-check" type="checkbox" data-task-check-id="${task.id}">`;
 
       return `
         <div
-          class="task-row${isHeading ? " is-heading" : ""}"
+          class="task-row${isHeading ? " is-heading" : ""}${isCollapsed ? " is-collapsed" : ""}"
           draggable="true"
           data-draggable-task-id="${task.id}"
         >
-          ${isHeading ? "" : `<input class="task-check" type="checkbox" data-task-check-id="${task.id}">`}
+          ${leadingControl}
           <input
             class="task-input${isHeading ? " task-heading-input" : ""}"
             type="text"
@@ -2171,6 +2687,7 @@
             placeholder="new task or ## section"
             data-task-id="${task.id}"
           >
+          ${copyControl}
           <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
         </div>
       `;
@@ -2258,9 +2775,8 @@
       return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
-    async function exportChangelog() {
-      const exportText = buildChangelogExportText();
-      if (!exportText) return;
+    async function copyTextWithFallback(copyLabel, exportText, successLabel, fallbackLabel) {
+      if (!exportText) return false;
 
       let copied = false;
       if (navigator.clipboard?.writeText) {
@@ -2273,11 +2789,26 @@
       }
 
       if (!copied) {
-        const manualCopy = window.prompt("Copy changelog", exportText);
-        if (manualCopy === null) return;
+        const manualCopy = window.prompt(copyLabel, exportText);
+        if (manualCopy === null) return false;
       }
 
-      flashTodoStatus(copied ? "changelog copied" : "changelog ready");
+      flashTodoStatus(copied ? successLabel : fallbackLabel);
+      return true;
+    }
+
+    async function copyTaskSection(taskId) {
+      const sectionText = buildTaskSectionCopyText(taskId);
+      if (!sectionText) return;
+
+      await copyTextWithFallback("Copy section", sectionText, "section copied", "section ready");
+    }
+
+    async function exportChangelog() {
+      const exportText = buildChangelogExportText();
+      if (!exportText) return;
+
+      await copyTextWithFallback("Copy changelog", exportText, "changelog copied", "changelog ready");
     }
 
     function render() {
@@ -2285,12 +2816,124 @@
       renderProjectTray();
       renderProjects();
       renderTasks();
+      renderChangelogPane();
       renderNotes();
       renderProjectSettings();
+      refreshScrollRevealBindings();
       updateStarterButtons();
       updateModeButtons();
       applyFocus();
     }
+
+    function showScrollbarWhileScrolling(node) {
+      if (!node) return;
+      const overlay = updateScrollIndicator(node);
+      if (!overlay) {
+        return;
+      }
+
+      overlay.classList.add("scroll-active");
+      const existingTimer = scrollRevealTimers.get(node);
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
+      const timer = window.setTimeout(() => {
+        overlay.classList.remove("scroll-active");
+        scrollRevealTimers.delete(node);
+      }, 420);
+
+      scrollRevealTimers.set(node, timer);
+    }
+
+    function ensureScrollIndicator(node) {
+      if (!node || !node.parentElement) return null;
+
+      let overlay = scrollIndicators.get(node);
+      const parent = node.parentElement;
+      if (overlay && overlay.isConnected) {
+        if (overlay.parentElement !== parent) {
+          parent.appendChild(overlay);
+        }
+        return overlay;
+      }
+
+      overlay = document.createElement("div");
+      overlay.className = "scroll-indicator-overlay";
+
+      const thumb = document.createElement("div");
+      thumb.className = "scroll-indicator-thumb";
+      overlay.appendChild(thumb);
+
+      if (window.getComputedStyle(parent).position === "static") {
+        parent.style.position = "relative";
+      }
+
+      parent.appendChild(overlay);
+      scrollIndicators.set(node, overlay);
+      return overlay;
+    }
+
+    function updateScrollIndicator(node) {
+      if (!node) return null;
+
+      const viewport = node.clientHeight;
+      const content = node.scrollHeight;
+      const scrollRange = content - viewport;
+      const canScroll = scrollRange > 1;
+      const existingOverlay = scrollIndicators.get(node);
+
+      if (!canScroll || viewport <= 0) {
+        if (existingOverlay) {
+          existingOverlay.classList.remove("is-scrollable", "scroll-active");
+        }
+        return null;
+      }
+
+      const overlay = ensureScrollIndicator(node);
+      if (!overlay) return null;
+
+      const thumb = overlay.firstElementChild;
+      const parentRect = overlay.parentElement.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      const trackHeight = Math.max(0, Math.round(viewport - 4));
+      if (trackHeight <= 0) {
+        overlay.classList.remove("is-scrollable", "scroll-active");
+        return null;
+      }
+      const overlayTop = Math.max(0, Math.round(nodeRect.top - parentRect.top + 2));
+      const thumbSize = Math.max(28, Math.min(trackHeight, Math.round((viewport / content) * trackHeight)));
+      const maxOffset = Math.max(0, trackHeight - thumbSize);
+      const thumbOffset = maxOffset > 0
+        ? Math.round((node.scrollTop / scrollRange) * maxOffset)
+        : 0;
+
+      overlay.classList.add("is-scrollable");
+      overlay.style.top = `${overlayTop}px`;
+      overlay.style.height = `${trackHeight}px`;
+      thumb.style.height = `${thumbSize}px`;
+      thumb.style.transform = `translateY(${thumbOffset}px)`;
+      return overlay;
+    }
+
+    function bindScrollReveal(node) {
+      if (!node || node.dataset.scrollRevealBound === "true") return;
+      node.dataset.scrollRevealBound = "true";
+      node.addEventListener("scroll", () => {
+        showScrollbarWhileScrolling(node);
+      }, { passive: true });
+    }
+
+    function refreshScrollRevealBindings() {
+      document.querySelectorAll(".pane-body, .task-list, .done-list, .overlay-card, .clean-editor, .markdown-input").forEach((node) => {
+        bindScrollReveal(node);
+        updateScrollIndicator(node);
+      });
+    }
+
+    window.addEventListener("resize", () => {
+      refreshScrollRevealBindings();
+    });
 
     function renderProjectTray() {
       if (!state.projectTrayMode) {
@@ -2778,23 +3421,15 @@
       taskMessage.innerHTML = state.taskMessage ? `<div class="message error">${escapeHtml(state.taskMessage)}</div>` : "";
       if (!state.projects.length) {
         activeTaskList.innerHTML = renderEmptyAppState();
-        doneTaskList.innerHTML = "";
-        todoHistory.classList.add("hidden");
-        changelogExportButton.disabled = true;
         resetTodoStatusLabel();
         return;
       }
 
       if (!state.workspace) {
         activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
-        doneTaskList.innerHTML = "";
-        todoHistory.classList.add("hidden");
-        changelogExportButton.disabled = true;
         resetTodoStatusLabel();
         return;
       }
-
-      todoHistory.classList.remove("hidden");
 
       ensureDraftRow();
 
@@ -2810,16 +3445,43 @@
         draftsByAfter.get("__top__").forEach((draft) => activeRows.push(renderDraftRow(draft)));
       }
 
+      const taskSectionState = buildActiveTaskSectionState(state.workspace.active_tasks, draftsByAfter);
       state.workspace.active_tasks.forEach((task) => {
-        activeRows.push(renderActiveTaskRow(task));
+        if (taskSectionState.hiddenTaskIds.has(task.id)) return;
+
+        const sectionState = taskSectionState.sections.get(task.id) || null;
+        activeRows.push(renderActiveTaskRow(task, sectionState));
 
         const drafts = draftsByAfter.get(task.id);
         if (drafts) {
+          if (sectionState?.collapsed) return;
           drafts.forEach((draft) => activeRows.push(renderDraftRow(draft)));
         }
       });
 
       activeTaskList.innerHTML = activeRows.join("");
+      resetTodoStatusLabel();
+    }
+
+    function renderChangelogPane() {
+      const hidePane = state.projects.length === 0;
+      changelogPane.classList.toggle("hidden", hidePane);
+      changelogPane.classList.toggle("collapsed", state.changelogCollapsed);
+      changelogToggleButton.setAttribute("aria-expanded", state.changelogCollapsed ? "false" : "true");
+      changelogToggleButton.setAttribute("aria-label", state.changelogCollapsed ? "Expand changelog" : "Collapse changelog");
+      changelogToggleButton.title = state.changelogCollapsed ? "Expand changelog" : "Collapse changelog";
+
+      if (hidePane) {
+        doneTaskList.innerHTML = "";
+        changelogExportButton.disabled = true;
+        return;
+      }
+
+      if (!state.workspace) {
+        doneTaskList.innerHTML = `<div class="empty-state">Select or create a project to review completed work.</div>`;
+        changelogExportButton.disabled = true;
+        return;
+      }
 
       if (!state.workspace.done_tasks.length) {
         doneTaskList.innerHTML = `<div class="empty-state">Completed tasks will land here as a running changelog.</div>`;
@@ -2829,7 +3491,6 @@
       }
 
       changelogExportButton.disabled = state.workspace.done_tasks.length === 0;
-      resetTodoStatusLabel();
     }
 
     function renderEmptyAppState() {
@@ -2875,10 +3536,13 @@
     function renderDraftRow(draft) {
       const isHeading = isMarkdownTaskHeading(draft.title);
       const visibleTitle = getVisibleTaskTitle(draft.title);
+      const leadingControl = isHeading
+        ? '<span class="task-section-toggle-spacer" aria-hidden="true"></span>'
+        : '<span class="task-heading-marker empty" aria-hidden="true"></span>';
 
       return `
         <div class="task-draft${isHeading ? " is-heading" : ""}">
-          ${isHeading ? "" : '<span class="task-heading-marker empty" aria-hidden="true"></span>'}
+          ${leadingControl}
           <input
             class="task-input${isHeading ? " task-heading-input" : ""}"
             type="text"

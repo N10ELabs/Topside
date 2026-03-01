@@ -4,11 +4,14 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use tokio::task::JoinHandle;
 use tracing::info;
 
 use n10e::bench::{run_bench, seed_synthetic_corpus};
+use n10e::bundle::bundle_macos_app;
 use n10e::config::AppConfig;
 use n10e::constants::PROJECT_CODENAME;
+use n10e::desktop::{run_native_window, window_title};
 use n10e::dev::run_dev_supervisor;
 use n10e::doctor::run_doctor;
 use n10e::http::{WebState, router};
@@ -34,6 +37,13 @@ enum Commands {
         path: Option<PathBuf>,
     },
     Serve,
+    Open,
+    BundleApp {
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<PathBuf>,
+        #[arg(long, value_name = "FILE")]
+        icon: Option<PathBuf>,
+    },
     Dev,
     Reindex,
     Import {
@@ -63,6 +73,8 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Init { path } => cmd_init(path),
         Commands::Serve => cmd_serve(cli.workspace).await,
+        Commands::Open => cmd_open(cli.workspace).await,
+        Commands::BundleApp { output_dir, icon } => cmd_bundle_app(cli.workspace, output_dir, icon),
         Commands::Dev => run_dev_supervisor(cli.workspace).await,
         Commands::Reindex => cmd_reindex(cli.workspace),
         Commands::Import { path } => cmd_import(cli.workspace, path),
@@ -96,25 +108,65 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
     let _mcp = spawn_stdio_server(service.clone());
-
-    let state = Arc::new(WebState {
-        service,
-        dev_reload_token: std::env::var("N10E_DEV_RELOAD_TOKEN").ok(),
-    });
-
-    let app = router(state);
-
-    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port)
-        .parse()
-        .context("invalid server host/port configuration")?;
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .with_context(|| format!("failed binding http listener at {addr}"))?;
+    let app = router(build_web_state(service));
+    let (addr, listener) = bind_http_listener(&config).await?;
 
     info!(address = %addr, "n10e server starting");
     println!("n10e serve listening on http://{addr}");
 
     axum::serve(listener, app.into_make_service()).await?;
+    Ok(())
+}
+
+async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
+    let config = load_config(workspace)?;
+    let service = Arc::new(AppService::bootstrap(config.clone())?);
+    let _watcher = service.start_watcher()?;
+    let app = router(build_web_state(service));
+    let (addr, listener) = bind_http_listener(&config).await?;
+    let _http_task = spawn_http_server(listener, app);
+    let url = format!("http://{addr}");
+    let title = window_title(&config.workspace_root);
+
+    info!(address = %addr, "n10e desktop window starting");
+    println!("n10e open launching native window at {url}");
+
+    run_native_window(&url, &title, &config.workspace_root)
+}
+
+fn cmd_bundle_app(
+    workspace: Option<PathBuf>,
+    output_dir: Option<PathBuf>,
+    icon: Option<PathBuf>,
+) -> Result<()> {
+    let default_workspace = workspace
+        .map(|path| resolve_workspace(Some(path)))
+        .transpose()?;
+    let source_binary = std::env::current_exe().context("failed locating current executable")?;
+    let output_dir = resolve_output_dir(output_dir)?;
+    let icon = icon.map(resolve_absolute_path).transpose()?;
+    std::fs::create_dir_all(&output_dir)
+        .with_context(|| format!("failed creating {}", output_dir.display()))?;
+
+    let bundle_path = bundle_macos_app(
+        &source_binary,
+        &output_dir,
+        default_workspace.as_deref(),
+        icon.as_deref(),
+    )?;
+
+    println!("Created macOS app bundle at {}", bundle_path.display());
+    if let Some(workspace) = default_workspace {
+        println!("Default workspace: {}", workspace.display());
+    } else {
+        println!("Default workspace: prompt on launch");
+    }
+    if let Some(icon) = icon {
+        println!("Bundle icon: {}", icon.display());
+    } else {
+        println!("Bundle icon: none");
+    }
+
     Ok(())
 }
 
@@ -197,6 +249,36 @@ fn load_config(workspace_override: Option<PathBuf>) -> Result<AppConfig> {
     AppConfig::load_from_workspace(&workspace_root)
 }
 
+fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
+    Arc::new(WebState {
+        service,
+        dev_reload_token: std::env::var("N10E_DEV_RELOAD_TOKEN").ok(),
+    })
+}
+
+async fn bind_http_listener(config: &AppConfig) -> Result<(SocketAddr, tokio::net::TcpListener)> {
+    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port)
+        .parse()
+        .context("invalid server host/port configuration")?;
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("failed binding http listener at {addr}"))?;
+
+    Ok((addr, listener))
+}
+
+fn spawn_http_server(
+    listener: tokio::net::TcpListener,
+    app: axum::Router,
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        axum::serve(listener, app.into_make_service())
+            .await
+            .context("desktop http server stopped unexpectedly")?;
+        Ok(())
+    })
+}
+
 fn resolve_workspace(path: Option<PathBuf>) -> Result<PathBuf> {
     let root = match path {
         Some(path) => path,
@@ -207,6 +289,29 @@ fn resolve_workspace(path: Option<PathBuf>) -> Result<PathBuf> {
         Ok(root)
     } else {
         Ok(std::env::current_dir()?.join(root))
+    }
+}
+
+fn resolve_output_dir(path: Option<PathBuf>) -> Result<PathBuf> {
+    let root = match path {
+        Some(path) => path,
+        None => std::env::current_dir()
+            .context("failed reading current working directory")?
+            .join("dist"),
+    };
+
+    if root.is_absolute() {
+        Ok(root)
+    } else {
+        Ok(std::env::current_dir()?.join(root))
+    }
+}
+
+fn resolve_absolute_path(path: PathBuf) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(std::env::current_dir()?.join(path))
     }
 }
 

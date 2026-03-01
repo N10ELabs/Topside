@@ -15,12 +15,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build release binary
-        run: cargo build --release
-
       - name: Package
         run: |
-          mkdir -p dist
+          ./scripts/package-macos-release.sh --output-dir dist
           cp target/release/n10e dist/n10e
           tar -czf dist/n10e-macos-universal.tar.gz -C dist n10e
 
@@ -28,7 +25,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: n10e-macos
-          path: dist/n10e-macos-universal.tar.gz
+          path: |
+            dist/n10e-macos-universal.tar.gz
+            dist/n10e-macos.dmg
 
   publish:
     needs: build-macos
@@ -43,4 +42,6 @@ jobs:
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/n10e-macos-universal.tar.gz
+            dist/n10e-macos.dmg

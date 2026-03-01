@@ -1,8 +1,10 @@
 pub mod activity;
 pub mod bench;
+pub mod bundle;
 pub mod config;
 pub mod constants;
 pub mod db;
+pub mod desktop;
 pub mod dev;
 pub mod doctor;
 pub mod git;
