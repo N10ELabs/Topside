@@ -207,6 +207,54 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
                     yaml_scalar(last_sync_summary)
                 ));
             }
+            if let Some(task_sync_mode) = &project.task_sync_mode {
+                out.push_str(&format!("task_sync_mode: {}\n", task_sync_mode.as_str()));
+            }
+            if let Some(task_sync_file) = &project.task_sync_file {
+                out.push_str(&format!(
+                    "task_sync_file: {}\n",
+                    yaml_scalar(task_sync_file)
+                ));
+            }
+            if project.task_sync_enabled {
+                out.push_str("task_sync_enabled: true\n");
+            }
+            if let Some(task_sync_status) = &project.task_sync_status {
+                out.push_str(&format!(
+                    "task_sync_status: {}\n",
+                    task_sync_status.as_str()
+                ));
+            }
+            if let Some(task_sync_last_seen_hash) = &project.task_sync_last_seen_hash {
+                out.push_str(&format!(
+                    "task_sync_last_seen_hash: {}\n",
+                    yaml_scalar(task_sync_last_seen_hash)
+                ));
+            }
+            if let Some(task_sync_last_inbound_at) = project.task_sync_last_inbound_at {
+                out.push_str(&format!(
+                    "task_sync_last_inbound_at: {}\n",
+                    task_sync_last_inbound_at.to_rfc3339()
+                ));
+            }
+            if let Some(task_sync_last_outbound_at) = project.task_sync_last_outbound_at {
+                out.push_str(&format!(
+                    "task_sync_last_outbound_at: {}\n",
+                    task_sync_last_outbound_at.to_rfc3339()
+                ));
+            }
+            if let Some(task_sync_conflict_summary) = &project.task_sync_conflict_summary {
+                out.push_str(&format!(
+                    "task_sync_conflict_summary: {}\n",
+                    yaml_scalar(task_sync_conflict_summary)
+                ));
+            }
+            if let Some(task_sync_conflict_at) = project.task_sync_conflict_at {
+                out.push_str(&format!(
+                    "task_sync_conflict_at: {}\n",
+                    task_sync_conflict_at.to_rfc3339()
+                ));
+            }
             render_tags(&mut out, project.tags.as_ref());
             out.push_str(&format!(
                 "created_at: {}\n",

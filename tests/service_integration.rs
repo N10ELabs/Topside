@@ -1,5 +1,7 @@
 mod common;
 
+use std::thread;
+use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::Result;
@@ -9,8 +11,29 @@ use n10e::db::Db;
 use n10e::service::ServiceError;
 use n10e::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, ProjectSourceKind,
-    SearchFilters, TaskFilters, TaskPatch, TaskStatus, TaskSyncKind,
+    SearchFilters, TaskFilters, TaskPatch, TaskStatus, TaskSyncKind, TaskSyncStatus,
 };
+
+fn wait_for(label: &str, mut predicate: impl FnMut() -> Result<bool>) -> Result<()> {
+    let started = Instant::now();
+    loop {
+        if predicate()? {
+            return Ok(());
+        }
+        if started.elapsed() > Duration::from_secs(5) {
+            anyhow::bail!("timed out waiting for condition: {label}");
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn project_by_id(service: &n10e::service::AppService, project_id: &str) -> Result<n10e::types::ProjectItem> {
+    service
+        .list_projects(20, false)?
+        .into_iter()
+        .find(|item| item.id == project_id)
+        .ok_or_else(|| anyhow::anyhow!("project {project_id} not found"))
+}
 
 #[test]
 fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
@@ -275,6 +298,194 @@ fn sync_project_imports_and_updates_repo_todo_tasks() -> Result<()> {
             .unwrap_or_default()
             .contains("Scanned 1 file(s), found 3 repo task(s)")
     );
+
+    Ok(())
+}
+
+#[test]
+fn managed_task_sync_handles_outbound_inbound_conflict_and_recovery() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    let sync_path = repo_root.path().join("docs/to-do.md");
+    let sidecar_path = repo_root.path().join("docs/.to-do.n10e-sync.json");
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Managed Sync Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let _task = service.create_task(
+        CreateTaskPayload {
+            title: "Draft spec".to_string(),
+            project_id: project.id.clone(),
+            status: Some(TaskStatus::Todo),
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let enabled = service.enable_managed_task_sync(&project.id, &project.revision)?;
+    assert_eq!(enabled.task_sync_status, Some(TaskSyncStatus::Live));
+    assert_eq!(enabled.task_sync_file.as_deref(), Some("docs/to-do.md"));
+    assert!(sync_path.exists());
+    assert!(sidecar_path.exists());
+
+    let initial_file = std::fs::read_to_string(&sync_path)?;
+    assert!(initial_file.contains("- [ ] Draft spec"));
+    assert!(!initial_file.contains("n10e:id="));
+
+    let live_task = service
+        .list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project.id.clone()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(20),
+        })?
+        .into_iter()
+        .find(|item| item.title == "Draft spec")
+        .expect("managed task should exist after enable");
+
+    let _updated = service.update_task(
+        &live_task.id,
+        TaskPatch {
+            title: Some("Draft API spec".to_string()),
+            ..Default::default()
+        },
+        &live_task.revision,
+        Actor::human("tester"),
+    )?;
+
+    wait_for("outbound write after local update", || {
+        Ok(std::fs::read_to_string(&sync_path)?.contains("Draft API spec"))
+    })?;
+
+    let current_file = std::fs::read_to_string(&sync_path)?;
+    std::fs::write(&sync_path, format!("{current_file}- [ ] External item\n"))?;
+    let project_after_external_edit = project_by_id(&service, &project.id)?;
+    let resolved_after_external_edit = service.resolve_managed_task_sync_from_file(
+        &project.id,
+        &project_after_external_edit.revision,
+    )?;
+    assert_eq!(resolved_after_external_edit.task_sync_status, Some(TaskSyncStatus::Live));
+    assert!(
+        service
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(project.id.clone()),
+                assignee: None,
+                include_archived: false,
+                limit: Some(20),
+            })?
+            .iter()
+            .any(|item| item.title == "External item")
+    );
+
+    std::fs::write(&sidecar_path, "{not-json")?;
+    let current_file = std::fs::read_to_string(&sync_path)?;
+    std::fs::write(&sync_path, format!("{current_file}- [ ] Recovered item\n"))?;
+    let project_after_sidecar_break = project_by_id(&service, &project.id)?;
+    let resolved_after_sidecar_break = service.resolve_managed_task_sync_from_file(
+        &project.id,
+        &project_after_sidecar_break.revision,
+    )?;
+    assert_eq!(resolved_after_sidecar_break.task_sync_status, Some(TaskSyncStatus::Live));
+    assert!(
+        service
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(project.id.clone()),
+                assignee: None,
+                include_archived: false,
+                limit: Some(20),
+            })?
+            .iter()
+            .any(|item| item.title == "Recovered item")
+    );
+    wait_for("sidecar rewrite after malformed sidecar", || {
+        Ok(std::fs::read_to_string(&sidecar_path)?.contains("Recovered item"))
+    })?;
+
+    let conflict_task = service
+        .list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project.id.clone()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(20),
+        })?
+        .into_iter()
+        .find(|item| item.title == "Draft API spec")
+        .expect("synced task should still exist");
+
+    let _pending_conflict = service.update_task(
+        &conflict_task.id,
+        TaskPatch {
+            title: Some("Local pending conflict".to_string()),
+            ..Default::default()
+        },
+        &conflict_task.revision,
+        Actor::human("tester"),
+    )?;
+
+    thread::sleep(Duration::from_millis(50));
+    let current_file = std::fs::read_to_string(&sync_path)?;
+    std::fs::write(&sync_path, format!("{current_file}- [ ] File wins task\n"))?;
+
+    wait_for("conflict detection", || {
+        let project = project_by_id(&service, &project.id)?;
+        Ok(project.task_sync_status == Some(TaskSyncStatus::Conflict))
+    })?;
+
+    let conflicted = project_by_id(&service, &project.id)?;
+    assert!(
+        conflicted
+            .task_sync_conflict_summary
+            .as_deref()
+            .unwrap_or_default()
+            .contains("Managed task sync detected")
+    );
+
+    let resolved = service.resolve_managed_task_sync_from_file(&project.id, &conflicted.revision)?;
+    assert_eq!(resolved.task_sync_status, Some(TaskSyncStatus::Live));
+
+    wait_for("resolve from file imports winning task", || {
+        let tasks = service.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project.id.clone()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(30),
+        })?;
+        Ok(tasks.iter().any(|item| item.title == "File wins task"))
+    })?;
+
+    let final_project = project_by_id(&service, &project.id)?;
+    assert_eq!(final_project.task_sync_status, Some(TaskSyncStatus::Live));
+    assert!(final_project.task_sync_conflict_summary.is_none());
+    assert!(final_project.task_sync_last_inbound_at.is_some());
+    assert!(std::fs::read_to_string(&sidecar_path)?.contains("File wins task"));
 
     Ok(())
 }

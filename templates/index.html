@@ -1574,6 +1574,67 @@
       flex-wrap: wrap;
     }
 
+    .settings-action-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .settings-action-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(147, 184, 207, 0.28);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(12, 23, 32, 0.9), rgba(8, 15, 22, 0.94));
+      color: var(--text);
+      text-align: left;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
+    }
+
+    .settings-action-btn:hover,
+    .settings-action-btn:focus-visible {
+      border-color: rgba(56, 189, 248, 0.42);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.16);
+      background: linear-gradient(180deg, rgba(15, 30, 42, 0.94), rgba(10, 20, 28, 0.96));
+      color: #e6f4ff;
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .settings-action-btn.danger-btn:hover,
+    .settings-action-btn.danger-btn:focus-visible {
+      border-color: rgba(248, 113, 113, 0.42);
+      box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.14);
+      background: linear-gradient(180deg, rgba(38, 16, 18, 0.9), rgba(24, 10, 12, 0.94));
+      color: #ffe4e6;
+    }
+
+    .settings-action-icon {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      color: #67e8f9;
+    }
+
+    .settings-action-btn.danger-btn .settings-action-icon {
+      color: #fca5a5;
+    }
+
+    .settings-action-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .overlay-value {
       color: #cbd7e3;
       line-height: 1.55;
@@ -1658,7 +1719,7 @@
     <main class="layout">
       <section class="pane pane-projects">
         <div class="pane-head">
-          <span class="pane-title">projects</span>
+          <span class="pane-title">/projects</span>
         </div>
         <div class="pane-body">
           <div id="project-tray"></div>
@@ -1669,7 +1730,7 @@
       <div class="todo-stack">
         <section class="pane pane-todo">
           <div class="pane-head">
-            <span class="pane-title">to-do</span>
+            <span class="pane-title">to-do.md</span>
             <div class="pane-head-actions">
               <span class="muted" id="todo-status">ready</span>
               <button class="icon-btn" id="todo-toggle-header" type="button" aria-label="Convert selected row to header" title="Convert selected row to header (⇧⌘H)" disabled>
@@ -1679,7 +1740,7 @@
                   <path d="M8 12h8"></path>
                 </svg>
               </button>
-              <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy selected row" title="Copy selected row" disabled>
+              <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy to-do.md" title="Copy to-do.md" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
                   <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
@@ -1729,7 +1790,7 @@
 
       <section class="pane pane-notes">
         <div class="pane-head">
-          <span class="pane-title">notes</span>
+          <span class="pane-title">/docs</span>
           <div class="pane-head-actions">
             <span class="muted" id="note-status"></span>
             <div class="mode-toggle" aria-label="Notes view mode">
@@ -1834,13 +1895,15 @@
       focusDraftKey: null,
       focusNoteId: null,
       projectSettingsId: null,
-      projectSettingsTitle: "",
       projectSettingsSourceMode: null,
       projectSettingsSourceInput: "",
       projectSettingsMessage: "",
       projectSettingsPickerFallback: false,
       noteArchiveConfirmId: null,
       emptyAppAction: "local",
+      uiRefreshTimer: null,
+      uiRefreshInFlight: false,
+      pendingRemoteUiState: null,
     };
 
     const projectTray = document.getElementById("project-tray");
@@ -1863,6 +1926,9 @@
     const taskInputMeasure = document.getElementById("task-input-measure");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
     const noteArchiveOverlay = document.getElementById("note-archive-overlay");
+    const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
+    const changelogBody = document.getElementById("changelog-body");
+    const notesPaneBody = document.querySelector(".pane-notes .pane-body");
     let taskRowSyncFrame = null;
     if (typeof ResizeObserver !== "undefined") {
       const taskListResizeObserver = new ResizeObserver(() => {
@@ -1891,6 +1957,7 @@
       : null;
     const scrollRevealTimers = new WeakMap();
     const scrollIndicators = new WeakMap();
+    const uiRefreshIntervalMs = 1400;
 
     changelogExportButton.addEventListener("click", () => {
       exportChangelog();
@@ -1954,6 +2021,18 @@
         localStorage.setItem(noteModeKey, nextMode);
         render();
       });
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        scheduleUiRefresh(50);
+      }
+    });
+
+    document.addEventListener("focusout", () => {
+      window.setTimeout(() => {
+        flushPendingRemoteUiState();
+      }, 0);
     });
 
     document.addEventListener("click", async (event) => {
@@ -2094,13 +2173,24 @@
       if (settingsAction) {
         const action = settingsAction.dataset.projectSettingsAction;
 
-        if (action === "save-name") {
-          await saveProjectSettingsName();
+        if (action === "open-source") {
+          await openProjectSource();
           return;
         }
 
-        if (action === "open-source") {
-          await openProjectSource();
+        if (action === "open-task-sync-file") {
+          await openManagedTaskSyncFile();
+          return;
+        }
+
+        if (
+          action === "enable-task-sync"
+          || action === "pause-task-sync"
+          || action === "resume-task-sync"
+          || action === "resolve-task-sync-file"
+          || action === "resolve-task-sync-local"
+        ) {
+          await performManagedTaskSyncAction(action);
           return;
         }
 
@@ -2131,11 +2221,6 @@
 
         if (action === "save-link") {
           await saveProjectSourceLink();
-          return;
-        }
-
-        if (action === "unlink-source") {
-          await unlinkProjectSource();
           return;
         }
 
@@ -2246,12 +2331,6 @@
         return;
       }
 
-      const projectSettingsTitleInput = event.target.closest("[data-project-settings-title]");
-      if (projectSettingsTitleInput) {
-        state.projectSettingsTitle = projectSettingsTitleInput.value;
-        return;
-      }
-
       const projectSettingsSourceInput = event.target.closest("[data-project-settings-source]");
       if (projectSettingsSourceInput) {
         state.projectSettingsSourceInput = projectSettingsSourceInput.value;
@@ -2359,16 +2438,14 @@
         }
       }
 
-      const projectSettingsInput = event.target.closest("[data-project-settings-title], [data-project-settings-source]");
+      const projectSettingsInput = event.target.closest("[data-project-settings-source]");
       if (projectSettingsInput) {
         if (event.key === "Escape") {
           event.preventDefault();
           closeProjectSettings();
         } else if (event.key === "Enter") {
           event.preventDefault();
-          if (projectSettingsInput.hasAttribute("data-project-settings-title")) {
-            await saveProjectSettingsName();
-          } else if (projectSettingsInput.hasAttribute("data-project-settings-source")) {
+          if (projectSettingsInput.hasAttribute("data-project-settings-source")) {
             await saveProjectSourceLink();
           }
         }
@@ -2768,13 +2845,194 @@
       };
     }
 
+    function computeUiRefreshToken(payload) {
+      if (!payload) return "";
+
+      const projects = Array.isArray(payload.projects)
+        ? payload.projects.map((project) => [
+          project.id,
+          project.revision,
+          project.task_sync_status || "",
+          project.last_synced_at_label || ""
+        ].join(":")).join("|")
+        : "";
+
+      const workspace = payload.workspace || null;
+      const active = Array.isArray(workspace?.active_tasks)
+        ? workspace.active_tasks.map((task) => `${task.id}:${task.revision}`).join("|")
+        : "";
+      const done = Array.isArray(workspace?.done_tasks)
+        ? workspace.done_tasks.map((task) => `${task.id}:${task.revision}`).join("|")
+        : "";
+      const notes = Array.isArray(workspace?.notes)
+        ? workspace.notes.map((note) => `${note.id}:${note.revision}`).join("|")
+        : "";
+
+      return [
+        projects,
+        payload.selected_project_id || "",
+        workspace?.project?.revision || "",
+        active,
+        done,
+        notes,
+        workspace?.suggested_open_note_id || ""
+      ].join("::");
+    }
+
+    function isEditorInteractionActive() {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return false;
+      return Boolean(active.closest([
+        "[data-task-id]",
+        "[data-task-draft-key]",
+        "[data-note-title-id]",
+        "[data-note-body-id]",
+        "[data-note-clean-id]",
+        "[data-project-input]",
+        "[data-project-source]",
+        "[data-project-settings-source]"
+      ].join(",")));
+    }
+
+    function applyRemoteUiStateIfIdle(payload) {
+      if (!payload) return;
+
+      const nextPayload = {
+        ...payload,
+        workspace: payload.workspace && state.workspace
+          ? mergeWorkspacePreservingNoteOrder(state.workspace, payload.workspace)
+          : payload.workspace
+      };
+      const currentToken = computeUiRefreshToken({
+        projects: state.projects,
+        selected_project_id: state.selectedProjectId,
+        workspace: state.workspace
+      });
+      const nextToken = computeUiRefreshToken(nextPayload);
+      if (currentToken === nextToken) {
+        state.pendingRemoteUiState = null;
+        return;
+      }
+
+      if (isEditorInteractionActive()) {
+        state.pendingRemoteUiState = nextPayload;
+        return;
+      }
+
+      state.pendingRemoteUiState = null;
+      applyUiState(nextPayload);
+      render({ preserveShellScroll: true });
+    }
+
+    function flushPendingRemoteUiState() {
+      if (!state.pendingRemoteUiState) return;
+      if (isEditorInteractionActive()) return;
+      const pending = state.pendingRemoteUiState;
+      state.pendingRemoteUiState = null;
+      applyUiState(pending);
+      render({ preserveShellScroll: true });
+    }
+
+    function scheduleUiRefresh(delay = uiRefreshIntervalMs) {
+      clearTimeout(state.uiRefreshTimer);
+      state.uiRefreshTimer = window.setTimeout(() => {
+        refreshUiStateInBackground();
+      }, delay);
+    }
+
+    async function refreshUiStateInBackground() {
+      state.uiRefreshTimer = null;
+      flushPendingRemoteUiState();
+
+      if (state.uiRefreshInFlight) {
+        scheduleUiRefresh();
+        return;
+      }
+
+      if (document.visibilityState === "hidden") {
+        scheduleUiRefresh();
+        return;
+      }
+
+      if (!state.selectedProjectId || !state.workspace?.project?.task_sync_enabled) {
+        scheduleUiRefresh();
+        return;
+      }
+
+      const projectId = state.selectedProjectId;
+      state.uiRefreshInFlight = true;
+
+      try {
+        const query = new URLSearchParams({ project_id: projectId });
+        const response = await fetch(`/api/ui-state?${query.toString()}`, {
+          cache: "no-store"
+        });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        if (state.selectedProjectId !== projectId) return;
+        applyRemoteUiStateIfIdle(payload);
+      } catch (_error) {
+        // Ignore background refresh failures; the next poll will retry.
+      } finally {
+        state.uiRefreshInFlight = false;
+        scheduleUiRefresh();
+      }
+    }
+
+    function captureNodeScrollState(node) {
+      if (!(node instanceof HTMLElement)) return null;
+      const maxScrollTop = Math.max(0, node.scrollHeight - node.clientHeight);
+      return {
+        node,
+        top: node.scrollTop,
+        ratio: maxScrollTop > 0 ? node.scrollTop / maxScrollTop : 0,
+      };
+    }
+
+    function captureShellScrollState() {
+      return [
+        captureNodeScrollState(projectsPaneBody),
+        captureNodeScrollState(activeTaskList),
+        captureNodeScrollState(changelogBody),
+        captureNodeScrollState(doneTaskList),
+        captureNodeScrollState(notesPaneBody),
+      ].filter(Boolean);
+    }
+
+    function restoreShellScrollState(scrollState) {
+      if (!Array.isArray(scrollState) || !scrollState.length) return;
+
+      scrollState.forEach((entry) => {
+        if (!entry?.node?.isConnected) return;
+        const maxScrollTop = Math.max(0, entry.node.scrollHeight - entry.node.clientHeight);
+        const desiredTop = maxScrollTop > 0
+          ? Math.min(entry.top, Math.round(entry.ratio * maxScrollTop))
+          : 0;
+        entry.node.scrollTop = desiredTop;
+      });
+
+      window.requestAnimationFrame(() => {
+        scrollState.forEach((entry) => {
+          if (!entry?.node?.isConnected) return;
+          const maxScrollTop = Math.max(0, entry.node.scrollHeight - entry.node.clientHeight);
+          const desiredTop = maxScrollTop > 0
+            ? Math.min(entry.top, Math.round(entry.ratio * maxScrollTop))
+            : 0;
+          entry.node.scrollTop = desiredTop;
+        });
+      });
+    }
+
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
       state.workspace = workspace;
       if (!workspace) {
         setSelectedTaskId(null);
         state.openNoteId = null;
         state.taskDrafts = [];
+        state.pendingRemoteUiState = null;
         syncLocation();
+        scheduleUiRefresh();
         return;
       }
       if (!workspace.active_tasks.some((task) => task.id === state.selectedTaskId)) {
@@ -2789,6 +3047,7 @@
       }
       ensureDraftRow();
       syncLocation();
+      scheduleUiRefresh();
     }
 
     function applyUiState(payload) {
@@ -3451,6 +3710,10 @@
         todoStatus.textContent = "";
       } else if (!state.workspace) {
         todoStatus.textContent = "idle";
+      } else if (state.workspace.project?.task_sync_status === "conflict") {
+        todoStatus.textContent = "sync conflict";
+      } else if (state.workspace.project?.task_sync_status === "paused" && state.workspace.project?.task_sync_enabled) {
+        todoStatus.textContent = "sync paused";
       } else {
         todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
       }
@@ -3579,17 +3842,14 @@
     }
 
     async function copySelectedTask() {
-      const taskId = getSelectedActiveTaskId();
-      const copyText = taskId
-        ? buildSelectedTaskCopyText(taskId)
-        : buildActiveTodoCopyText();
+      const copyText = buildActiveTodoCopyText();
       if (!copyText) return;
 
       await copyTextWithFallback(
-        taskId ? "Copy selected row" : "Copy to-do list",
+        "Copy to-do.md",
         copyText,
-        taskId ? "row copied" : "to-do copied",
-        taskId ? "row ready" : "to-do ready"
+        "to-do copied",
+        "to-do ready"
       );
     }
 
@@ -3652,7 +3912,8 @@
       render();
     }
 
-    function render() {
+    function render(options = {}) {
+      const scrollState = options.preserveShellScroll ? captureShellScrollState() : null;
       layout.classList.toggle("empty-app", state.projects.length === 0);
       layout.classList.toggle("project-starter", state.projectTrayMode === "chooser");
       renderProjectTray();
@@ -3668,6 +3929,7 @@
       renderTodoTaskActionButtons();
       scheduleTaskRowSync();
       applyFocus();
+      restoreShellScrollState(scrollState);
     }
 
     function renderTodoTaskActionButtons() {
@@ -3679,11 +3941,7 @@
           ? "Convert selected header to task"
           : "Convert selected row to header")
         : "Convert selected row to header";
-      const copyLabel = selectedTask
-        ? (isMarkdownTaskHeading(state.taskEdits[selectedTask.id] ?? selectedTask.title)
-          ? "Copy selected section"
-          : "Copy selected row")
-        : "Copy to-do list";
+      const copyLabel = "Copy to-do.md";
       const title = `${headerLabel} (⇧⌘H)`;
       todoHeaderToggleButton.disabled = !selectedTask;
       todoHeaderToggleButton.setAttribute("aria-label", headerLabel);
@@ -3957,6 +4215,110 @@
       });
     }
 
+    function renderProjectSettingsActionIcon(icon) {
+      if (icon === "folder") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.5 9a2 2 0 0 1 2-2h4.1l1.8 2H18.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "repo") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="8" cy="8" r="2"></circle>
+            <circle cx="8" cy="18" r="2"></circle>
+            <circle cx="16" cy="14" r="2"></circle>
+            <path d="M10 8h4a2 2 0 0 1 2 2v2"></path>
+            <path d="M8 10v6"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "open") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 5h5v5"></path>
+            <path d="M10 14 19 5"></path>
+            <path d="M19 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "save") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 12 4 4 10-10"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "cancel") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6 18 18"></path>
+            <path d="M18 6 6 18"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "sync") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 7v5h-5"></path>
+            <path d="M4 17v-5h5"></path>
+            <path d="M5 12a7 7 0 0 1 11-5"></path>
+            <path d="M19 12a7 7 0 0 1-11 5"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "pause") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 6v12"></path>
+            <path d="M16 6v12"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "play") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m9 7 8 5-8 5z"></path>
+          </svg>
+        `;
+      }
+
+      if (icon === "archive") {
+        return `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 8h16"></path>
+            <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
+            <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
+            <path d="M10 12h4"></path>
+          </svg>
+        `;
+      }
+
+      return `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14"></path>
+          <path d="M5 12h14"></path>
+        </svg>
+      `;
+    }
+
+    function renderProjectSettingsActionButton(action, label, icon, extraClass = "") {
+      return `
+        <button class="settings-action-btn${extraClass ? ` ${extraClass}` : ""}" type="button" data-project-settings-action="${action}">
+          <span class="settings-action-icon" aria-hidden="true">${renderProjectSettingsActionIcon(icon)}</span>
+          <span>${escapeHtml(label)}</span>
+        </button>
+      `;
+    }
+
     function renderProjectSettings() {
       const project = getProjectById(state.projectSettingsId);
       if (!project) {
@@ -3985,20 +4347,6 @@
             ${state.projectSettingsMessage ? `<div class="overlay-message error">${escapeHtml(state.projectSettingsMessage)}</div>` : ""}
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">name</div>
-              </div>
-              <input
-                class="text-input"
-                type="text"
-                value="${escapeAttribute(state.projectSettingsTitle)}"
-                data-project-settings-title
-              >
-              <div class="overlay-inline-actions">
-                <button class="text-btn" type="button" data-project-settings-action="save-name">save name</button>
-              </div>
-            </section>
-            <section class="overlay-section">
-              <div class="overlay-section-head">
                 <div class="small-label">source</div>
               </div>
               <div class="overlay-value">${escapeHtml(sourceLabel)}</div>
@@ -4007,9 +4355,17 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">sync</div>
+                <div class="small-label">task sync</div>
               </div>
-              <div class="overlay-value">${escapeHtml(project.last_synced_at_label || "Never synced")}</div>
+              <div class="overlay-value">${escapeHtml(taskSyncStatusLabel(project, sourceKind))}</div>
+              <div class="overlay-muted">${escapeHtml(taskSyncSummary(project, sourceKind))}</div>
+              ${renderManagedTaskSyncControls(project, sourceKind)}
+            </section>
+            <section class="overlay-section">
+              <div class="overlay-section-head">
+                <div class="small-label">repo import</div>
+              </div>
+              <div class="overlay-value">${escapeHtml(project.last_synced_at_label || "Never imported")}</div>
               <div class="overlay-muted">${escapeHtml(project.last_sync_summary || syncSummaryFallback(sourceKind))}</div>
               ${renderProjectSyncControls(sourceKind)}
             </section>
@@ -4017,8 +4373,8 @@
               <div class="overlay-section-head">
                 <div class="small-label">danger</div>
               </div>
-              <div class="overlay-inline-actions">
-                <button class="text-btn danger-btn" type="button" data-project-settings-action="archive-project">archive project</button>
+              <div class="settings-action-list">
+                ${renderProjectSettingsActionButton("archive-project", "Archive Project", "archive", "danger-btn")}
               </div>
               <div class="disabled-note">Permanent delete stays out of the UI for now.</div>
             </section>
@@ -4078,9 +4434,9 @@
     function renderProjectSettingsSourceControls(sourceKind, sourceLocator) {
       if (state.projectSettingsSourceMode === "local") {
         return `
-          <div class="overlay-actions">
-            <button class="text-btn" type="button" data-project-settings-action="link-local">pick folder</button>
-            <button class="text-btn" type="button" data-project-settings-action="cancel-link">cancel</button>
+          <div class="settings-action-list">
+            ${renderProjectSettingsActionButton("link-local", "Pick Folder", "folder")}
+            ${renderProjectSettingsActionButton("cancel-link", "Cancel", "cancel")}
           </div>
           ${state.projectSettingsPickerFallback ? `
             <input
@@ -4090,8 +4446,8 @@
               placeholder="/absolute/path/to/project"
               data-project-settings-source
             >
-            <div class="overlay-inline-actions">
-              <button class="text-btn" type="button" data-project-settings-action="save-link">save folder</button>
+            <div class="settings-action-list">
+              ${renderProjectSettingsActionButton("save-link", "Save Folder", "save")}
             </div>
           ` : ""}
         `;
@@ -4106,27 +4462,112 @@
             placeholder="https://github.com/org/repo"
             data-project-settings-source
           >
-          <div class="overlay-inline-actions">
-            <button class="text-btn" type="button" data-project-settings-action="save-link">save repository</button>
-            <button class="text-btn" type="button" data-project-settings-action="cancel-link">cancel</button>
+          <div class="settings-action-list">
+            ${renderProjectSettingsActionButton("save-link", "Save Repository", "save")}
+            ${renderProjectSettingsActionButton("cancel-link", "Cancel", "cancel")}
           </div>
         `;
       }
 
       const openLabel = sourceKind === "local"
-        ? "open folder"
+        ? "Open Folder"
         : sourceKind === "github"
-          ? "open repository"
+          ? "Open Repository"
           : null;
-      const relinkLocalLabel = sourceKind === "local" ? "relink folder" : "link folder";
-      const relinkGithubLabel = sourceKind === "github" ? "relink repository" : "connect repository";
+      const relinkLocalLabel = sourceKind === "local" ? "Change Source" : "Link Folder";
+      const relinkGithubLabel = sourceKind === "github" ? "Relink Repository" : "Connect Repository";
 
       return `
-        <div class="overlay-actions">
-          ${openLabel && sourceLocator ? `<button class="text-btn" type="button" data-project-settings-action="open-source">${openLabel}</button>` : ""}
-          <button class="text-btn" type="button" data-project-settings-action="link-local">${relinkLocalLabel}</button>
-          <button class="text-btn" type="button" data-project-settings-action="link-github">${relinkGithubLabel}</button>
-          ${sourceKind ? `<button class="text-btn" type="button" data-project-settings-action="unlink-source">unlink source</button>` : ""}
+        <div class="settings-action-list">
+          ${openLabel && sourceLocator ? renderProjectSettingsActionButton("open-source", openLabel, "open") : ""}
+          ${renderProjectSettingsActionButton("link-local", relinkLocalLabel, "folder")}
+          ${renderProjectSettingsActionButton("link-github", relinkGithubLabel, "repo")}
+        </div>
+      `;
+    }
+
+    function taskSyncStatusLabel(project, sourceKind) {
+      if (sourceKind !== "local") {
+        return "Unavailable";
+      }
+
+      if (!project.task_sync_enabled) {
+        return "Disabled";
+      }
+
+      if (project.task_sync_status === "conflict") {
+        return "Conflict";
+      }
+
+      if (project.task_sync_status === "paused") {
+        return "Paused";
+      }
+
+      return "Live";
+    }
+
+    function taskSyncSummary(project, sourceKind) {
+      if (sourceKind !== "local") {
+        return "Managed task sync is available only when this project is linked to a local folder.";
+      }
+
+      if (!project.task_sync_enabled) {
+        return "Keep one n10e-managed docs/to-do.md in the linked folder and sync tasks both ways automatically.";
+      }
+
+      if (project.task_sync_status === "conflict") {
+        return project.task_sync_conflict_summary || "n10e paused automatic task sync because both sides changed before reconciliation.";
+      }
+
+      const details = [];
+      if (project.task_sync_file) {
+        details.push(project.task_sync_file);
+      }
+      if (project.task_sync_last_inbound_at_label) {
+        details.push(`inbound ${project.task_sync_last_inbound_at_label}`);
+      }
+      if (project.task_sync_last_outbound_at_label) {
+        details.push(`outbound ${project.task_sync_last_outbound_at_label}`);
+      }
+      if (project.task_sync_conflict_at_label && project.task_sync_status === "paused") {
+        details.push(`paused ${project.task_sync_conflict_at_label}`);
+      }
+
+      return details.join(" | ") || "Managed task sync is active for this project.";
+    }
+
+    function renderManagedTaskSyncControls(project, sourceKind) {
+      if (sourceKind !== "local") {
+        return `<div class="disabled-note">Link a local project folder to enable managed bidirectional task sync.</div>`;
+      }
+
+      if (!project.task_sync_enabled) {
+        return `
+          <div class="settings-action-list">
+            ${renderProjectSettingsActionButton("enable-task-sync", "Enable Task Sync", "sync")}
+          </div>
+        `;
+      }
+
+      const actions = [];
+      if (project.source_locator && project.task_sync_file) {
+        actions.push(renderProjectSettingsActionButton("open-task-sync-file", "Open Sync File", "open"));
+      }
+
+      if (project.task_sync_status === "paused") {
+        actions.push(renderProjectSettingsActionButton("resume-task-sync", "Resume Sync", "play"));
+      } else if (project.task_sync_status !== "conflict") {
+        actions.push(renderProjectSettingsActionButton("pause-task-sync", "Pause Sync", "pause"));
+      }
+
+      if (project.task_sync_status === "conflict") {
+        actions.push(renderProjectSettingsActionButton("resolve-task-sync-file", "Resolve Using File", "sync"));
+        actions.push(renderProjectSettingsActionButton("resolve-task-sync-local", "Resolve Using n10e", "save"));
+      }
+
+      return `
+        <div class="settings-action-list">
+          ${actions.join("")}
         </div>
       `;
     }
@@ -4134,8 +4575,8 @@
     function renderProjectSyncControls(sourceKind) {
       if (sourceKind === "local") {
         return `
-          <div class="overlay-inline-actions">
-            <button class="text-btn" type="button" data-project-settings-action="sync-project">sync project</button>
+          <div class="settings-action-list">
+            ${renderProjectSettingsActionButton("sync-project", "Import Repo Tasks", "sync")}
           </div>
         `;
       }
@@ -4154,7 +4595,6 @@
       const project = getProjectById(projectId);
       if (!project) return;
       state.projectSettingsId = projectId;
-      state.projectSettingsTitle = project.title;
       state.projectSettingsSourceMode = null;
       state.projectSettingsSourceInput = "";
       state.projectSettingsMessage = "";
@@ -4164,7 +4604,6 @@
 
     function closeProjectSettings() {
       state.projectSettingsId = null;
-      state.projectSettingsTitle = "";
       state.projectSettingsSourceMode = null;
       state.projectSettingsSourceInput = "";
       state.projectSettingsMessage = "";
@@ -4186,31 +4625,29 @@
       return getProjectById(state.projectSettingsId)?.source_locator || "";
     }
 
-    async function saveProjectSettingsName() {
-      const project = getProjectById(state.projectSettingsId);
-      if (!project) return;
+    function deriveProjectTitleFromSource(sourceKind, sourceLocator, fallbackTitle = "") {
+      const locator = String(sourceLocator || "").trim();
+      if (!locator) return fallbackTitle;
 
-      const title = state.projectSettingsTitle.trim();
-      if (!title) {
-        state.projectSettingsMessage = "project title is required";
-        renderProjectSettings();
-        return;
+      if (sourceKind === "local") {
+        const parts = locator.split(/[\\/]/).filter(Boolean);
+        return parts[parts.length - 1] || fallbackTitle;
       }
 
-      const response = await fetchJson(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          expected_revision: project.revision,
-          current_project_id: state.selectedProjectId,
-          title
-        })
-      }, "project");
-      if (!response) return;
+      if (sourceKind === "github") {
+        try {
+          const url = new URL(locator);
+          const parts = url.pathname.split("/").filter(Boolean);
+          const repoName = parts[parts.length - 1]?.replace(/\.git$/i, "") || "";
+          return repoName || fallbackTitle;
+        } catch (_error) {
+          const parts = locator.split("/").filter(Boolean);
+          const repoName = parts[parts.length - 1]?.replace(/\.git$/i, "") || "";
+          return repoName || fallbackTitle;
+        }
+      }
 
-      applyUiState(response);
-      state.projectSettingsTitle = getProjectById(project.id)?.title || title;
-      state.projectSettingsMessage = "";
-      render();
+      return fallbackTitle;
     }
 
     async function pickProjectSettingsDirectory() {
@@ -4239,6 +4676,7 @@
 
       const sourceKind = forcedKind || state.projectSettingsSourceMode;
       const sourceLocator = (forcedLocator || state.projectSettingsSourceInput || "").trim();
+      const title = deriveProjectTitleFromSource(sourceKind, sourceLocator, project.title);
       if (!sourceKind || !sourceLocator) {
         state.projectSettingsMessage = "source link is incomplete";
         renderProjectSettings();
@@ -4250,30 +4688,9 @@
         body: JSON.stringify({
           expected_revision: project.revision,
           current_project_id: state.selectedProjectId,
+          title,
           source_kind: sourceKind,
           source_locator: sourceLocator
-        })
-      }, "project");
-      if (!response) return;
-
-      applyUiState(response);
-      state.projectSettingsSourceMode = null;
-      state.projectSettingsSourceInput = "";
-      state.projectSettingsMessage = "";
-      state.projectSettingsPickerFallback = false;
-      render();
-    }
-
-    async function unlinkProjectSource() {
-      const project = getProjectById(state.projectSettingsId);
-      if (!project) return;
-
-      const response = await fetchJson(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          expected_revision: project.revision,
-          current_project_id: state.selectedProjectId,
-          clear_source: true
         })
       }, "project");
       if (!response) return;
@@ -4329,6 +4746,52 @@
       const response = await fetchJson(`/api/projects/${project.id}/sync`, {
         method: "POST",
         body: JSON.stringify({
+          current_project_id: state.selectedProjectId
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      state.projectSettingsMessage = "";
+      render();
+    }
+
+    async function openManagedTaskSyncFile() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project || !project.source_locator || !project.task_sync_file) return;
+
+      const root = String(project.source_locator).replace(/[\\/]+$/, "");
+      const relative = String(project.task_sync_file).replace(/^[/\\]+/, "");
+      const joinedPath = `${root}/${relative}`;
+
+      await fetchJson("/api/system/open-path", {
+        method: "POST",
+        body: JSON.stringify({ path: joinedPath })
+      }, "project");
+    }
+
+    async function performManagedTaskSyncAction(action) {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const endpoint = action === "enable-task-sync"
+        ? "enable"
+        : action === "pause-task-sync"
+          ? "pause"
+          : action === "resume-task-sync"
+            ? "resume"
+            : action === "resolve-task-sync-file"
+              ? "resolve-file"
+              : action === "resolve-task-sync-local"
+                ? "resolve-local"
+                : null;
+
+      if (!endpoint) return;
+
+      const response = await fetchJson(`/api/projects/${project.id}/task-sync/${endpoint}`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: project.revision,
           current_project_id: state.selectedProjectId
         })
       }, "project");
@@ -4810,6 +5273,7 @@
     }
 
     applyResponsiveLayoutMode();
+    scheduleUiRefresh(50);
     render();
   </script>
 </body>

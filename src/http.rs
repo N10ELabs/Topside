@@ -29,10 +29,22 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/", get(dashboard))
         .route("/__dev/reload-token", get(dev_reload_token))
         .route("/reindex", post(reindex_now))
+        .route("/api/ui-state", get(api_ui_state))
         .route("/api/projects", get(api_projects).post(api_create_project))
         .route("/api/projects/{id}", patch(api_update_project))
         .route("/api/projects/{id}/archive", post(api_archive_project))
         .route("/api/projects/{id}/sync", post(api_sync_project))
+        .route("/api/projects/{id}/task-sync/enable", post(api_enable_task_sync))
+        .route("/api/projects/{id}/task-sync/pause", post(api_pause_task_sync))
+        .route("/api/projects/{id}/task-sync/resume", post(api_resume_task_sync))
+        .route(
+            "/api/projects/{id}/task-sync/resolve-file",
+            post(api_resolve_task_sync_file),
+        )
+        .route(
+            "/api/projects/{id}/task-sync/resolve-local",
+            post(api_resolve_task_sync_local),
+        )
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/archive", post(api_archive_tasks))
@@ -84,6 +96,14 @@ struct ProjectSummary {
     source_locator: Option<String>,
     last_synced_at_label: Option<String>,
     last_sync_summary: Option<String>,
+    task_sync_mode: Option<String>,
+    task_sync_file: Option<String>,
+    task_sync_enabled: bool,
+    task_sync_status: Option<String>,
+    task_sync_last_inbound_at_label: Option<String>,
+    task_sync_last_outbound_at_label: Option<String>,
+    task_sync_conflict_summary: Option<String>,
+    task_sync_conflict_at_label: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -285,6 +305,14 @@ async fn api_projects(State(state): State<Arc<WebState>>) -> ApiResult<Vec<Proje
     ))
 }
 
+async fn api_ui_state(
+    State(state): State<Arc<WebState>>,
+    Query(query): Query<ProjectQuery>,
+) -> ApiResult<UiStatePayload> {
+    let payload = build_ui_state_payload(&state.service, query.project_id).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
 async fn api_project_workspace(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
@@ -368,6 +396,81 @@ async fn api_sync_project(
     state
         .service
         .sync_project_from_source(&id, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_enable_task_sync(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .enable_managed_task_sync(&id, &request.expected_revision)
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_pause_task_sync(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .pause_managed_task_sync(&id, &request.expected_revision)
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_resume_task_sync(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .resume_managed_task_sync(&id, &request.expected_revision)
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_resolve_task_sync_file(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .resolve_managed_task_sync_from_file(&id, &request.expected_revision)
+        .map_err(map_service_err_json)?;
+
+    let selected = request.current_project_id.or_else(|| Some(id));
+    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_resolve_task_sync_local(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<UiStatePayload> {
+    state
+        .service
+        .resolve_managed_task_sync_from_local(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or_else(|| Some(id));
@@ -754,6 +857,14 @@ fn map_project_summary(project: ProjectItem) -> ProjectSummary {
         source_locator: project.source_locator,
         last_synced_at_label: project.last_synced_at.map(format_timestamp),
         last_sync_summary: project.last_sync_summary,
+        task_sync_mode: project.task_sync_mode.map(|mode| mode.as_str().to_string()),
+        task_sync_file: project.task_sync_file,
+        task_sync_enabled: project.task_sync_enabled,
+        task_sync_status: project.task_sync_status.map(|status| status.as_str().to_string()),
+        task_sync_last_inbound_at_label: project.task_sync_last_inbound_at.map(format_timestamp),
+        task_sync_last_outbound_at_label: project.task_sync_last_outbound_at.map(format_timestamp),
+        task_sync_conflict_summary: project.task_sync_conflict_summary,
+        task_sync_conflict_at_label: project.task_sync_conflict_at.map(format_timestamp),
     }
 }
 

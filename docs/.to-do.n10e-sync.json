@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "title": "Section: Phase 2 - Broader Context Import and Background Sync",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W4BNAAJAXDV9QP9BV7"
+    },
+    {
+      "title": "Add support for selected `docs/` content for notes section",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W44169PWFQGJKH999B"
+    },
+    {
+      "title": "Section: Phase 3 - Optional Bidirectional Sync",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W4PHVYV1MKJXDXN6E1"
+    },
+    {
+      "title": "Expand import beyond `to-do.md`",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4RXA6KB00K7N0K0B2"
+    },
+    {
+      "title": "Define conflict policy between repo files and `n10e`",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4RJPHPYZB1W30KDM9"
+    },
+    {
+      "title": "Define ownership rules for synced tasks",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4KP3N08XB19Q0T6N7"
+    },
+    {
+      "title": "Add safe write-back support for `to-do.md`",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W48SB6MKYNBPGYYSBE"
+    },
+    {
+      "title": "Support manual reconcile flows for conflicting edits",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4CPN3ZMW2B9D9H9HQ"
+    },
+    {
+      "title": "Add guardrails before enabling bidirectional sync by default",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4B36BQR82JYJKVDP2"
+    },
+    {
+      "title": "Section: Phase 4 - Agentic Task Assignments",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W401N1THQJRN2QANMP"
+    },
+    {
+      "title": "Define agent capability metadata and assignment eligibility rules",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4XFGKHBPEJQRENYX5"
+    },
+    {
+      "title": "Add explicit task assignment controls for agent ownership",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4NGYSWWMH06MXHFHE"
+    },
+    {
+      "title": "Enable claim, assign, and release flows in MCP task operations",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4WZ3Z7VR88F9Q08H0"
+    },
+    {
+      "title": "Surface assignment state and unassigned queues in the UI",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4VFVSVWGMRMMKBVE7"
+    },
+    {
+      "title": "Record assignment audit events and guardrails for automated reassignment",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4QBTYG3NC4VJSQJXK"
+    },
+    {
+      "title": "Section: Phase 5 - Autonomous Multi-Agent Orchestration",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W4XEXG5Y70J3VKCXKT"
+    },
+    {
+      "title": "Add policy-driven automatic routing for unassigned tasks",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W45CTPAPZ061YKN6GQ"
+    },
+    {
+      "title": "Track agent capacity and concurrency limits before auto-assignment",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4KCHH02RVFM5AQMMH"
+    },
+    {
+      "title": "Add escalation and fallback queues when assigned work stalls",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4BRD80TH7QSHY0TWF"
+    },
+    {
+      "title": "Measure assignment outcomes to improve routing heuristics",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W49THHRSVHF9XH76DX"
+    },
+    {
+      "title": "Section: Phase 6 - Visual Polish and Functionality",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W41TH0WBYYMY8F1RVC"
+    },
+    {
+      "title": "Continue to improve latency in tool calling for MCP",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4ZT9F4TAFHYDBHM4F"
+    },
+    {
+      "title": "Add buttons for to-do pane",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4YXBSSBE1B6ZX0KAF"
+    },
+    {
+      "title": "Improve project pane visuals",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4YA7E1XSZK638PNBR"
+    },
+    {
+      "title": "Connect any unfinished options in project settings menus",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W43MNNXB4YNANZXH4M"
+    },
+    {
+      "title": "Correct pane title placement and find alternative for dropdown chevron",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4M08CEBDKPWBG71PN"
+    },
+    {
+      "title": "Ensure scroll position does not change on task highlight",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4MAEEPNPYFY5XTRKW"
+    },
+    {
+      "title": "Put headers with borders and indent the tasks as clean no border rows",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W49YG24JVM7W0Z66NE"
+    },
+    {
+      "title": "Remove the lines below pane titles. Cleaner UI",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNGJQZDVHEJN1643VE53VF9"
+    },
+    {
+      "title": "Visual animation when tasks are created or destroyed by agent in todo.md",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNGYCGA0P52HZB7MEC0TQ1X"
+    },
+    {
+      "title": "Phase 7 - Hub as Interactive Codebase",
+      "kind": "Section",
+      "sync_key": "sec_01KJNG52W4EKX7B2D175RQP4NW"
+    },
+    {
+      "title": "Create bidirectional sync as to-do.md",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4H7SDFGNASDJJS4F5"
+    },
+    {
+      "title": "Update todo pane as to-do.md",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4YGB6QP5B10E98HQ4"
+    },
+    {
+      "title": "Update notes as /notes (this will later sync to docs",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W47Y88KQVNDD6H5K0R"
+    },
+    {
+      "title": "Consider deprecating current MCP read/write since its no longer needed",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4ZYD1DT1H3RW0EJY0"
+    },
+    {
+      "title": "Initial project selection should initilaize todo.md in project workspace",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4H6XJYEX9X9VPJ4GA"
+    }
+  ]
+}

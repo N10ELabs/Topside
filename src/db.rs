@@ -11,7 +11,7 @@ use crate::activity::ActivityDraft;
 use crate::types::{
     ActivityItem, EntitySnapshot, EntityType, IndexedEntity, NoteDetail, NoteItem, ParsedEntity,
     ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters, TaskItem,
-    TaskPriority, TaskStatus, TaskSyncKind,
+    TaskPriority, TaskStatus, TaskSyncKind, TaskSyncMode, TaskSyncStatus,
 };
 
 #[derive(Clone)]
@@ -351,7 +351,11 @@ impl Db {
             let mut stmt = conn.prepare(
                 r#"
                 SELECT id, title, status, owner, source_kind, source_locator, sync_source_key,
-                       last_synced_at, last_sync_summary, path, updated_at, revision, archived
+                       last_synced_at, last_sync_summary, task_sync_mode, task_sync_file,
+                       task_sync_enabled, task_sync_status, task_sync_last_seen_hash,
+                       task_sync_last_inbound_at, task_sync_last_outbound_at,
+                       task_sync_conflict_summary, task_sync_conflict_at, path, updated_at,
+                       revision, archived
                 FROM projects
                 WHERE (?1 = 1 OR archived = 0)
                 ORDER BY updated_at DESC
@@ -362,7 +366,19 @@ impl Db {
             let rows = stmt.query_map(
                 params![if include_archived { 1 } else { 0 }, limit as i64],
                 |row| {
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(10)?)
+                    let task_sync_last_inbound_at = row
+                        .get::<_, Option<String>>(14)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
+                    let task_sync_last_outbound_at = row
+                        .get::<_, Option<String>>(15)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
+                    let task_sync_conflict_at = row
+                        .get::<_, Option<String>>(17)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(19)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
                     let last_synced_at = row
@@ -383,10 +399,27 @@ impl Db {
                         sync_source_key: row.get(6)?,
                         last_synced_at,
                         last_sync_summary: row.get(8)?,
-                        path: row.get(9)?,
+                        task_sync_mode: row
+                            .get::<_, Option<String>>(9)?
+                            .map(|value| parse_task_sync_mode(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        task_sync_file: row.get(10)?,
+                        task_sync_enabled: row.get::<_, i64>(11)? != 0,
+                        task_sync_status: row
+                            .get::<_, Option<String>>(12)?
+                            .map(|value| parse_task_sync_status(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        task_sync_last_seen_hash: row.get(13)?,
+                        task_sync_last_inbound_at,
+                        task_sync_last_outbound_at,
+                        task_sync_conflict_summary: row.get(16)?,
+                        task_sync_conflict_at,
+                        path: row.get(18)?,
                         updated_at,
-                        revision: row.get(11)?,
-                        archived: row.get::<_, i64>(12)? != 0,
+                        revision: row.get(20)?,
+                        archived: row.get::<_, i64>(21)? != 0,
                     })
                 },
             )?;
@@ -717,10 +750,13 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
                 r#"
                 INSERT INTO projects (
                     id, status, owner, source_kind, source_locator, sync_source_key,
-                    last_synced_at, last_sync_summary, path, title,
+                    last_synced_at, last_sync_summary, task_sync_mode, task_sync_file,
+                    task_sync_enabled, task_sync_status, task_sync_last_seen_hash,
+                    task_sync_last_inbound_at, task_sync_last_outbound_at,
+                    task_sync_conflict_summary, task_sync_conflict_at, path, title,
                     created_at, updated_at, revision, archived
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
                 ON CONFLICT(id) DO UPDATE SET
                     status = excluded.status,
                     owner = excluded.owner,
@@ -729,6 +765,15 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
                     sync_source_key = excluded.sync_source_key,
                     last_synced_at = excluded.last_synced_at,
                     last_sync_summary = excluded.last_sync_summary,
+                    task_sync_mode = excluded.task_sync_mode,
+                    task_sync_file = excluded.task_sync_file,
+                    task_sync_enabled = excluded.task_sync_enabled,
+                    task_sync_status = excluded.task_sync_status,
+                    task_sync_last_seen_hash = excluded.task_sync_last_seen_hash,
+                    task_sync_last_inbound_at = excluded.task_sync_last_inbound_at,
+                    task_sync_last_outbound_at = excluded.task_sync_last_outbound_at,
+                    task_sync_conflict_summary = excluded.task_sync_conflict_summary,
+                    task_sync_conflict_at = excluded.task_sync_conflict_at,
                     path = excluded.path,
                     title = excluded.title,
                     created_at = excluded.created_at,
@@ -745,6 +790,15 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
                     entity.sync_source_key,
                     entity.last_synced_at.map(|v| v.to_rfc3339()),
                     entity.last_sync_summary,
+                    entity.task_sync_mode.as_ref().map(TaskSyncMode::as_str),
+                    entity.task_sync_file,
+                    if entity.task_sync_enabled { 1 } else { 0 },
+                    entity.task_sync_status.as_ref().map(TaskSyncStatus::as_str),
+                    entity.task_sync_last_seen_hash,
+                    entity.task_sync_last_inbound_at.map(|v| v.to_rfc3339()),
+                    entity.task_sync_last_outbound_at.map(|v| v.to_rfc3339()),
+                    entity.task_sync_conflict_summary,
+                    entity.task_sync_conflict_at.map(|v| v.to_rfc3339()),
                     path,
                     entity.title,
                     entity.created_at.to_rfc3339(),
@@ -908,6 +962,17 @@ fn parse_project_source_kind(value: &str) -> Result<ProjectSourceKind> {
         .context("invalid project source kind value in sqlite")
 }
 
+fn parse_task_sync_mode(value: &str) -> Result<TaskSyncMode> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<TaskSyncMode>(&encoded).context("invalid task sync mode value in sqlite")
+}
+
+fn parse_task_sync_status(value: &str) -> Result<TaskSyncStatus> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<TaskSyncStatus>(&encoded)
+        .context("invalid task sync status value in sqlite")
+}
+
 fn to_sql_err(err: anyhow::Error) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
@@ -920,6 +985,7 @@ fn apply_migration(conn: &mut Connection, name: &str, sql: &str) -> Result<()> {
     match name {
         "002_project_sources_and_task_order" => apply_project_source_and_task_order_migration(conn),
         "003_project_and_task_sync_metadata" => apply_project_and_task_sync_migration(conn),
+        "004_managed_task_sync_projects" => apply_managed_task_sync_project_migration(conn),
         _ => conn.execute_batch(sql).map_err(Into::into),
     }
 }
@@ -974,6 +1040,45 @@ fn apply_project_and_task_sync_migration(conn: &mut Connection) -> Result<()> {
         r#"
         CREATE INDEX IF NOT EXISTS idx_tasks_project_sync_key ON tasks(project_id, sync_path, sync_key);
         CREATE INDEX IF NOT EXISTS idx_projects_sync_source_key ON projects(sync_source_key);
+        "#,
+    )?;
+    Ok(())
+}
+
+fn apply_managed_task_sync_project_migration(conn: &mut Connection) -> Result<()> {
+    if !has_column(conn, "projects", "task_sync_mode")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_mode TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_file")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_file TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_enabled")? {
+        conn.execute_batch(
+            "ALTER TABLE projects ADD COLUMN task_sync_enabled INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    if !has_column(conn, "projects", "task_sync_status")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_status TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_last_seen_hash")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_last_seen_hash TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_last_inbound_at")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_last_inbound_at TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_last_outbound_at")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_last_outbound_at TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_conflict_summary")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_conflict_summary TEXT;")?;
+    }
+    if !has_column(conn, "projects", "task_sync_conflict_at")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN task_sync_conflict_at TEXT;")?;
+    }
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_projects_task_sync_enabled ON projects(task_sync_enabled);
+        CREATE INDEX IF NOT EXISTS idx_projects_task_sync_status ON projects(task_sync_status);
         "#,
     )?;
     Ok(())
@@ -1053,6 +1158,15 @@ const MIGRATIONS: &[(&str, &str)] = &[
         sync_source_key TEXT,
         last_synced_at TEXT,
         last_sync_summary TEXT,
+        task_sync_mode TEXT,
+        task_sync_file TEXT,
+        task_sync_enabled INTEGER NOT NULL DEFAULT 0,
+        task_sync_status TEXT,
+        task_sync_last_seen_hash TEXT,
+        task_sync_last_inbound_at TEXT,
+        task_sync_last_outbound_at TEXT,
+        task_sync_conflict_summary TEXT,
+        task_sync_conflict_at TEXT,
         path TEXT NOT NULL,
         title TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -1114,10 +1228,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
     CREATE INDEX IF NOT EXISTS idx_tasks_project_completed_at ON tasks(project_id, completed_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_project_sync_key ON tasks(project_id, sync_path, sync_key);
     CREATE INDEX IF NOT EXISTS idx_projects_sync_source_key ON projects(sync_source_key);
+    CREATE INDEX IF NOT EXISTS idx_projects_task_sync_enabled ON projects(task_sync_enabled);
+    CREATE INDEX IF NOT EXISTS idx_projects_task_sync_status ON projects(task_sync_status);
     CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
     CREATE INDEX IF NOT EXISTS idx_activity_occurred_at ON activity_events(occurred_at);
     "#,
     ),
     ("002_project_sources_and_task_order", ""),
     ("003_project_and_task_sync_metadata", ""),
+    ("004_managed_task_sync_projects", ""),
 ];

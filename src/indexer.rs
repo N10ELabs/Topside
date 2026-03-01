@@ -126,6 +126,21 @@ impl Indexer {
                 .frontmatter
                 .last_sync_summary()
                 .map(ToString::to_string),
+            task_sync_mode: parsed.frontmatter.task_sync_mode(),
+            task_sync_file: parsed.frontmatter.task_sync_file().map(ToString::to_string),
+            task_sync_enabled: parsed.frontmatter.task_sync_enabled().unwrap_or(false),
+            task_sync_status: parsed.frontmatter.task_sync_status(),
+            task_sync_last_seen_hash: parsed
+                .frontmatter
+                .task_sync_last_seen_hash()
+                .map(ToString::to_string),
+            task_sync_last_inbound_at: parsed.frontmatter.task_sync_last_inbound_at(),
+            task_sync_last_outbound_at: parsed.frontmatter.task_sync_last_outbound_at(),
+            task_sync_conflict_summary: parsed
+                .frontmatter
+                .task_sync_conflict_summary()
+                .map(ToString::to_string),
+            task_sync_conflict_at: parsed.frontmatter.task_sync_conflict_at(),
             tags,
             created_at: parsed.frontmatter.created_at(),
             updated_at: parsed.frontmatter.updated_at(),

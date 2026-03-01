@@ -146,12 +146,46 @@ impl ProjectSourceKind {
 #[serde(rename_all = "snake_case")]
 pub enum TaskSyncKind {
     RepoMarkdown,
+    ManagedTodoFile,
 }
 
 impl TaskSyncKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::RepoMarkdown => "repo_markdown",
+            Self::ManagedTodoFile => "managed_todo_file",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskSyncMode {
+    ManagedTodoFile,
+}
+
+impl TaskSyncMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::ManagedTodoFile => "managed_todo_file",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskSyncStatus {
+    Live,
+    Conflict,
+    Paused,
+}
+
+impl TaskSyncStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::Conflict => "conflict",
+            Self::Paused => "paused",
         }
     }
 }
@@ -207,6 +241,24 @@ pub struct ProjectFrontmatter {
     pub last_synced_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_sync_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_mode: Option<TaskSyncMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_file: Option<String>,
+    #[serde(default)]
+    pub task_sync_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_status: Option<TaskSyncStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_last_seen_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_last_inbound_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_last_outbound_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_conflict_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_sync_conflict_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
@@ -417,6 +469,69 @@ impl EntityFrontmatter {
         }
     }
 
+    pub fn task_sync_mode(&self) -> Option<TaskSyncMode> {
+        match self {
+            Self::Project(v) => v.task_sync_mode.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_file(&self) -> Option<&str> {
+        match self {
+            Self::Project(v) => v.task_sync_file.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_enabled(&self) -> Option<bool> {
+        match self {
+            Self::Project(v) => Some(v.task_sync_enabled),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_status(&self) -> Option<TaskSyncStatus> {
+        match self {
+            Self::Project(v) => v.task_sync_status.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_last_seen_hash(&self) -> Option<&str> {
+        match self {
+            Self::Project(v) => v.task_sync_last_seen_hash.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_last_inbound_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Project(v) => v.task_sync_last_inbound_at,
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_last_outbound_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Project(v) => v.task_sync_last_outbound_at,
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_conflict_summary(&self) -> Option<&str> {
+        match self {
+            Self::Project(v) => v.task_sync_conflict_summary.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn task_sync_conflict_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Project(v) => v.task_sync_conflict_at,
+            _ => None,
+        }
+    }
+
     pub fn created_at(&self) -> DateTime<Utc> {
         match self {
             Self::Task(v) => v.created_at,
@@ -473,6 +588,15 @@ pub struct IndexedEntity {
     pub sync_source_key: Option<String>,
     pub last_synced_at: Option<DateTime<Utc>>,
     pub last_sync_summary: Option<String>,
+    pub task_sync_mode: Option<TaskSyncMode>,
+    pub task_sync_file: Option<String>,
+    pub task_sync_enabled: bool,
+    pub task_sync_status: Option<TaskSyncStatus>,
+    pub task_sync_last_seen_hash: Option<String>,
+    pub task_sync_last_inbound_at: Option<DateTime<Utc>>,
+    pub task_sync_last_outbound_at: Option<DateTime<Utc>>,
+    pub task_sync_conflict_summary: Option<String>,
+    pub task_sync_conflict_at: Option<DateTime<Utc>>,
     pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -586,6 +710,15 @@ pub struct ProjectItem {
     pub sync_source_key: Option<String>,
     pub last_synced_at: Option<DateTime<Utc>>,
     pub last_sync_summary: Option<String>,
+    pub task_sync_mode: Option<TaskSyncMode>,
+    pub task_sync_file: Option<String>,
+    pub task_sync_enabled: bool,
+    pub task_sync_status: Option<TaskSyncStatus>,
+    pub task_sync_last_seen_hash: Option<String>,
+    pub task_sync_last_inbound_at: Option<DateTime<Utc>>,
+    pub task_sync_last_outbound_at: Option<DateTime<Utc>>,
+    pub task_sync_conflict_summary: Option<String>,
+    pub task_sync_conflict_at: Option<DateTime<Utc>>,
     pub path: String,
     pub updated_at: DateTime<Utc>,
     pub revision: String,
@@ -715,6 +848,15 @@ pub struct ProjectPatch {
     pub sync_source_key: Option<Option<String>>,
     pub last_synced_at: Option<Option<DateTime<Utc>>>,
     pub last_sync_summary: Option<Option<String>>,
+    pub task_sync_mode: Option<Option<TaskSyncMode>>,
+    pub task_sync_file: Option<Option<String>>,
+    pub task_sync_enabled: Option<bool>,
+    pub task_sync_status: Option<Option<TaskSyncStatus>>,
+    pub task_sync_last_seen_hash: Option<Option<String>>,
+    pub task_sync_last_inbound_at: Option<Option<DateTime<Utc>>>,
+    pub task_sync_last_outbound_at: Option<Option<DateTime<Utc>>>,
+    pub task_sync_conflict_summary: Option<Option<String>>,
+    pub task_sync_conflict_at: Option<Option<DateTime<Utc>>>,
     pub tags: Option<Vec<String>>,
     pub body: Option<String>,
 }

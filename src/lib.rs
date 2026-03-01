@@ -14,4 +14,5 @@ pub mod markdown;
 pub mod mcp;
 pub mod repo_sync;
 pub mod service;
+pub mod task_sync;
 pub mod types;

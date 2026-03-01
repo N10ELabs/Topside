@@ -1,9 +1,12 @@
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use thiserror::Error;
 use ulid::Ulid;
 
@@ -14,11 +17,20 @@ use crate::git::{GitContext, read_git_context};
 use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
 use crate::repo_sync::{derive_sync_source_key, render_synced_task_body, scan_repo_todo_files};
+use crate::task_sync::{
+    ManagedTodoEntryKind, ManagedTodoRenderEntry, OUTBOUND_DEBOUNCE_MS, ParsedManagedTodoEntry,
+    WATCHER_DEBOUNCE_MS, compute_file_hash, compute_file_hash_from_path,
+    ensure_parent_dir, ensure_sync_key_for_title, managed_todo_sidecar_path,
+    normalize_managed_task_sync_file, parse_managed_todo, parse_managed_todo_sidecar,
+    render_entry_from_task, render_managed_todo, render_managed_todo_sidecar,
+    resolve_managed_file_path, task_title_from_entry,
+};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
     EntitySnapshot, EntityType, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
     ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult,
     TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus, TaskSyncKind,
+    TaskSyncMode, TaskSyncStatus,
 };
 
 #[derive(Debug, Error)]
@@ -58,6 +70,7 @@ pub struct AppService {
     pub db: Db,
     pub indexer: Arc<Indexer>,
     git_context_cache: Arc<Mutex<Option<GitContextCacheEntry>>>,
+    task_sync_runtime: Arc<Mutex<ManagedTaskSyncRuntime>>,
 }
 
 impl AppService {
@@ -77,11 +90,15 @@ impl AppService {
             db,
             indexer,
             git_context_cache: Arc::new(Mutex::new(None)),
+            task_sync_runtime: Arc::new(Mutex::new(ManagedTaskSyncRuntime::default())),
         })
     }
 
     pub fn start_watcher(&self) -> Result<WatcherRuntime> {
-        self.indexer.clone().start_watcher()
+        let runtime = self.indexer.clone().start_watcher()?;
+        self.reconcile_managed_task_sync_project_defaults()?;
+        self.restore_managed_task_sync_watchers()?;
+        Ok(runtime)
     }
 
     pub fn reindex_all(&self) -> Result<()> {
@@ -190,6 +207,9 @@ impl AppService {
         after_task_id: Option<&str>,
         actor: Actor,
     ) -> Result<(ProjectWorkspace, String), ServiceError> {
+        let (sync_kind, sync_path, sync_key, sync_managed) = self
+            .managed_task_sync_defaults_for_new_task(project_id, &title)
+            .map_err(ServiceError::Other)?;
         let ordered_active_ids = self
             .load_project_workspace(project_id)?
             .active_tasks
@@ -206,10 +226,10 @@ impl AppService {
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
                 sort_order: Some((ordered_active_ids.len() + 1) as i64),
-                sync_kind: None,
-                sync_path: None,
-                sync_key: None,
-                sync_managed: None,
+                sync_kind,
+                sync_path,
+                sync_key,
+                sync_managed,
                 tags: None,
                 body: None,
             },
@@ -227,6 +247,8 @@ impl AppService {
             self.reorder_project_tasks_internal(project_id, &ordered_ids, None)?;
         }
 
+        self.queue_managed_task_sync_outbound(project_id, "create_task");
+
         Ok((
             self.load_project_workspace(project_id)
                 .map_err(ServiceError::Other)?,
@@ -241,6 +263,7 @@ impl AppService {
         actor: Actor,
     ) -> Result<ProjectWorkspace, ServiceError> {
         self.reorder_project_tasks_internal(project_id, ordered_active_task_ids, Some(actor))?;
+        self.queue_managed_task_sync_outbound(project_id, "reorder_tasks");
         self.load_project_workspace(project_id)
             .map_err(ServiceError::Other)
     }
@@ -274,6 +297,15 @@ impl AppService {
             sync_source_key,
             last_synced_at: None,
             last_sync_summary: None,
+            task_sync_mode: None,
+            task_sync_file: None,
+            task_sync_enabled: false,
+            task_sync_status: None,
+            task_sync_last_seen_hash: None,
+            task_sync_last_inbound_at: None,
+            task_sync_last_outbound_at: None,
+            task_sync_conflict_summary: None,
+            task_sync_conflict_at: None,
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -496,7 +528,8 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        self.update_tasks(
+        let updated = self
+            .update_tasks(
             vec![TaskUpdateRequest {
                 id: id.to_string(),
                 expected_revision: expected_revision.to_string(),
@@ -507,7 +540,13 @@ impl AppService {
         .into_iter()
         .next()
         .context("updated task missing from batch result")
-        .map_err(ServiceError::Other)
+        .map_err(ServiceError::Other)?;
+
+        if let Some(project_id) = updated.frontmatter.project_id() {
+            self.queue_managed_task_sync_outbound(project_id, "update_task");
+        }
+
+        Ok(updated)
     }
 
     pub fn update_tasks(
@@ -536,8 +575,10 @@ impl AppService {
 
             let (mut frontmatter, mut body) = split_task(parsed.frontmatter, parsed.body)?;
 
+            let mut title_changed = false;
             if let Some(value) = update.patch.title {
                 frontmatter.title = value;
+                title_changed = true;
             }
             if let Some(value) = update.patch.status {
                 if value == TaskStatus::Done && frontmatter.status != TaskStatus::Done {
@@ -564,6 +605,14 @@ impl AppService {
             }
             if let Some(value) = update.patch.body {
                 body = value;
+            }
+
+            if title_changed
+                && frontmatter.sync_managed
+                && frontmatter.sync_kind == Some(TaskSyncKind::ManagedTodoFile)
+            {
+                frontmatter.sync_key =
+                    Some(ensure_sync_key_for_title(frontmatter.sync_key.as_deref(), &frontmatter.title));
             }
 
             frontmatter.updated_at = Utc::now();
@@ -716,6 +765,33 @@ impl AppService {
         if let Some(value) = patch.last_sync_summary {
             frontmatter.last_sync_summary = value;
         }
+        if let Some(value) = patch.task_sync_mode {
+            frontmatter.task_sync_mode = value;
+        }
+        if let Some(value) = patch.task_sync_file {
+            frontmatter.task_sync_file = value;
+        }
+        if let Some(value) = patch.task_sync_enabled {
+            frontmatter.task_sync_enabled = value;
+        }
+        if let Some(value) = patch.task_sync_status {
+            frontmatter.task_sync_status = value;
+        }
+        if let Some(value) = patch.task_sync_last_seen_hash {
+            frontmatter.task_sync_last_seen_hash = value;
+        }
+        if let Some(value) = patch.task_sync_last_inbound_at {
+            frontmatter.task_sync_last_inbound_at = value;
+        }
+        if let Some(value) = patch.task_sync_last_outbound_at {
+            frontmatter.task_sync_last_outbound_at = value;
+        }
+        if let Some(value) = patch.task_sync_conflict_summary {
+            frontmatter.task_sync_conflict_summary = value;
+        }
+        if let Some(value) = patch.task_sync_conflict_at {
+            frontmatter.task_sync_conflict_at = value;
+        }
         if let Some(value) = patch.tags {
             frontmatter.tags = Some(value);
         }
@@ -744,10 +820,26 @@ impl AppService {
             },
         )?;
 
-        self.db
+        let snapshot = self
+            .db
             .read_entity_snapshot(id)?
             .context("updated project not found after indexing")
-            .map_err(ServiceError::Other)
+            .map_err(ServiceError::Other)?;
+
+        if let Ok(project) = self.get_project_item(id) {
+            if project.task_sync_enabled
+                && project.task_sync_mode == Some(TaskSyncMode::ManagedTodoFile)
+                && project.task_sync_status == Some(TaskSyncStatus::Live)
+            {
+                if self.ensure_managed_task_sync_watcher(&project).is_err() {
+                    self.clear_managed_task_sync_watcher(id);
+                }
+            } else {
+                self.clear_managed_task_sync_watcher(id);
+            }
+        }
+
+        Ok(snapshot)
     }
 
     pub fn sync_project_from_source(
@@ -917,13 +1009,152 @@ impl AppService {
         })
     }
 
+    pub fn enable_managed_task_sync(
+        &self,
+        project_id: &str,
+        expected_revision: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
+        let _ = expected_revision;
+        let project = self.get_project_item(project_id)?;
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "managed task sync requires a linked local source folder"
+            )));
+        }
+
+        let source_locator = project
+            .source_locator
+            .clone()
+            .with_context(|| "project has no linked local source folder")
+            .map_err(ServiceError::Other)?;
+        let source_root = PathBuf::from(&source_locator);
+        if !source_root.is_dir() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked source path is not a directory"
+            )));
+        }
+
+        let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+
+        let updated = self
+            .update_project(
+                project_id,
+                ProjectPatch {
+                    task_sync_mode: Some(Some(TaskSyncMode::ManagedTodoFile)),
+                    task_sync_file: Some(Some(sync_file.clone())),
+                    task_sync_enabled: Some(true),
+                    task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                    task_sync_conflict_summary: Some(None),
+                    task_sync_conflict_at: Some(None),
+                    ..ProjectPatch::default()
+                },
+                &project.revision,
+                Actor::human("operator"),
+            )
+            .and_then(|_| self.get_project_item(project_id))?;
+
+        self.ensure_tasks_marked_for_managed_sync(project_id, &sync_file)?;
+        let sync_path = self.managed_task_sync_file_path(&updated)?;
+        if sync_path.exists() {
+            self.import_managed_task_sync_from_disk(project_id, false)?;
+        } else {
+            let live_project = self.get_project_item(project_id)?;
+            self.write_managed_task_sync_file_from_local(&live_project, false)?;
+        }
+        let live_project = self.get_project_item(project_id)?;
+        self.ensure_managed_task_sync_watcher(&live_project)?;
+        self.get_project_item(project_id)
+    }
+
+    pub fn pause_managed_task_sync(
+        &self,
+        project_id: &str,
+        expected_revision: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                task_sync_status: Some(Some(TaskSyncStatus::Paused)),
+                ..ProjectPatch::default()
+            },
+            if project.revision == expected_revision {
+                expected_revision
+            } else {
+                &project.revision
+            },
+            Actor::human("operator"),
+        )?;
+        self.clear_managed_task_sync_dirty(project_id);
+        self.get_project_item(project_id)
+    }
+
+    pub fn resume_managed_task_sync(
+        &self,
+        project_id: &str,
+        expected_revision: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
+        let project = self.get_project_item(project_id)?;
+
+        self.clear_managed_task_sync_dirty(project_id);
+        let sync_path = self.managed_task_sync_file_path(&project)?;
+        let current_hash = compute_file_hash_from_path(&sync_path).map_err(ServiceError::Other)?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                task_sync_last_seen_hash: Some(current_hash),
+                task_sync_conflict_summary: Some(None),
+                task_sync_conflict_at: Some(None),
+                ..ProjectPatch::default()
+            },
+            if project.revision == expected_revision {
+                expected_revision
+            } else {
+                &project.revision
+            },
+            Actor::human("operator"),
+        )?;
+        let live_project = self.get_project_item(project_id)?;
+        self.ensure_managed_task_sync_watcher(&live_project)?;
+        self.import_managed_task_sync_from_disk(project_id, false)?;
+        self.get_project_item(project_id)
+    }
+
+    pub fn resolve_managed_task_sync_from_file(
+        &self,
+        project_id: &str,
+        expected_revision: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
+        let _ = expected_revision;
+        let _project = self.get_project_item(project_id)?;
+
+        self.clear_managed_task_sync_dirty(project_id);
+        self.import_managed_task_sync_from_disk(project_id, true)?;
+        self.get_project_item(project_id)
+    }
+
+    pub fn resolve_managed_task_sync_from_local(
+        &self,
+        project_id: &str,
+        expected_revision: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
+        let _ = expected_revision;
+        let project = self.get_project_item(project_id)?;
+
+        self.clear_managed_task_sync_dirty(project_id);
+        self.write_managed_task_sync_file_from_local(&project, false)?;
+        self.get_project_item(project_id)
+    }
+
     pub fn archive_entity(
         &self,
         id: &str,
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        self.archive_entities(
+        let archived = self
+            .archive_entities(
             vec![ArchiveEntityRequest {
                 id: id.to_string(),
                 expected_revision: expected_revision.to_string(),
@@ -933,7 +1164,15 @@ impl AppService {
         .into_iter()
         .next()
         .context("archived entity missing from batch result")
-        .map_err(ServiceError::Other)
+        .map_err(ServiceError::Other)?;
+
+        if archived.entity_type == EntityType::Task {
+            if let Some(project_id) = archived.frontmatter.project_id() {
+                self.queue_managed_task_sync_outbound(project_id, "archive_task");
+            }
+        }
+
+        Ok(archived)
     }
 
     pub fn archive_entities(
@@ -1115,6 +1354,746 @@ impl AppService {
         Ok(())
     }
 
+    fn get_project_item(&self, project_id: &str) -> Result<crate::types::ProjectItem, ServiceError> {
+        self.list_projects(500, false)?
+            .into_iter()
+            .find(|item| item.id == project_id)
+            .with_context(|| format!("project {project_id} not found"))
+            .map_err(ServiceError::Other)
+    }
+
+    fn managed_task_sync_defaults_for_new_task(
+        &self,
+        project_id: &str,
+        title: &str,
+    ) -> Result<
+        (
+            Option<TaskSyncKind>,
+            Option<String>,
+            Option<String>,
+            Option<bool>,
+        ),
+        anyhow::Error,
+    > {
+        let project = self
+            .list_projects(500, false)?
+            .into_iter()
+            .find(|item| item.id == project_id);
+        let Some(project) = project else {
+            return Ok((None, None, None, None));
+        };
+
+        if !project.task_sync_enabled
+            || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+            || project.source_kind != Some(crate::types::ProjectSourceKind::Local)
+        {
+            return Ok((None, None, None, None));
+        }
+
+        let sync_path = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+
+        Ok((
+            Some(TaskSyncKind::ManagedTodoFile),
+            Some(sync_path),
+            Some(ensure_sync_key_for_title(None, title)),
+            Some(true),
+        ))
+    }
+
+    fn restore_managed_task_sync_watchers(&self) -> Result<()> {
+        for project in self.list_projects(500, false)? {
+            if project.task_sync_enabled
+                && project.task_sync_mode == Some(TaskSyncMode::ManagedTodoFile)
+                && project.task_sync_status == Some(TaskSyncStatus::Live)
+            {
+                if let Err(err) = self.ensure_managed_task_sync_watcher(&project) {
+                    self.clear_managed_task_sync_watcher(&project.id);
+                    let _ = self.pause_managed_task_sync_for_error(&project.id, &err.to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn reconcile_managed_task_sync_project_defaults(&self) -> Result<()> {
+        for project in self.list_projects(500, false)? {
+            if !project.task_sync_enabled || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+            {
+                continue;
+            }
+
+            let normalized_sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+            if project.task_sync_file.as_deref() == Some(normalized_sync_file.as_str()) {
+                continue;
+            }
+
+            self
+                .update_project(
+                    &project.id,
+                    ProjectPatch {
+                        task_sync_file: Some(Some(normalized_sync_file)),
+                        ..ProjectPatch::default()
+                    },
+                    &project.revision,
+                    Actor::agent("task-sync"),
+                )
+                .map_err(|err| anyhow::anyhow!(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    fn ensure_managed_task_sync_watcher(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<(), ServiceError> {
+        if !project.task_sync_enabled || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+        {
+            return Ok(());
+        }
+
+        let target_path = self.managed_task_sync_file_path(project)?;
+        let parent = target_path
+            .parent()
+            .map(Path::to_path_buf)
+            .with_context(|| "managed task sync file has no parent directory")
+            .map_err(ServiceError::Other)?;
+
+        {
+            let mut runtime = self
+                .task_sync_runtime
+                .lock()
+                .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+            let state = runtime.projects.entry(project.id.clone()).or_default();
+            if state.watcher_path.as_ref() == Some(&target_path) && state.watcher.is_some() {
+                return Ok(());
+            }
+            state.watcher = None;
+            state.watcher_path = Some(target_path.clone());
+        }
+
+        let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
+        let mut watcher = notify::recommended_watcher(move |event| {
+            let _ = tx.send(event);
+        })
+        .map_err(|err| ServiceError::Other(err.into()))?;
+        watcher
+            .watch(&parent, RecursiveMode::NonRecursive)
+            .map_err(|err| ServiceError::Other(err.into()))?;
+
+        let service = self.clone();
+        let project_id = project.id.clone();
+        let target_for_thread = target_path.clone();
+        let debounce = Duration::from_millis(WATCHER_DEBOUNCE_MS);
+        let thread = std::thread::spawn(move || {
+            while let Ok(first) = rx.recv() {
+                let mut touched_target = watch_event_hits_target(first, &target_for_thread);
+
+                loop {
+                    match rx.recv_timeout(debounce) {
+                        Ok(next) => {
+                            touched_target = touched_target || watch_event_hits_target(next, &target_for_thread);
+                        }
+                        Err(RecvTimeoutError::Timeout) => break,
+                        Err(RecvTimeoutError::Disconnected) => return,
+                    }
+                }
+
+                if touched_target {
+                    let _ = service.handle_managed_task_sync_file_event(&project_id);
+                }
+            }
+        });
+
+        let mut runtime = self
+            .task_sync_runtime
+            .lock()
+            .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+        let state = runtime.projects.entry(project.id.clone()).or_default();
+        if state.watcher_path.as_ref() == Some(&target_path) {
+            state.watcher = Some(ManagedTaskSyncWatcherRuntime {
+                _watcher: watcher,
+                _thread: thread,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn clear_managed_task_sync_dirty(&self, project_id: &str) {
+        if let Ok(mut runtime) = self.task_sync_runtime.lock() {
+            if let Some(state) = runtime.projects.get_mut(project_id) {
+                state.dirty_outbound = false;
+                state.last_outbound_hash = None;
+            }
+        }
+    }
+
+    fn clear_managed_task_sync_dirty_flag(&self, project_id: &str) {
+        if let Ok(mut runtime) = self.task_sync_runtime.lock() {
+            if let Some(state) = runtime.projects.get_mut(project_id) {
+                state.dirty_outbound = false;
+            }
+        }
+    }
+
+    fn clear_managed_task_sync_watcher(&self, project_id: &str) {
+        if let Ok(mut runtime) = self.task_sync_runtime.lock() {
+            if let Some(state) = runtime.projects.get_mut(project_id) {
+                state.dirty_outbound = false;
+                state.last_outbound_hash = None;
+                state.watcher = None;
+                state.watcher_path = None;
+            }
+        }
+    }
+
+    fn queue_managed_task_sync_outbound(&self, project_id: &str, _reason: &'static str) {
+        let nonce = {
+            let Ok(mut runtime) = self.task_sync_runtime.lock() else {
+                return;
+            };
+            let state = runtime.projects.entry(project_id.to_string()).or_default();
+            state.dirty_outbound = true;
+            state.outbound_nonce = state.outbound_nonce.saturating_add(1);
+            state.outbound_nonce
+        };
+
+        let service = self.clone();
+        let project_id = project_id.to_string();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(OUTBOUND_DEBOUNCE_MS));
+            let _ = service.flush_managed_task_sync_outbound(&project_id, nonce);
+        });
+    }
+
+    fn flush_managed_task_sync_outbound(&self, project_id: &str, nonce: u64) -> Result<(), ServiceError> {
+        let should_flush = {
+            let runtime = self
+                .task_sync_runtime
+                .lock()
+                .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+            runtime
+                .projects
+                .get(project_id)
+                .map(|state| state.dirty_outbound && state.outbound_nonce == nonce)
+                .unwrap_or(false)
+        };
+        if !should_flush {
+            return Ok(());
+        }
+
+        let project = match self.get_project_item(project_id) {
+            Ok(project) => project,
+            Err(err) => {
+                self.clear_managed_task_sync_dirty(project_id);
+                return Err(err);
+            }
+        };
+
+        if !project.task_sync_enabled
+            || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+            || project.task_sync_status != Some(TaskSyncStatus::Live)
+        {
+            self.clear_managed_task_sync_dirty_flag(project_id);
+            return Ok(());
+        }
+
+        let result = self.write_managed_task_sync_file_from_local(&project, true);
+        self.clear_managed_task_sync_dirty_flag(project_id);
+        result.map(|_| ())
+    }
+
+    fn handle_managed_task_sync_file_event(&self, project_id: &str) -> Result<(), ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        if !project.task_sync_enabled
+            || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+            || project.task_sync_status != Some(TaskSyncStatus::Live)
+        {
+            return Ok(());
+        }
+
+        let sync_path = self.managed_task_sync_file_path(&project)?;
+        let current_hash = compute_file_hash_from_path(&sync_path).map_err(ServiceError::Other)?;
+        let (dirty_outbound, last_outbound_hash) = self
+            .task_sync_runtime
+            .lock()
+            .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?
+            .projects
+            .get(project_id)
+            .map(|state| (state.dirty_outbound, state.last_outbound_hash.clone()))
+            .unwrap_or((false, None));
+
+        if let (Some(current_hash), Some(outbound_hash)) =
+            (current_hash.as_deref(), last_outbound_hash.as_deref())
+        {
+            if current_hash == outbound_hash {
+                return Ok(());
+            }
+        }
+
+        if dirty_outbound {
+            self.mark_managed_task_sync_conflict(
+                project_id,
+                "Managed task sync detected local and file edits before reconciliation.",
+            )?;
+            return Ok(());
+        }
+
+        self.import_managed_task_sync_from_disk(project_id, false)
+    }
+
+    fn ensure_tasks_marked_for_managed_sync(
+        &self,
+        project_id: &str,
+        sync_file: &str,
+    ) -> Result<(), ServiceError> {
+        let tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+
+        let mut paths = Vec::new();
+        for task in tasks {
+            let (record, parsed) = self
+                .db
+                .parse_entity_from_disk(&task.id)?
+                .context("task not found while enabling managed sync")
+                .map_err(ServiceError::Other)?;
+            let (mut frontmatter, body) = split_task(parsed.frontmatter, parsed.body)?;
+            let desired_key = ensure_sync_key_for_title(frontmatter.sync_key.as_deref(), &frontmatter.title);
+            let needs_update = frontmatter.sync_kind != Some(TaskSyncKind::ManagedTodoFile)
+                || frontmatter.sync_path.as_deref() != Some(sync_file)
+                || !frontmatter.sync_managed
+                || frontmatter.sync_key.as_deref() != Some(desired_key.as_str());
+            if !needs_update {
+                continue;
+            }
+
+            frontmatter.sync_kind = Some(TaskSyncKind::ManagedTodoFile);
+            frontmatter.sync_path = Some(sync_file.to_string());
+            frontmatter.sync_key = Some(desired_key);
+            frontmatter.sync_managed = true;
+
+            let mut entity = EntityFrontmatter::Task(frontmatter);
+            let rendered = render_entity_markdown(&mut entity, &body).map_err(ServiceError::Other)?;
+            atomic_write(&record.path, &rendered).map_err(ServiceError::Other)?;
+            paths.push(record.path);
+        }
+
+        if !paths.is_empty() {
+            self.indexer.index_files(&paths).map_err(ServiceError::Other)?;
+        }
+
+        Ok(())
+    }
+
+    fn managed_task_sync_file_path(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<PathBuf, ServiceError> {
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "managed task sync requires a linked local source folder"
+            )));
+        }
+        let source_locator = project
+            .source_locator
+            .as_deref()
+            .with_context(|| "project has no linked local source folder")
+            .map_err(ServiceError::Other)?;
+        let source_root = PathBuf::from(source_locator);
+        if !source_root.is_dir() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked source path is not a directory"
+            )));
+        }
+
+        let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        resolve_managed_file_path(source_locator, &sync_file).map_err(ServiceError::Other)
+    }
+
+    fn managed_task_sync_sidecar_path(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<PathBuf, ServiceError> {
+        Ok(managed_todo_sidecar_path(&self.managed_task_sync_file_path(project)?))
+    }
+
+    fn managed_task_sync_entries_from_local(
+        &self,
+        project_id: &str,
+        sync_file: &str,
+    ) -> Result<Vec<ManagedTodoRenderEntry>, ServiceError> {
+        let mut tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+        tasks.retain(|task| {
+            task.sync_managed
+                && task.sync_kind == Some(TaskSyncKind::ManagedTodoFile)
+                && task.sync_path.as_deref() == Some(sync_file)
+        });
+        tasks.sort_by(|left, right| {
+            effective_task_sort_order(left)
+                .cmp(&effective_task_sort_order(right))
+                .then(left.created_at.cmp(&right.created_at))
+        });
+
+        Ok(tasks
+            .iter()
+            .filter_map(render_entry_from_task)
+            .collect::<Vec<_>>())
+    }
+
+    fn managed_task_sync_sidecar_entries(
+        &self,
+        project: &crate::types::ProjectItem,
+        sync_file: &str,
+    ) -> Result<(Vec<ManagedTodoRenderEntry>, bool), ServiceError> {
+        let local_entries = self.managed_task_sync_entries_from_local(&project.id, sync_file)?;
+        let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
+        if !sidecar_path.exists() {
+            return Ok((local_entries, false));
+        }
+
+        let raw = match std::fs::read_to_string(&sidecar_path) {
+            Ok(raw) => raw,
+            Err(_) => return Ok((local_entries, true)),
+        };
+        let sidecar = match parse_managed_todo_sidecar(&raw) {
+            Ok(sidecar) => sidecar,
+            Err(_) => return Ok((local_entries, true)),
+        };
+        if !local_entries.is_empty()
+            && (sidecar.entries.is_empty() || sidecar.entries != local_entries)
+        {
+            return Ok((local_entries, true));
+        }
+        Ok((sidecar.entries, false))
+    }
+
+    fn write_managed_task_sync_sidecar(
+        &self,
+        sidecar_path: &Path,
+        entries: &[ManagedTodoRenderEntry],
+    ) -> Result<(), ServiceError> {
+        let sidecar = render_managed_todo_sidecar(entries).map_err(ServiceError::Other)?;
+        ensure_parent_dir(sidecar_path).map_err(ServiceError::Other)?;
+        atomic_write(sidecar_path, &sidecar).map_err(ServiceError::Other)
+    }
+
+    fn write_managed_task_sync_sidecar_from_local(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<(), ServiceError> {
+        let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        let entries = self.managed_task_sync_entries_from_local(&project.id, &sync_file)?;
+        let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
+        self.write_managed_task_sync_sidecar(&sidecar_path, &entries)
+    }
+
+    fn write_managed_task_sync_file_from_local(
+        &self,
+        project: &crate::types::ProjectItem,
+        enforce_hash_match: bool,
+    ) -> Result<String, ServiceError> {
+        let sync_path = self.managed_task_sync_file_path(project)?;
+        let current_hash = compute_file_hash_from_path(&sync_path).map_err(ServiceError::Other)?;
+        if enforce_hash_match {
+            if let (Some(known_hash), Some(current_hash)) =
+                (project.task_sync_last_seen_hash.as_deref(), current_hash.as_deref())
+            {
+                if known_hash != current_hash {
+                    self.mark_managed_task_sync_conflict(
+                        &project.id,
+                        "Managed task sync detected external edits before n10e could write back.",
+                    )?;
+                    return Err(ServiceError::Other(anyhow::anyhow!(
+                        "managed task sync file changed externally"
+                    )));
+                }
+            }
+        }
+
+        let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        let entries = self.managed_task_sync_entries_from_local(&project.id, &sync_file)?;
+        let content = render_managed_todo(&entries);
+        ensure_parent_dir(&sync_path).map_err(ServiceError::Other)?;
+        atomic_write(&sync_path, &content).map_err(ServiceError::Other)?;
+        let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
+        self.write_managed_task_sync_sidecar(&sidecar_path, &entries)?;
+        let new_hash = compute_file_hash(&content);
+        if let Ok(mut runtime) = self.task_sync_runtime.lock() {
+            let state = runtime.projects.entry(project.id.clone()).or_default();
+            state.last_outbound_hash = Some(new_hash.clone());
+        }
+
+        let refreshed_project = self.get_project_item(&project.id)?;
+        self.update_project(
+            &project.id,
+            ProjectPatch {
+                task_sync_last_seen_hash: Some(Some(new_hash.clone())),
+                task_sync_last_outbound_at: Some(Some(Utc::now())),
+                task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                task_sync_conflict_summary: Some(None),
+                task_sync_conflict_at: Some(None),
+                ..ProjectPatch::default()
+            },
+            &refreshed_project.revision,
+            Actor::agent("task-sync"),
+        )?;
+
+        Ok(new_hash)
+    }
+
+    fn import_managed_task_sync_from_disk(
+        &self,
+        project_id: &str,
+        force: bool,
+    ) -> Result<(), ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        let sync_path = match self.managed_task_sync_file_path(&project) {
+            Ok(path) => path,
+            Err(err) => {
+                self.pause_managed_task_sync_for_error(project_id, &err.to_string())?;
+                return Err(err);
+            }
+        };
+
+        if !sync_path.exists() {
+            if !force && project.task_sync_status == Some(TaskSyncStatus::Conflict) {
+                return Ok(());
+            }
+            self.write_managed_task_sync_file_from_local(&project, false)?;
+            return Ok(());
+        }
+
+        let raw = std::fs::read_to_string(&sync_path)
+            .with_context(|| format!("failed reading {}", sync_path.display()))
+            .map_err(ServiceError::Other)?;
+        let file_hash = compute_file_hash(&raw);
+        let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        let (sidecar_entries, sidecar_needs_rewrite) =
+            self.managed_task_sync_sidecar_entries(&project, &sync_file)?;
+        let sidecar_path = self.managed_task_sync_sidecar_path(&project)?;
+        if !force
+            && sidecar_path.exists()
+            && !sidecar_needs_rewrite
+            && project.task_sync_last_seen_hash.as_deref() == Some(file_hash.as_str())
+        {
+            return Ok(());
+        }
+
+        let parsed = parse_managed_todo(&raw, &sidecar_entries);
+        let needs_rewrite = self.reconcile_managed_task_sync_entries(
+            project_id,
+            &sync_file,
+            parsed.entries,
+        )?;
+
+        if needs_rewrite || parsed.had_inline_sync_keys {
+            let refreshed_project = self.get_project_item(project_id)?;
+            self.write_managed_task_sync_file_from_local(&refreshed_project, false)?;
+            let latest_project = self.get_project_item(project_id)?;
+            self.update_project(
+                project_id,
+                ProjectPatch {
+                    task_sync_last_inbound_at: Some(Some(Utc::now())),
+                    task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                    task_sync_conflict_summary: Some(None),
+                    task_sync_conflict_at: Some(None),
+                    ..ProjectPatch::default()
+                },
+                &latest_project.revision,
+                Actor::agent("task-sync"),
+            )?;
+            return Ok(());
+        }
+
+        let refreshed_project = self.get_project_item(project_id)?;
+        self.write_managed_task_sync_sidecar_from_local(&refreshed_project)?;
+
+        let latest_project = self.get_project_item(project_id)?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                task_sync_last_seen_hash: Some(Some(file_hash)),
+                task_sync_last_inbound_at: Some(Some(Utc::now())),
+                task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                task_sync_conflict_summary: Some(None),
+                task_sync_conflict_at: Some(None),
+                ..ProjectPatch::default()
+            },
+            &latest_project.revision,
+            Actor::agent("task-sync"),
+        )?;
+        Ok(())
+    }
+
+    fn reconcile_managed_task_sync_entries(
+        &self,
+        project_id: &str,
+        sync_file: &str,
+        entries: Vec<ParsedManagedTodoEntry>,
+    ) -> Result<bool, ServiceError> {
+        let existing_tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+
+        let mut existing_by_key = HashMap::new();
+        for task in existing_tasks.iter().cloned() {
+            if task.sync_managed
+                && task.sync_kind == Some(TaskSyncKind::ManagedTodoFile)
+                && task.sync_path.as_deref() == Some(sync_file)
+            {
+                if let Some(sync_key) = task.sync_key.clone() {
+                    existing_by_key.insert(sync_key, task);
+                }
+            }
+        }
+
+        let mut seen_sync_keys = HashSet::new();
+        let mut pending_updates = Vec::new();
+        let mut pending_creates = Vec::new();
+        for (index, entry) in entries.iter().enumerate() {
+            let desired_title = task_title_from_entry(entry);
+            let desired_status = match entry.kind {
+                ManagedTodoEntryKind::Task { completed: true } => TaskStatus::Done,
+                _ => TaskStatus::Todo,
+            };
+            let desired_sort_order = (index as i64) + 1;
+            seen_sync_keys.insert(entry.sync_key.clone());
+
+            if let Some(existing) = existing_by_key.get(&entry.sync_key) {
+                let mut patch = TaskPatch::default();
+                let mut changed = false;
+
+                if existing.title != desired_title {
+                    patch.title = Some(desired_title.clone());
+                    changed = true;
+                }
+                if existing.status != desired_status {
+                    patch.status = Some(desired_status);
+                    changed = true;
+                }
+                if existing.sort_order != desired_sort_order {
+                    patch.sort_order = Some(desired_sort_order);
+                    changed = true;
+                }
+
+                if changed {
+                    pending_updates.push(TaskUpdateRequest {
+                        id: existing.id.clone(),
+                        expected_revision: existing.revision.clone(),
+                        patch,
+                    });
+                }
+                continue;
+            }
+
+            pending_creates.push(CreateTaskPayload {
+                title: desired_title,
+                project_id: project_id.to_string(),
+                status: Some(desired_status),
+                priority: Some(TaskPriority::P2),
+                assignee: Some("agent:unassigned".to_string()),
+                due_at: None,
+                sort_order: Some(desired_sort_order),
+                sync_kind: Some(TaskSyncKind::ManagedTodoFile),
+                sync_path: Some(sync_file.to_string()),
+                sync_key: Some(entry.sync_key.clone()),
+                sync_managed: Some(true),
+                tags: None,
+                body: Some(String::new()),
+            });
+        }
+
+        if !pending_updates.is_empty() {
+            self.update_tasks(pending_updates, Actor::agent("task-sync"))?;
+        }
+        if !pending_creates.is_empty() {
+            self.create_tasks(pending_creates, Actor::agent("task-sync"))?;
+        }
+
+        let mut stale = Vec::new();
+        for task in existing_tasks {
+            if task.sync_managed
+                && task.sync_kind == Some(TaskSyncKind::ManagedTodoFile)
+                && task.sync_path.as_deref() == Some(sync_file)
+            {
+                if let Some(sync_key) = task.sync_key.as_deref() {
+                    if !seen_sync_keys.contains(sync_key) {
+                        stale.push(ArchiveEntityRequest {
+                            id: task.id.clone(),
+                            expected_revision: task.revision.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        if !stale.is_empty() {
+            self.archive_entities(stale, Actor::agent("task-sync"))?;
+        }
+
+        Ok(false)
+    }
+
+    fn mark_managed_task_sync_conflict(
+        &self,
+        project_id: &str,
+        summary: &str,
+    ) -> Result<(), ServiceError> {
+        self.clear_managed_task_sync_dirty(project_id);
+        let project = self.get_project_item(project_id)?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                task_sync_status: Some(Some(TaskSyncStatus::Conflict)),
+                task_sync_conflict_summary: Some(Some(summary.to_string())),
+                task_sync_conflict_at: Some(Some(Utc::now())),
+                ..ProjectPatch::default()
+            },
+            &project.revision,
+            Actor::agent("task-sync"),
+        )?;
+        Ok(())
+    }
+
+    fn pause_managed_task_sync_for_error(
+        &self,
+        project_id: &str,
+        summary: &str,
+    ) -> Result<(), ServiceError> {
+        self.clear_managed_task_sync_dirty(project_id);
+        let project = self.get_project_item(project_id)?;
+        self.update_project(
+            project_id,
+            ProjectPatch {
+                task_sync_status: Some(Some(TaskSyncStatus::Paused)),
+                task_sync_conflict_summary: Some(Some(summary.to_string())),
+                task_sync_conflict_at: Some(Some(Utc::now())),
+                ..ProjectPatch::default()
+            },
+            &project.revision,
+            Actor::agent("task-sync"),
+        )?;
+        Ok(())
+    }
+
     fn ensure_project_exists(&self, project_id: &str) -> Result<()> {
         let record = self
             .db
@@ -1240,6 +2219,25 @@ pub struct ProjectSyncReport {
     pub summary: String,
 }
 
+#[derive(Default)]
+struct ManagedTaskSyncRuntime {
+    projects: HashMap<String, ManagedTaskSyncProjectRuntime>,
+}
+
+#[derive(Default)]
+struct ManagedTaskSyncProjectRuntime {
+    dirty_outbound: bool,
+    outbound_nonce: u64,
+    last_outbound_hash: Option<String>,
+    watcher_path: Option<PathBuf>,
+    watcher: Option<ManagedTaskSyncWatcherRuntime>,
+}
+
+struct ManagedTaskSyncWatcherRuntime {
+    _watcher: RecommendedWatcher,
+    _thread: std::thread::JoinHandle<()>,
+}
+
 fn split_task(frontmatter: EntityFrontmatter, body: String) -> Result<(TaskFrontmatter, String)> {
     match frontmatter {
         EntityFrontmatter::Task(task) => Ok((task, body)),
@@ -1274,6 +2272,21 @@ fn effective_task_sort_order(task: &TaskItem) -> i64 {
 
 fn effective_completed_at(task: &TaskItem) -> chrono::DateTime<Utc> {
     task.completed_at.unwrap_or(task.updated_at)
+}
+
+fn watch_event_hits_target(event: notify::Result<Event>, target: &Path) -> bool {
+    match event {
+        Ok(event) => {
+            let is_remove = matches!(event.kind, EventKind::Remove(_));
+            event.paths.into_iter().any(|path| {
+                if path == target {
+                    return true;
+                }
+                is_remove && path == target
+            })
+        }
+        Err(_) => false,
+    }
 }
 
 fn slugify(value: &str) -> String {
