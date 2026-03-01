@@ -228,9 +228,9 @@ Last updated: 2026-02-26
 
 - [x] MCP smoke tests against Codex-style request profile (simulated).
 - [x] MCP smoke tests against Claude-style request profile (simulated).
-- [ ] MCP smoke tests against real Codex client runtime.
+- [x] MCP smoke tests against real Codex client runtime.
 - [ ] MCP smoke tests against real Claude Code client runtime.
-- [ ] Freeze and validate stable tool response contract.
+- [x] Freeze and validate stable tool response contract.
 - [x] Document real-client validation blockers and current environment status in `docs/COMPATIBILITY.md`.
 
 ### Performance

@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -55,6 +55,50 @@ impl McpHarness {
             .with_context(|| format!("invalid JSON response for method {method}: {line}"))?;
         Ok(response)
     }
+
+    fn call_framed(&mut self, id: i64, method: &str, params: Value) -> Result<Value> {
+        let req = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params,
+        });
+
+        let body = req.to_string();
+        write!(self.stdin, "Content-Length: {}\r\n\r\n{}", body.len(), body)?;
+        self.stdin.flush()?;
+
+        let mut content_length = None;
+        loop {
+            let mut line = String::new();
+            self.stdout.read_line(&mut line)?;
+            if line.is_empty() {
+                anyhow::bail!("received EOF while reading framed response for method {method}");
+            }
+
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                break;
+            }
+
+            if let Some((name, value)) = trimmed.split_once(':') {
+                if name.trim().eq_ignore_ascii_case("content-length") {
+                    content_length = Some(value.trim().parse::<usize>().with_context(|| {
+                        format!("invalid Content-Length header for method {method}")
+                    })?);
+                }
+            }
+        }
+
+        let content_length = content_length
+            .with_context(|| format!("missing Content-Length header for method {method}"))?;
+        let mut body = vec![0u8; content_length];
+        self.stdout.read_exact(&mut body)?;
+
+        let response: Value = serde_json::from_slice(&body)
+            .with_context(|| format!("invalid framed JSON response for method {method}"))?;
+        Ok(response)
+    }
 }
 
 impl Drop for McpHarness {
@@ -76,6 +120,13 @@ fn ensure_workspace_initialized(workspace: &Path) -> Result<()> {
         anyhow::bail!("n10e init failed with status {status}");
     }
     Ok(())
+}
+
+fn tool_structured_content<'a>(response: &'a Value, method: &str) -> Result<&'a Value> {
+    response
+        .get("result")
+        .and_then(|v| v.get("structuredContent"))
+        .with_context(|| format!("missing structuredContent in tools/call response for {method}"))
 }
 
 #[test]
@@ -287,9 +338,9 @@ fn claude_style_tools_call_profile() -> Result<()> {
 
     let mut mcp = McpHarness::start(temp.path())?;
 
-    let _ = mcp.call(1, "initialize", json!({}))?;
+    let _ = mcp.call_framed(1, "initialize", json!({}))?;
 
-    let tools = mcp.call(2, "tools/list", json!({}))?;
+    let tools = mcp.call_framed(2, "tools/list", json!({}))?;
     let tools_list = tools
         .get("result")
         .and_then(|v| v.get("tools"))
@@ -307,7 +358,50 @@ fn claude_style_tools_call_profile() -> Result<()> {
             .any(|tool| tool["name"] == "get_project_workspace")
     );
 
-    let create_project = mcp.call(
+    let list_projects_tool = tools_list
+        .iter()
+        .find(|tool| tool["name"] == "list_projects")
+        .context("list_projects tool missing from tools/list")?;
+    assert_eq!(
+        list_projects_tool["inputSchema"]["additionalProperties"],
+        Value::Bool(false)
+    );
+    assert_eq!(
+        list_projects_tool["inputSchema"]["properties"]["limit"]["type"],
+        Value::String("integer".to_string())
+    );
+
+    let update_project_tool = tools_list
+        .iter()
+        .find(|tool| tool["name"] == "update_project")
+        .context("update_project tool missing from tools/list")?;
+    let update_project_required = update_project_tool["inputSchema"]["required"]
+        .as_array()
+        .context("update_project inputSchema missing required list")?;
+    assert!(update_project_required.iter().any(|item| item == "id"));
+    assert!(
+        update_project_required
+            .iter()
+            .any(|item| item == "expected_revision")
+    );
+    assert!(
+        update_project_tool["inputSchema"]["properties"]["patch"]["properties"]["source_kind"]
+            .get("enum")
+            .is_some()
+    );
+
+    let archive_tool = tools_list
+        .iter()
+        .find(|tool| tool["name"] == "archive_entity")
+        .context("archive_entity tool missing from tools/list")?;
+    assert!(
+        archive_tool["inputSchema"]["anyOf"]
+            .as_array()
+            .map(|rules| !rules.is_empty())
+            .unwrap_or(false)
+    );
+
+    let create_project = mcp.call_framed(
         3,
         "tools/call",
         json!({
@@ -317,14 +411,14 @@ fn claude_style_tools_call_profile() -> Result<()> {
             }
         }),
     )?;
-    let project_id = create_project
-        .get("result")
-        .and_then(|v| v.get("id"))
+    let create_project_result = tool_structured_content(&create_project, "create_project")?;
+    let project_id = create_project_result
+        .get("id")
         .and_then(Value::as_str)
         .context("missing project id from tools/call create_project")?
         .to_string();
 
-    let create_note = mcp.call(
+    let create_note = mcp.call_framed(
         4,
         "tools/call",
         json!({
@@ -337,14 +431,14 @@ fn claude_style_tools_call_profile() -> Result<()> {
         }),
     )?;
 
-    let note_id = create_note
-        .get("result")
-        .and_then(|v| v.get("id"))
+    let create_note_result = tool_structured_content(&create_note, "create_note")?;
+    let note_id = create_note_result
+        .get("id")
         .and_then(Value::as_str)
         .context("missing note id from create_note")?
         .to_string();
 
-    let list_projects = mcp.call(
+    let list_projects = mcp.call_framed(
         5,
         "tools/call",
         json!({
@@ -352,9 +446,8 @@ fn claude_style_tools_call_profile() -> Result<()> {
             "arguments": { "limit": 20 }
         }),
     )?;
-    let listed_projects = list_projects
-        .get("result")
-        .and_then(Value::as_array)
+    let listed_projects = tool_structured_content(&list_projects, "list_projects")?
+        .as_array()
         .context("missing tools/call list_projects result array")?;
     assert!(
         listed_projects.iter().any(|project| {
@@ -362,7 +455,7 @@ fn claude_style_tools_call_profile() -> Result<()> {
         })
     );
 
-    let read_note = mcp.call(
+    let read_note = mcp.call_framed(
         6,
         "tools/call",
         json!({
@@ -370,9 +463,9 @@ fn claude_style_tools_call_profile() -> Result<()> {
             "arguments": { "id_or_path": note_id }
         }),
     )?;
-    assert!(read_note.get("result").is_some());
+    assert!(tool_structured_content(&read_note, "read_entity")?.is_object());
 
-    let workspace = mcp.call(
+    let workspace = mcp.call_framed(
         7,
         "tools/call",
         json!({
@@ -380,9 +473,8 @@ fn claude_style_tools_call_profile() -> Result<()> {
             "arguments": { "project_id": project_id }
         }),
     )?;
-    let workspace_notes = workspace
-        .get("result")
-        .and_then(|v| v.get("notes"))
+    let workspace_notes = tool_structured_content(&workspace, "get_project_workspace")?
+        .get("notes")
         .and_then(Value::as_array)
         .context("missing notes in tools/call get_project_workspace result")?;
     assert_eq!(workspace_notes.len(), 1);
@@ -394,7 +486,7 @@ fn claude_style_tools_call_profile() -> Result<()> {
         Some(note_id.as_str())
     );
 
-    let activity = mcp.call(
+    let activity = mcp.call_framed(
         8,
         "tools/call",
         json!({
@@ -402,9 +494,8 @@ fn claude_style_tools_call_profile() -> Result<()> {
             "arguments": { "limit": 20 }
         }),
     )?;
-    let events = activity
-        .get("result")
-        .and_then(Value::as_array)
+    let events = tool_structured_content(&activity, "list_recent_activity")?
+        .as_array()
         .context("missing activity result array")?;
     assert!(!events.is_empty());
 

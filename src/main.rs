@@ -321,6 +321,7 @@ fn init_tracing() {
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "n10e=info,axum=info".into()),
         )
+        .with_writer(std::io::stderr)
         .with_target(false)
         .compact()
         .try_init();

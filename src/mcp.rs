@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
@@ -38,22 +38,10 @@ pub async fn run_stdio_server_forever(service: Arc<AppService>) -> Result<()> {
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
-    let mut lines = BufReader::new(stdin).lines();
+    let mut reader = BufReader::new(stdin);
     let mut writer = BufWriter::new(stdout);
 
-    while let Some(line) = lines.next_line().await? {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let req: RpcRequest = match serde_json::from_str(&line) {
-            Ok(req) => req,
-            Err(err) => {
-                warn!(error = %err, "invalid stdio JSON request");
-                continue;
-            }
-        };
-
+    while let Some((req, framing)) = read_next_request(&mut reader).await? {
         let id = req.id.clone();
         let response = handle_request(service.clone(), req).await;
 
@@ -71,9 +59,7 @@ pub async fn run_stdio_server_forever(service: Arc<AppService>) -> Result<()> {
                 }),
             };
 
-            writer.write_all(payload.to_string().as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-            writer.flush().await?;
+            write_response(&mut writer, framing, &payload).await?;
         }
     }
 
@@ -90,8 +76,14 @@ async fn handle_request(
         "initialize" => Ok(json!({
             "protocolVersion": "2024-11-05",
             "serverInfo": {"name": "n10e", "version": env!("CARGO_PKG_VERSION")},
-            "capabilities": {"tools": {}}
+            "capabilities": {
+                "tools": { "listChanged": false },
+                "resources": { "subscribe": false, "listChanged": false }
+            }
         })),
+        "ping" => Ok(json!({})),
+        "resources/list" => Ok(json!({ "resources": [] })),
+        "resources/templates/list" => Ok(json!({ "resourceTemplates": [] })),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
         "tools/call" => {
             let name = req
@@ -104,7 +96,8 @@ async fn handle_request(
                 .get("arguments")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            handle_tool_call(service, name, arguments).await
+            let result = handle_tool_call(service, name, arguments).await?;
+            Ok(tool_call_result(result))
         }
         other => {
             if is_direct_tool_method(other) {
@@ -403,6 +396,119 @@ async fn handle_tool_call(
     Ok(result)
 }
 
+#[derive(Debug, Clone, Copy)]
+enum MessageFraming {
+    JsonLine,
+    ContentLength,
+}
+
+async fn read_next_request(
+    reader: &mut BufReader<tokio::io::Stdin>,
+) -> Result<Option<(RpcRequest, MessageFraming)>> {
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let read = reader.read_line(&mut line).await?;
+        if read == 0 {
+            return Ok(None);
+        }
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+
+        if trimmed.starts_with('{') {
+            let req: RpcRequest = match serde_json::from_str(trimmed) {
+                Ok(req) => req,
+                Err(err) => {
+                    warn!(error = %err, "invalid stdio JSON request");
+                    continue;
+                }
+            };
+            return Ok(Some((req, MessageFraming::JsonLine)));
+        }
+
+        let Some(content_length) = parse_content_length(trimmed) else {
+            warn!(line = trimmed, "invalid mcp stdio prelude");
+            continue;
+        };
+
+        loop {
+            line.clear();
+            let read = reader.read_line(&mut line).await?;
+            if read == 0 {
+                warn!("unexpected EOF while reading mcp headers");
+                return Ok(None);
+            }
+            if line.trim().is_empty() {
+                break;
+            }
+        }
+
+        let mut body = vec![0u8; content_length];
+        if let Err(err) = reader.read_exact(&mut body).await {
+            warn!(error = %err, "failed reading framed mcp request body");
+            return Ok(None);
+        }
+
+        let req: RpcRequest = match serde_json::from_slice(&body) {
+            Ok(req) => req,
+            Err(err) => {
+                warn!(error = %err, "invalid framed mcp JSON request");
+                continue;
+            }
+        };
+
+        return Ok(Some((req, MessageFraming::ContentLength)));
+    }
+}
+
+fn parse_content_length(line: &str) -> Option<usize> {
+    let (name, value) = line.split_once(':')?;
+    if !name.trim().eq_ignore_ascii_case("content-length") {
+        return None;
+    }
+    value.trim().parse().ok()
+}
+
+async fn write_response(
+    writer: &mut BufWriter<tokio::io::Stdout>,
+    framing: MessageFraming,
+    payload: &Value,
+) -> Result<()> {
+    let body = payload.to_string();
+
+    match framing {
+        MessageFraming::JsonLine => {
+            writer.write_all(body.as_bytes()).await?;
+            writer.write_all(b"\n").await?;
+        }
+        MessageFraming::ContentLength => {
+            let header = format!("Content-Length: {}\r\n\r\n", body.len());
+            writer.write_all(header.as_bytes()).await?;
+            writer.write_all(body.as_bytes()).await?;
+        }
+    }
+
+    writer.flush().await?;
+    Ok(())
+}
+
+fn tool_call_result(result: Value) -> Value {
+    json!({
+        "content": [
+            {
+                "type": "text",
+                "text": result.to_string()
+            }
+        ],
+        "structuredContent": result
+    })
+}
+
 fn is_direct_tool_method(method: &str) -> bool {
     matches!(
         method,
@@ -428,49 +534,396 @@ fn tool_definitions() -> Vec<Value> {
         tool_def(
             "search_context",
             "Search indexed context across tasks/projects/notes",
+            search_context_input_schema(),
         ),
-        tool_def("read_entity", "Read entity by ID or path"),
+        tool_def(
+            "read_entity",
+            "Read entity by ID or path",
+            read_entity_input_schema(),
+        ),
         tool_def(
             "list_tasks",
             "List tasks by status/priority/project/assignee filters",
+            list_tasks_input_schema(),
         ),
-        tool_def("list_projects", "List projects by archived state"),
+        tool_def(
+            "list_projects",
+            "List projects by archived state",
+            list_projects_input_schema(),
+        ),
         tool_def(
             "get_project_workspace",
             "Load a project workspace with tasks and notes",
+            get_project_workspace_input_schema(),
         ),
-        tool_def("create_project", "Create a project markdown entity"),
+        tool_def(
+            "create_project",
+            "Create a project markdown entity",
+            create_project_input_schema(),
+        ),
         tool_def(
             "update_project",
             "Update a project with optimistic revision lock",
+            update_project_input_schema(),
         ),
-        tool_def("create_task", "Create a task markdown entity"),
-        tool_def("update_task", "Update a task with optimistic revision lock"),
+        tool_def(
+            "create_task",
+            "Create a task markdown entity",
+            create_task_input_schema(),
+        ),
+        tool_def(
+            "update_task",
+            "Update a task with optimistic revision lock",
+            update_task_input_schema(),
+        ),
         tool_def(
             "reorder_project_tasks",
             "Reorder active project tasks and return the workspace snapshot",
+            reorder_project_tasks_input_schema(),
         ),
-        tool_def("create_note", "Create a note markdown entity"),
-        tool_def("update_note", "Update a note with optimistic revision lock"),
+        tool_def(
+            "create_note",
+            "Create a note markdown entity",
+            create_note_input_schema(),
+        ),
+        tool_def(
+            "update_note",
+            "Update a note with optimistic revision lock",
+            update_note_input_schema(),
+        ),
         tool_def(
             "archive_entity",
             "Archive an entity with optimistic revision lock",
+            archive_entity_input_schema(),
         ),
         tool_def(
             "list_recent_activity",
             "List recent immutable activity events",
+            list_recent_activity_input_schema(),
         ),
     ]
 }
 
-fn tool_def(name: &str, description: &str) -> Value {
+fn tool_def(name: &str, description: &str, input_schema: Value) -> Value {
     json!({
         "name": name,
         "description": description,
-        "inputSchema": {
-            "type": "object",
-            "additionalProperties": true
+        "inputSchema": input_schema
+    })
+}
+
+fn search_context_input_schema() -> Value {
+    object_schema(
+        json!({
+            "query": { "type": "string" },
+            "filters": search_filters_schema(),
+            "limit": { "type": "integer", "minimum": 0 }
+        }),
+        &["query"],
+    )
+}
+
+fn read_entity_input_schema() -> Value {
+    object_schema(
+        json!({
+            "id_or_path": { "type": "string" }
+        }),
+        &["id_or_path"],
+    )
+}
+
+fn list_tasks_input_schema() -> Value {
+    object_schema(
+        json!({
+            "filters": task_filters_schema()
+        }),
+        &[],
+    )
+}
+
+fn list_projects_input_schema() -> Value {
+    object_schema(
+        json!({
+            "limit": { "type": "integer", "minimum": 0 },
+            "include_archived": { "type": "boolean" }
+        }),
+        &[],
+    )
+}
+
+fn get_project_workspace_input_schema() -> Value {
+    object_schema(
+        json!({
+            "project_id": { "type": "string" }
+        }),
+        &["project_id"],
+    )
+}
+
+fn create_project_input_schema() -> Value {
+    object_schema(
+        json!({
+            "title": { "type": "string" },
+            "owner": { "type": "string" },
+            "source_kind": project_source_kind_schema(),
+            "source_locator": { "type": "string" },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }),
+        &["title"],
+    )
+}
+
+fn update_project_input_schema() -> Value {
+    object_schema(
+        json!({
+            "id": { "type": "string" },
+            "expected_revision": { "type": "string" },
+            "patch": project_patch_schema()
+        }),
+        &["id", "expected_revision"],
+    )
+}
+
+fn create_task_input_schema() -> Value {
+    object_schema(
+        json!({
+            "title": { "type": "string" },
+            "project_id": { "type": "string" },
+            "status": task_status_schema(),
+            "priority": task_priority_schema(),
+            "assignee": { "type": "string" },
+            "due_at": date_time_string_schema(),
+            "sort_order": { "type": "integer" },
+            "sync_kind": task_sync_kind_schema(),
+            "sync_path": { "type": "string" },
+            "sync_key": { "type": "string" },
+            "sync_managed": { "type": "boolean" },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }),
+        &["title", "project_id"],
+    )
+}
+
+fn update_task_input_schema() -> Value {
+    object_schema(
+        json!({
+            "id": { "type": "string" },
+            "expected_revision": { "type": "string" },
+            "patch": task_patch_schema()
+        }),
+        &["id", "expected_revision"],
+    )
+}
+
+fn reorder_project_tasks_input_schema() -> Value {
+    object_schema(
+        json!({
+            "project_id": { "type": "string" },
+            "ordered_active_task_ids": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        }),
+        &["project_id", "ordered_active_task_ids"],
+    )
+}
+
+fn create_note_input_schema() -> Value {
+    object_schema(
+        json!({
+            "title": { "type": "string" },
+            "project_id": { "type": "string" },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }),
+        &["title"],
+    )
+}
+
+fn update_note_input_schema() -> Value {
+    object_schema(
+        json!({
+            "id": { "type": "string" },
+            "expected_revision": { "type": "string" },
+            "patch": note_patch_schema()
+        }),
+        &["id", "expected_revision"],
+    )
+}
+
+fn archive_entity_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "id": { "type": "string" },
+            "entity_id": { "type": "string" },
+            "expected_revision": { "type": "string" }
+        },
+        "required": ["expected_revision"],
+        "anyOf": [
+            { "required": ["id"] },
+            { "required": ["entity_id"] }
+        ]
+    })
+}
+
+fn list_recent_activity_input_schema() -> Value {
+    object_schema(
+        json!({
+            "since": date_time_string_schema(),
+            "limit": { "type": "integer", "minimum": 0 }
+        }),
+        &[],
+    )
+}
+
+fn object_schema(properties: Value, required: &[&str]) -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": properties,
+        "required": required
+    })
+}
+
+fn search_filters_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "entity_type": entity_type_schema(),
+            "project_id": { "type": "string" },
+            "include_archived": { "type": "boolean" }
         }
+    })
+}
+
+fn task_filters_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "status": task_status_schema(),
+            "priority": task_priority_schema(),
+            "project_id": { "type": "string" },
+            "assignee": { "type": "string" },
+            "include_archived": { "type": "boolean" },
+            "limit": { "type": "integer", "minimum": 0 }
+        }
+    })
+}
+
+fn project_patch_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "title": { "type": "string" },
+            "status": project_status_schema(),
+            "owner": { "type": ["string", "null"] },
+            "source_kind": {
+                "type": ["string", "null"],
+                "enum": ["local", "github", null]
+            },
+            "source_locator": { "type": ["string", "null"] },
+            "sync_source_key": { "type": ["string", "null"] },
+            "last_synced_at": {
+                "type": ["string", "null"],
+                "format": "date-time"
+            },
+            "last_sync_summary": { "type": ["string", "null"] },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }
+    })
+}
+
+fn task_patch_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "title": { "type": "string" },
+            "status": task_status_schema(),
+            "priority": task_priority_schema(),
+            "assignee": { "type": "string" },
+            "due_at": { "type": "string" },
+            "sort_order": { "type": "integer" },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }
+    })
+}
+
+fn note_patch_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "title": { "type": "string" },
+            "project_id": { "type": "string" },
+            "tags": string_array_schema(),
+            "body": { "type": "string" }
+        }
+    })
+}
+
+fn entity_type_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["task", "project", "note"]
+    })
+}
+
+fn task_status_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["backlog", "todo", "in_progress", "blocked", "done"]
+    })
+}
+
+fn task_priority_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["P0", "P1", "P2", "P3"]
+    })
+}
+
+fn project_status_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["active", "paused", "archived"]
+    })
+}
+
+fn project_source_kind_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["local", "github"]
+    })
+}
+
+fn task_sync_kind_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["repo_markdown"]
+    })
+}
+
+fn string_array_schema() -> Value {
+    json!({
+        "type": "array",
+        "items": { "type": "string" }
+    })
+}
+
+fn date_time_string_schema() -> Value {
+    json!({
+        "type": "string",
+        "format": "date-time"
     })
 }
 

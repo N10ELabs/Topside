@@ -17,6 +17,9 @@ use tao::{
 };
 
 #[cfg(target_os = "macos")]
+use window_vibrancy::{NSVisualEffectMaterial, NSVisualEffectState, apply_vibrancy};
+
+#[cfg(target_os = "macos")]
 use wry::{NewWindowResponse, WebViewBuilder};
 
 #[cfg(target_os = "macos")]
@@ -47,6 +50,7 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
         let _webview = WebViewBuilder::new()
             .with_url(url)
             .with_transparent(true)
+            .with_background_color((0, 0, 0, 0))
             .with_initialization_script(
                 "window.__N10E_DESKTOP__ = true; document.documentElement.dataset.n10eDesktop = 'true';",
             )
@@ -60,6 +64,13 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
             })
             .with_accept_first_mouse(true)
             .build(&window)?;
+
+        apply_vibrancy(
+            &window,
+            NSVisualEffectMaterial::UnderWindowBackground,
+            Some(NSVisualEffectState::Active),
+            None,
+        )?;
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;

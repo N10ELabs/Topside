@@ -1,12 +1,13 @@
 # MCP Compatibility Matrix
 
-Last updated: 2026-02-26
+Last updated: 2026-03-01
 
 ## Current Validation Levels
 
 - `Automated profile simulation`: done
-- `Real client smoke test (Codex)`: pending
+- `Real client smoke test (Codex)`: done
 - `Real client smoke test (Claude Code)`: pending
+- `Stable response contract`: frozen
 
 ## Automated Profiles (Implemented)
 
@@ -28,16 +29,20 @@ cargo test --test mcp_compat_integration
 
 ## Real Client Matrix (Manual, Pending)
 
-Current environment note (2026-02-26):
-- attempted a live `codex exec` MCP smoke invocation, but the run did not complete in this environment and was terminated.
+Current environment note (2026-03-01):
+- live `codex exec` smoke validation succeeded after switching MCP stdout to protocol-only output and keeping tracing on stderr.
+- in `codex exec`, the agent did not get a directly callable raw `tools/list` method; instead the configured server tools were exposed in the session tool registry (`mcp__n10e-smoke__*`), while MCP resource/template discovery remained empty.
+- stale `update_task` validation returned the expected structured conflict path in the real Codex client: code `-32010`, message `revision conflict`, with `expected_revision` and `current_revision` included.
 - no `claude` / `claude-code` CLI binary was available locally for direct runtime smoke execution.
 
 ### Codex
 
-- [ ] configure Codex MCP to launch `n10e --workspace <path> mcp`
-- [ ] run `tools/list`
-- [ ] create/read/update/archive entity roundtrip
-- [ ] verify conflict payload handling
+- [x] configure Codex MCP to launch `n10e --workspace <path> mcp`
+- [x] validate real client startup / initialize handshake
+- [x] create project via configured MCP tool (`create_project`)
+- [x] verify project visibility via configured MCP tool (`list_projects`)
+- [x] verify workspace read via configured MCP tool (`get_project_workspace`)
+- [x] verify conflict payload handling
 
 ### Claude Code
 

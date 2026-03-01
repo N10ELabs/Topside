@@ -38,4 +38,5 @@ tower = { version = "0.5", features = ["util"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.17.1", default-features = false }
 tao = "0.34.5"
-wry = { version = "0.54.2", default-features = false }
+window-vibrancy = "0.6.0"
+wry = { version = "0.54.2", default-features = false, features = ["transparent"] }
