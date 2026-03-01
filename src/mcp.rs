@@ -1,14 +1,18 @@
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{
+    AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter,
+};
 use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 
-use crate::service::{AppService, ServiceError};
+use crate::service::{AppService, ArchiveEntityRequest, ServiceError, TaskUpdateRequest};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, NotePatch, ProjectPatch,
     SearchFilters, TaskFilters, TaskPatch,
@@ -23,6 +27,42 @@ struct RpcRequest {
     pub method: String,
     #[serde(default)]
     pub params: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchTaskCreateArgs {
+    items: Vec<CreateTaskPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchTaskUpdateArgs {
+    items: Vec<BatchTaskUpdateItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchTaskUpdateItem {
+    id: String,
+    expected_revision: String,
+    #[serde(default)]
+    patch: TaskPatch,
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchEntityArchiveArgs {
+    items: Vec<BatchEntityArchiveItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BatchEntityArchiveItem {
+    id: Option<String>,
+    entity_id: Option<String>,
+    expected_revision: String,
+}
+
+impl BatchEntityArchiveItem {
+    fn resolve_id(&self) -> Option<&str> {
+        self.id.as_deref().or(self.entity_id.as_deref())
+    }
 }
 
 pub fn spawn_stdio_server(service: Arc<AppService>) -> JoinHandle<()> {
@@ -41,7 +81,116 @@ pub async fn run_stdio_server_forever(service: Arc<AppService>) -> Result<()> {
     let mut reader = BufReader::new(stdin);
     let mut writer = BufWriter::new(stdout);
 
-    while let Some((req, framing)) = read_next_request(&mut reader).await? {
+    run_rpc_session(&mut reader, &mut writer, service).await
+}
+
+pub fn daemon_socket_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".n10e").join("mcp.sock")
+}
+
+pub fn daemon_pid_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(".n10e").join("mcp.pid")
+}
+
+pub async fn run_stdio_proxy_to_daemon(socket_path: &Path) -> Result<bool> {
+    #[cfg(unix)]
+    {
+        let stream = match tokio::net::UnixStream::connect(socket_path).await {
+            Ok(stream) => stream,
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    ErrorKind::NotFound
+                        | ErrorKind::ConnectionRefused
+                        | ErrorKind::AddrNotAvailable
+                ) =>
+            {
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        info!(path = %socket_path.display(), "proxying stdio mcp to warm daemon");
+
+        let (mut socket_read, mut socket_write) = stream.into_split();
+        let mut stdin = tokio::io::stdin();
+        let mut stdout = tokio::io::stdout();
+
+        let mut stdin_to_socket = tokio::spawn(async move {
+            tokio::io::copy(&mut stdin, &mut socket_write).await?;
+            socket_write.shutdown().await?;
+            Ok::<(), anyhow::Error>(())
+        });
+        let mut socket_to_stdout = tokio::spawn(async move {
+            tokio::io::copy(&mut socket_read, &mut stdout).await?;
+            stdout.flush().await?;
+            Ok::<(), anyhow::Error>(())
+        });
+
+        tokio::select! {
+            result = &mut stdin_to_socket => {
+                socket_to_stdout.abort();
+                result
+                    .map_err(|err| anyhow::anyhow!("stdio-to-daemon proxy task failed: {err}"))??;
+            }
+            result = &mut socket_to_stdout => {
+                stdin_to_socket.abort();
+                result
+                    .map_err(|err| anyhow::anyhow!("daemon-to-stdio proxy task failed: {err}"))??;
+            }
+        }
+
+        Ok(true)
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = socket_path;
+        Ok(false)
+    }
+}
+
+pub async fn run_daemon_server_forever(service: Arc<AppService>, socket_path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        prepare_socket_listener(socket_path).await?;
+        let _guard = SocketFileGuard {
+            path: socket_path.to_path_buf(),
+        };
+        let _pid_guard = DaemonPidFileGuard::create(&socket_path.with_file_name("mcp.pid"))?;
+        let listener = tokio::net::UnixListener::bind(socket_path)?;
+
+        info!(path = %socket_path.display(), "starting warm mcp daemon");
+
+        loop {
+            let (stream, _) = listener.accept().await?;
+            let service = service.clone();
+            tokio::spawn(async move {
+                if let Err(err) = run_unix_socket_session(service, stream).await {
+                    warn!(error = %err, "mcp daemon session terminated with error");
+                }
+            });
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = service;
+        let _ = socket_path;
+        anyhow::bail!("warm mcp daemon is only supported on unix-like systems")
+    }
+}
+
+async fn run_rpc_session<R, W>(
+    reader: &mut BufReader<R>,
+    writer: &mut BufWriter<W>,
+    service: Arc<AppService>,
+) -> Result<()>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+{
+    while let Some((req, framing)) = read_next_request(reader).await? {
         let id = req.id.clone();
         let response = handle_request(service.clone(), req).await;
 
@@ -59,7 +208,7 @@ pub async fn run_stdio_server_forever(service: Arc<AppService>) -> Result<()> {
                 }),
             };
 
-            write_response(&mut writer, framing, &payload).await?;
+            write_response(writer, framing, &payload).await?;
         }
     }
 
@@ -258,6 +407,19 @@ async fn handle_tool_call(
                 .map_err(map_service_to_rpc)?;
             json!(entity)
         }
+        "bulk_create_tasks" => {
+            let payload: BatchTaskCreateArgs = serde_json::from_value(args).map_err(|e| {
+                rpc_err(
+                    -32602,
+                    "invalid bulk_create_tasks payload",
+                    Some(json!({"error": e.to_string()})),
+                )
+            })?;
+            let created = service
+                .create_tasks(payload.items, agent.clone())
+                .map_err(map_service_to_rpc)?;
+            json!(created)
+        }
         "update_task" => {
             let id = args
                 .get("id")
@@ -283,6 +445,30 @@ async fn handle_tool_call(
                 .update_task(id, patch, expected_revision, agent.clone())
                 .map_err(map_service_to_rpc)?;
             json!(entity)
+        }
+        "bulk_update_tasks" => {
+            let payload: BatchTaskUpdateArgs = serde_json::from_value(args).map_err(|e| {
+                rpc_err(
+                    -32602,
+                    "invalid bulk_update_tasks payload",
+                    Some(json!({"error": e.to_string()})),
+                )
+            })?;
+            let updated = service
+                .update_tasks(
+                    payload
+                        .items
+                        .into_iter()
+                        .map(|item| TaskUpdateRequest {
+                            id: item.id,
+                            expected_revision: item.expected_revision,
+                            patch: item.patch,
+                        })
+                        .collect(),
+                    agent.clone(),
+                )
+                .map_err(map_service_to_rpc)?;
+            json!(updated)
         }
         "reorder_project_tasks" => {
             let project_id = args
@@ -365,6 +551,38 @@ async fn handle_tool_call(
                 .map_err(map_service_to_rpc)?;
             json!(entity)
         }
+        "bulk_archive_entities" => {
+            let payload: BatchEntityArchiveArgs = serde_json::from_value(args).map_err(|e| {
+                rpc_err(
+                    -32602,
+                    "invalid bulk_archive_entities payload",
+                    Some(json!({"error": e.to_string()})),
+                )
+            })?;
+            let mut requests = Vec::with_capacity(payload.items.len());
+            for item in payload.items {
+                let id = item.resolve_id().ok_or_else(|| {
+                    rpc_err(
+                        -32602,
+                        "bulk_archive_entities item missing id",
+                        Some(json!({
+                            "item": {
+                                "id": item.id,
+                                "entity_id": item.entity_id
+                            }
+                        })),
+                    )
+                })?;
+                requests.push(ArchiveEntityRequest {
+                    id: id.to_string(),
+                    expected_revision: item.expected_revision,
+                });
+            }
+            let archived = service
+                .archive_entities(requests, agent.clone())
+                .map_err(map_service_to_rpc)?;
+            json!(archived)
+        }
         "list_recent_activity" => {
             let since = args
                 .get("since")
@@ -403,7 +621,7 @@ enum MessageFraming {
 }
 
 async fn read_next_request(
-    reader: &mut BufReader<tokio::io::Stdin>,
+    reader: &mut BufReader<impl AsyncRead + Unpin>,
 ) -> Result<Option<(RpcRequest, MessageFraming)>> {
     let mut line = String::new();
 
@@ -475,7 +693,7 @@ fn parse_content_length(line: &str) -> Option<usize> {
 }
 
 async fn write_response(
-    writer: &mut BufWriter<tokio::io::Stdout>,
+    writer: &mut BufWriter<impl AsyncWrite + Unpin>,
     framing: MessageFraming,
     payload: &Value,
 ) -> Result<()> {
@@ -495,6 +713,88 @@ async fn write_response(
 
     writer.flush().await?;
     Ok(())
+}
+
+#[cfg(unix)]
+async fn prepare_socket_listener(socket_path: &Path) -> Result<()> {
+    if let Some(parent) = socket_path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
+    match tokio::net::UnixStream::connect(socket_path).await {
+        Ok(_) => {
+            anyhow::bail!(
+                "an n10e daemon is already running at {}",
+                socket_path.display()
+            );
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                ErrorKind::NotFound | ErrorKind::ConnectionRefused | ErrorKind::AddrNotAvailable
+            ) => {}
+        Err(err) => return Err(err.into()),
+    }
+
+    if socket_path.exists() {
+        tokio::fs::remove_file(socket_path).await?;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+async fn run_unix_socket_session(
+    service: Arc<AppService>,
+    stream: tokio::net::UnixStream,
+) -> Result<()> {
+    let (read_half, write_half) = stream.into_split();
+    let mut reader = BufReader::new(read_half);
+    let mut writer = BufWriter::new(write_half);
+    run_rpc_session(&mut reader, &mut writer, service).await
+}
+
+#[cfg(unix)]
+struct SocketFileGuard {
+    path: PathBuf,
+}
+
+#[cfg(unix)]
+impl Drop for SocketFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(unix)]
+struct DaemonPidFileGuard {
+    path: PathBuf,
+}
+
+#[cfg(unix)]
+impl DaemonPidFileGuard {
+    fn create(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(anyhow::Error::from)
+                .with_context(|| format!("failed creating {}", parent.display()))?;
+        }
+
+        std::fs::write(path, format!("{}\n", std::process::id()))
+            .map_err(anyhow::Error::from)
+            .with_context(|| format!("failed writing daemon pid file at {}", path.display()))?;
+
+        Ok(Self {
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+#[cfg(unix)]
+impl Drop for DaemonPidFileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
 }
 
 fn tool_call_result(result: Value) -> Value {
@@ -520,11 +820,14 @@ fn is_direct_tool_method(method: &str) -> bool {
             | "create_project"
             | "update_project"
             | "create_task"
+            | "bulk_create_tasks"
             | "update_task"
+            | "bulk_update_tasks"
             | "reorder_project_tasks"
             | "create_note"
             | "update_note"
             | "archive_entity"
+            | "bulk_archive_entities"
             | "list_recent_activity"
     )
 }
@@ -572,9 +875,19 @@ fn tool_definitions() -> Vec<Value> {
             create_task_input_schema(),
         ),
         tool_def(
+            "bulk_create_tasks",
+            "Create multiple task markdown entities in one request",
+            bulk_create_tasks_input_schema(),
+        ),
+        tool_def(
             "update_task",
             "Update a task with optimistic revision lock",
             update_task_input_schema(),
+        ),
+        tool_def(
+            "bulk_update_tasks",
+            "Update multiple tasks with optimistic revision locks",
+            bulk_update_tasks_input_schema(),
         ),
         tool_def(
             "reorder_project_tasks",
@@ -595,6 +908,11 @@ fn tool_definitions() -> Vec<Value> {
             "archive_entity",
             "Archive an entity with optimistic revision lock",
             archive_entity_input_schema(),
+        ),
+        tool_def(
+            "bulk_archive_entities",
+            "Archive multiple entities with optimistic revision locks",
+            bulk_archive_entities_input_schema(),
         ),
         tool_def(
             "list_recent_activity",
@@ -686,6 +1004,22 @@ fn update_project_input_schema() -> Value {
 }
 
 fn create_task_input_schema() -> Value {
+    create_task_item_schema(&["title", "project_id"])
+}
+
+fn bulk_create_tasks_input_schema() -> Value {
+    object_schema(
+        json!({
+            "items": {
+                "type": "array",
+                "items": create_task_item_schema(&["title", "project_id"])
+            }
+        }),
+        &["items"],
+    )
+}
+
+fn create_task_item_schema(required: &[&str]) -> Value {
     object_schema(
         json!({
             "title": { "type": "string" },
@@ -702,18 +1036,34 @@ fn create_task_input_schema() -> Value {
             "tags": string_array_schema(),
             "body": { "type": "string" }
         }),
-        &["title", "project_id"],
+        required,
     )
 }
 
 fn update_task_input_schema() -> Value {
+    update_task_item_schema(&["id", "expected_revision"])
+}
+
+fn bulk_update_tasks_input_schema() -> Value {
+    object_schema(
+        json!({
+            "items": {
+                "type": "array",
+                "items": update_task_item_schema(&["id", "expected_revision"])
+            }
+        }),
+        &["items"],
+    )
+}
+
+fn update_task_item_schema(required: &[&str]) -> Value {
     object_schema(
         json!({
             "id": { "type": "string" },
             "expected_revision": { "type": "string" },
             "patch": task_patch_schema()
         }),
-        &["id", "expected_revision"],
+        required,
     )
 }
 
@@ -754,6 +1104,22 @@ fn update_note_input_schema() -> Value {
 }
 
 fn archive_entity_input_schema() -> Value {
+    archive_entity_item_schema()
+}
+
+fn bulk_archive_entities_input_schema() -> Value {
+    object_schema(
+        json!({
+            "items": {
+                "type": "array",
+                "items": archive_entity_item_schema()
+            }
+        }),
+        &["items"],
+    )
+}
+
+fn archive_entity_item_schema() -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,

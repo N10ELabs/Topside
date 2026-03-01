@@ -95,268 +95,31 @@ impl Db {
     }
 
     pub fn remove_by_path(&self, path: &Path) -> Result<()> {
-        let path = path.to_string_lossy().to_string();
+        self.remove_paths(&[path.to_path_buf()])
+    }
+
+    pub fn remove_paths(&self, paths: &[PathBuf]) -> Result<()> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
-            let entity_id: Option<String> = tx
-                .query_row(
-                    "SELECT entity_id FROM files WHERE path = ?1 LIMIT 1",
-                    params![path],
-                    |row| row.get(0),
-                )
-                .optional()?;
-
-            tx.execute("DELETE FROM files WHERE path = ?1", params![path])?;
-
-            if let Some(entity_id) = entity_id {
-                tx.execute(
-                    "DELETE FROM entity_links WHERE source_id = ?1",
-                    params![&entity_id],
-                )?;
-                tx.execute("DELETE FROM tasks WHERE id = ?1", params![&entity_id])?;
-                tx.execute("DELETE FROM projects WHERE id = ?1", params![&entity_id])?;
-                tx.execute("DELETE FROM notes WHERE id = ?1", params![&entity_id])?;
-                tx.execute("DELETE FROM entities WHERE id = ?1", params![&entity_id])?;
-                tx.execute(
-                    "DELETE FROM fts_documents WHERE entity_id = ?1",
-                    params![&entity_id],
-                )?;
+            for path in paths {
+                let path = path.to_string_lossy().to_string();
+                remove_by_path_tx(&tx, &path)?;
             }
-
             tx.commit()?;
             Ok(())
         })
     }
 
     pub fn upsert_indexed_entity(&self, entity: &IndexedEntity) -> Result<()> {
-        let path = entity.path.to_string_lossy().to_string();
-        let tags_json = serde_json::to_string(&entity.tags).context("failed serializing tags")?;
-        let now = Utc::now().to_rfc3339();
+        self.upsert_indexed_entities(std::slice::from_ref(entity))
+    }
 
+    pub fn upsert_indexed_entities(&self, entities: &[IndexedEntity]) -> Result<()> {
         self.with_conn_mut(|conn| {
             let tx = conn.transaction()?;
-
-            tx.execute(
-                r#"
-                INSERT INTO entities (
-                    id, entity_type, title, path, body, project_id, status, priority, assignee, due_at,
-                    owner, tags, created_at, updated_at, revision, archived
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
-                ON CONFLICT(id) DO UPDATE SET
-                    entity_type = excluded.entity_type,
-                    title = excluded.title,
-                    path = excluded.path,
-                    body = excluded.body,
-                    project_id = excluded.project_id,
-                    status = excluded.status,
-                    priority = excluded.priority,
-                    assignee = excluded.assignee,
-                    due_at = excluded.due_at,
-                    owner = excluded.owner,
-                    tags = excluded.tags,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at,
-                    revision = excluded.revision,
-                    archived = excluded.archived
-                "#,
-                params![
-                    entity.id,
-                    entity.entity_type.as_str(),
-                    entity.title,
-                    path,
-                    entity.body,
-                    entity.project_id,
-                    entity.status,
-                    entity.priority,
-                    entity.assignee,
-                    entity.due_at.map(|v| v.to_rfc3339()),
-                    entity.owner,
-                    tags_json,
-                    entity.created_at.to_rfc3339(),
-                    entity.updated_at.to_rfc3339(),
-                    entity.revision,
-                    if entity.archived { 1 } else { 0 },
-                ],
-            )?;
-
-            match entity.entity_type {
-                EntityType::Task => {
-                    tx.execute(
-                        r#"
-                        INSERT INTO tasks (
-                            id, project_id, status, priority, assignee, due_at, path, title,
-                            created_at, updated_at, revision, archived, sort_order, completed_at,
-                            sync_kind, sync_path, sync_key, sync_managed
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
-                        ON CONFLICT(id) DO UPDATE SET
-                            project_id = excluded.project_id,
-                            status = excluded.status,
-                            priority = excluded.priority,
-                            assignee = excluded.assignee,
-                            due_at = excluded.due_at,
-                            path = excluded.path,
-                            title = excluded.title,
-                            created_at = excluded.created_at,
-                            updated_at = excluded.updated_at,
-                            revision = excluded.revision,
-                            archived = excluded.archived,
-                            sort_order = excluded.sort_order,
-                            completed_at = excluded.completed_at,
-                            sync_kind = excluded.sync_kind,
-                            sync_path = excluded.sync_path,
-                            sync_key = excluded.sync_key,
-                            sync_managed = excluded.sync_managed
-                        "#,
-                        params![
-                            entity.id,
-                            entity.project_id,
-                            entity.status,
-                            entity.priority,
-                            entity.assignee,
-                            entity.due_at.map(|v| v.to_rfc3339()),
-                            path,
-                            entity.title,
-                            entity.created_at.to_rfc3339(),
-                            entity.updated_at.to_rfc3339(),
-                            entity.revision,
-                            if entity.archived { 1 } else { 0 },
-                            entity.sort_order,
-                            entity.completed_at.map(|v| v.to_rfc3339()),
-                            entity.sync_kind.as_ref().map(TaskSyncKind::as_str),
-                            entity.sync_path,
-                            entity.sync_key,
-                            if entity.sync_managed { 1 } else { 0 },
-                        ],
-                    )?;
-                    tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
-                    tx.execute("DELETE FROM notes WHERE id = ?1", params![entity.id])?;
-                }
-                EntityType::Project => {
-                    tx.execute(
-                        r#"
-                        INSERT INTO projects (
-                            id, status, owner, source_kind, source_locator, sync_source_key,
-                            last_synced_at, last_sync_summary, path, title,
-                            created_at, updated_at, revision, archived
-                        )
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                        ON CONFLICT(id) DO UPDATE SET
-                            status = excluded.status,
-                            owner = excluded.owner,
-                            source_kind = excluded.source_kind,
-                            source_locator = excluded.source_locator,
-                            sync_source_key = excluded.sync_source_key,
-                            last_synced_at = excluded.last_synced_at,
-                            last_sync_summary = excluded.last_sync_summary,
-                            path = excluded.path,
-                            title = excluded.title,
-                            created_at = excluded.created_at,
-                            updated_at = excluded.updated_at,
-                            revision = excluded.revision,
-                            archived = excluded.archived
-                        "#,
-                        params![
-                            entity.id,
-                            entity.status,
-                            entity.owner,
-                            entity.source_kind.as_ref().map(ProjectSourceKind::as_str),
-                            entity.source_locator,
-                            entity.sync_source_key,
-                            entity.last_synced_at.map(|v| v.to_rfc3339()),
-                            entity.last_sync_summary,
-                            path,
-                            entity.title,
-                            entity.created_at.to_rfc3339(),
-                            entity.updated_at.to_rfc3339(),
-                            entity.revision,
-                            if entity.archived { 1 } else { 0 },
-                        ],
-                    )?;
-                    tx.execute("DELETE FROM tasks WHERE id = ?1", params![entity.id])?;
-                    tx.execute("DELETE FROM notes WHERE id = ?1", params![entity.id])?;
-                }
-                EntityType::Note => {
-                    tx.execute(
-                        r#"
-                        INSERT INTO notes (id, project_id, path, title, created_at, updated_at, revision, archived)
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                        ON CONFLICT(id) DO UPDATE SET
-                            project_id = excluded.project_id,
-                            path = excluded.path,
-                            title = excluded.title,
-                            created_at = excluded.created_at,
-                            updated_at = excluded.updated_at,
-                            revision = excluded.revision,
-                            archived = excluded.archived
-                        "#,
-                        params![
-                            entity.id,
-                            entity.project_id,
-                            path,
-                            entity.title,
-                            entity.created_at.to_rfc3339(),
-                            entity.updated_at.to_rfc3339(),
-                            entity.revision,
-                            if entity.archived { 1 } else { 0 },
-                        ],
-                    )?;
-                    tx.execute("DELETE FROM tasks WHERE id = ?1", params![entity.id])?;
-                    tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
-                }
+            for entity in entities {
+                upsert_indexed_entity_tx(&tx, entity)?;
             }
-
-            tx.execute(
-                r#"
-                INSERT INTO files (path, entity_id, entity_type, mtime, revision, indexed_at, archived)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                ON CONFLICT(path) DO UPDATE SET
-                    entity_id = excluded.entity_id,
-                    entity_type = excluded.entity_type,
-                    mtime = excluded.mtime,
-                    revision = excluded.revision,
-                    indexed_at = excluded.indexed_at,
-                    archived = excluded.archived
-                "#,
-                params![
-                    path,
-                    entity.id,
-                    entity.entity_type.as_str(),
-                    entity.updated_at.timestamp(),
-                    entity.revision,
-                    now,
-                    if entity.archived { 1 } else { 0 },
-                ],
-            )?;
-
-            tx.execute(
-                "DELETE FROM entity_links WHERE source_id = ?1",
-                params![entity.id],
-            )?;
-            for link in &entity.links {
-                tx.execute(
-                    r#"
-                    INSERT INTO entity_links (source_id, target_type, target_id, raw)
-                    VALUES (?1, ?2, ?3, ?4)
-                    "#,
-                    params![entity.id, link.target_type.as_str(), link.target_id, link.raw],
-                )?;
-            }
-
-            tx.execute(
-                "DELETE FROM fts_documents WHERE entity_id = ?1",
-                params![entity.id],
-            )?;
-            tx.execute(
-                "INSERT INTO fts_documents (entity_id, entity_type, title, body, tags) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![
-                    entity.id,
-                    entity.entity_type.as_str(),
-                    entity.title,
-                    entity.body,
-                    serde_json::to_string(&entity.tags)?
-                ],
-            )?;
-
             tx.commit()?;
             Ok(())
         })
@@ -752,36 +515,24 @@ impl Db {
     }
 
     pub fn record_activity(&self, draft: ActivityDraft) -> Result<String> {
-        let event_id = Ulid::new().to_string();
-        self.with_conn(|conn| {
-            conn.execute(
-                r#"
-                INSERT INTO activity_events (
-                    event_id, occurred_at, request_id, actor_kind, actor_id, action, entity_type, entity_id,
-                    file_path, before_revision, after_revision, summary, git_branch, git_commit
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                "#,
-                params![
-                    event_id,
-                    draft.occurred_at.to_rfc3339(),
-                    draft.request_id,
-                    draft.actor.kind,
-                    draft.actor.id,
-                    draft.action,
-                    draft.entity_type.map(|v| v.as_str().to_string()),
-                    draft.entity_id,
-                    draft.file_path,
-                    draft.before_revision,
-                    draft.after_revision,
-                    draft.summary,
-                    draft.git_branch,
-                    draft.git_commit,
-                ],
-            )?;
-            Ok(())
-        })?;
+        self.record_activities(vec![draft])?
+            .into_iter()
+            .next()
+            .context("batch activity insert returned no event ids")
+    }
 
-        Ok(event_id)
+    pub fn record_activities(&self, drafts: Vec<ActivityDraft>) -> Result<Vec<String>> {
+        self.with_conn_mut(|conn| {
+            let tx = conn.transaction()?;
+            let mut event_ids = Vec::with_capacity(drafts.len());
+            for draft in drafts {
+                let event_id = Ulid::new().to_string();
+                insert_activity_tx(&tx, &event_id, draft)?;
+                event_ids.push(event_id);
+            }
+            tx.commit()?;
+            Ok(event_ids)
+        })
     }
 
     pub fn all_entity_ids(&self) -> Result<Vec<String>> {
@@ -830,6 +581,301 @@ impl Db {
             .map_err(|_| anyhow::anyhow!("database mutex poisoned"))?;
         f(&mut conn)
     }
+}
+
+fn remove_by_path_tx(tx: &rusqlite::Transaction<'_>, path: &str) -> Result<()> {
+    let entity_id: Option<String> = tx
+        .query_row(
+            "SELECT entity_id FROM files WHERE path = ?1 LIMIT 1",
+            params![path],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    tx.execute("DELETE FROM files WHERE path = ?1", params![path])?;
+
+    if let Some(entity_id) = entity_id {
+        tx.execute(
+            "DELETE FROM entity_links WHERE source_id = ?1",
+            params![&entity_id],
+        )?;
+        tx.execute("DELETE FROM tasks WHERE id = ?1", params![&entity_id])?;
+        tx.execute("DELETE FROM projects WHERE id = ?1", params![&entity_id])?;
+        tx.execute("DELETE FROM notes WHERE id = ?1", params![&entity_id])?;
+        tx.execute("DELETE FROM entities WHERE id = ?1", params![&entity_id])?;
+        tx.execute(
+            "DELETE FROM fts_documents WHERE entity_id = ?1",
+            params![&entity_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEntity) -> Result<()> {
+    let path = entity.path.to_string_lossy().to_string();
+    let tags_json = serde_json::to_string(&entity.tags).context("failed serializing tags")?;
+    let now = Utc::now().to_rfc3339();
+
+    tx.execute(
+        r#"
+        INSERT INTO entities (
+            id, entity_type, title, path, body, project_id, status, priority, assignee, due_at,
+            owner, tags, created_at, updated_at, revision, archived
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+        ON CONFLICT(id) DO UPDATE SET
+            entity_type = excluded.entity_type,
+            title = excluded.title,
+            path = excluded.path,
+            body = excluded.body,
+            project_id = excluded.project_id,
+            status = excluded.status,
+            priority = excluded.priority,
+            assignee = excluded.assignee,
+            due_at = excluded.due_at,
+            owner = excluded.owner,
+            tags = excluded.tags,
+            created_at = excluded.created_at,
+            updated_at = excluded.updated_at,
+            revision = excluded.revision,
+            archived = excluded.archived
+        "#,
+        params![
+            entity.id,
+            entity.entity_type.as_str(),
+            entity.title,
+            path,
+            entity.body,
+            entity.project_id,
+            entity.status,
+            entity.priority,
+            entity.assignee,
+            entity.due_at.map(|v| v.to_rfc3339()),
+            entity.owner,
+            tags_json,
+            entity.created_at.to_rfc3339(),
+            entity.updated_at.to_rfc3339(),
+            entity.revision,
+            if entity.archived { 1 } else { 0 },
+        ],
+    )?;
+
+    match entity.entity_type {
+        EntityType::Task => {
+            tx.execute(
+                r#"
+                INSERT INTO tasks (
+                    id, project_id, status, priority, assignee, due_at, path, title,
+                    created_at, updated_at, revision, archived, sort_order, completed_at,
+                    sync_kind, sync_path, sync_key, sync_managed
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+                ON CONFLICT(id) DO UPDATE SET
+                    project_id = excluded.project_id,
+                    status = excluded.status,
+                    priority = excluded.priority,
+                    assignee = excluded.assignee,
+                    due_at = excluded.due_at,
+                    path = excluded.path,
+                    title = excluded.title,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at,
+                    revision = excluded.revision,
+                    archived = excluded.archived,
+                    sort_order = excluded.sort_order,
+                    completed_at = excluded.completed_at,
+                    sync_kind = excluded.sync_kind,
+                    sync_path = excluded.sync_path,
+                    sync_key = excluded.sync_key,
+                    sync_managed = excluded.sync_managed
+                "#,
+                params![
+                    entity.id,
+                    entity.project_id,
+                    entity.status,
+                    entity.priority,
+                    entity.assignee,
+                    entity.due_at.map(|v| v.to_rfc3339()),
+                    path,
+                    entity.title,
+                    entity.created_at.to_rfc3339(),
+                    entity.updated_at.to_rfc3339(),
+                    entity.revision,
+                    if entity.archived { 1 } else { 0 },
+                    entity.sort_order,
+                    entity.completed_at.map(|v| v.to_rfc3339()),
+                    entity.sync_kind.as_ref().map(TaskSyncKind::as_str),
+                    entity.sync_path,
+                    entity.sync_key,
+                    if entity.sync_managed { 1 } else { 0 },
+                ],
+            )?;
+            tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
+            tx.execute("DELETE FROM notes WHERE id = ?1", params![entity.id])?;
+        }
+        EntityType::Project => {
+            tx.execute(
+                r#"
+                INSERT INTO projects (
+                    id, status, owner, source_kind, source_locator, sync_source_key,
+                    last_synced_at, last_sync_summary, path, title,
+                    created_at, updated_at, revision, archived
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                ON CONFLICT(id) DO UPDATE SET
+                    status = excluded.status,
+                    owner = excluded.owner,
+                    source_kind = excluded.source_kind,
+                    source_locator = excluded.source_locator,
+                    sync_source_key = excluded.sync_source_key,
+                    last_synced_at = excluded.last_synced_at,
+                    last_sync_summary = excluded.last_sync_summary,
+                    path = excluded.path,
+                    title = excluded.title,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at,
+                    revision = excluded.revision,
+                    archived = excluded.archived
+                "#,
+                params![
+                    entity.id,
+                    entity.status,
+                    entity.owner,
+                    entity.source_kind.as_ref().map(ProjectSourceKind::as_str),
+                    entity.source_locator,
+                    entity.sync_source_key,
+                    entity.last_synced_at.map(|v| v.to_rfc3339()),
+                    entity.last_sync_summary,
+                    path,
+                    entity.title,
+                    entity.created_at.to_rfc3339(),
+                    entity.updated_at.to_rfc3339(),
+                    entity.revision,
+                    if entity.archived { 1 } else { 0 },
+                ],
+            )?;
+            tx.execute("DELETE FROM tasks WHERE id = ?1", params![entity.id])?;
+            tx.execute("DELETE FROM notes WHERE id = ?1", params![entity.id])?;
+        }
+        EntityType::Note => {
+            tx.execute(
+                r#"
+                INSERT INTO notes (id, project_id, path, title, created_at, updated_at, revision, archived)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                ON CONFLICT(id) DO UPDATE SET
+                    project_id = excluded.project_id,
+                    path = excluded.path,
+                    title = excluded.title,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at,
+                    revision = excluded.revision,
+                    archived = excluded.archived
+                "#,
+                params![
+                    entity.id,
+                    entity.project_id,
+                    path,
+                    entity.title,
+                    entity.created_at.to_rfc3339(),
+                    entity.updated_at.to_rfc3339(),
+                    entity.revision,
+                    if entity.archived { 1 } else { 0 },
+                ],
+            )?;
+            tx.execute("DELETE FROM tasks WHERE id = ?1", params![entity.id])?;
+            tx.execute("DELETE FROM projects WHERE id = ?1", params![entity.id])?;
+        }
+    }
+
+    tx.execute(
+        r#"
+        INSERT INTO files (path, entity_id, entity_type, mtime, revision, indexed_at, archived)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        ON CONFLICT(path) DO UPDATE SET
+            entity_id = excluded.entity_id,
+            entity_type = excluded.entity_type,
+            mtime = excluded.mtime,
+            revision = excluded.revision,
+            indexed_at = excluded.indexed_at,
+            archived = excluded.archived
+        "#,
+        params![
+            path,
+            entity.id,
+            entity.entity_type.as_str(),
+            entity.updated_at.timestamp(),
+            entity.revision,
+            now,
+            if entity.archived { 1 } else { 0 },
+        ],
+    )?;
+
+    tx.execute(
+        "DELETE FROM entity_links WHERE source_id = ?1",
+        params![entity.id],
+    )?;
+    for link in &entity.links {
+        tx.execute(
+            r#"
+            INSERT INTO entity_links (source_id, target_type, target_id, raw)
+            VALUES (?1, ?2, ?3, ?4)
+            "#,
+            params![
+                entity.id,
+                link.target_type.as_str(),
+                link.target_id,
+                link.raw
+            ],
+        )?;
+    }
+
+    tx.execute(
+        "DELETE FROM fts_documents WHERE entity_id = ?1",
+        params![entity.id],
+    )?;
+    tx.execute(
+        "INSERT INTO fts_documents (entity_id, entity_type, title, body, tags) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            entity.id,
+            entity.entity_type.as_str(),
+            entity.title,
+            entity.body,
+            serde_json::to_string(&entity.tags)?
+        ],
+    )?;
+
+    Ok(())
+}
+
+fn insert_activity_tx(
+    tx: &rusqlite::Transaction<'_>,
+    event_id: &str,
+    draft: ActivityDraft,
+) -> Result<()> {
+    tx.execute(
+        r#"
+        INSERT INTO activity_events (
+            event_id, occurred_at, request_id, actor_kind, actor_id, action, entity_type, entity_id,
+            file_path, before_revision, after_revision, summary, git_branch, git_commit
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+        "#,
+        params![
+            event_id,
+            draft.occurred_at.to_rfc3339(),
+            draft.request_id,
+            draft.actor.kind,
+            draft.actor.id,
+            draft.action,
+            draft.entity_type.map(|v| v.as_str().to_string()),
+            draft.entity_id,
+            draft.file_path,
+            draft.before_revision,
+            draft.after_revision,
+            draft.summary,
+            draft.git_branch,
+            draft.git_commit,
+        ],
+    )?;
+    Ok(())
 }
 
 fn sanitize_fts_query(raw: &str) -> String {

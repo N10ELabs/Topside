@@ -11,6 +11,7 @@ The goal is not to become another generic agent dashboard. The goal is to make p
 V0 foundation implemented:
 - Rust single binary (`n10e`)
 - Commands: `init`, `serve`, `open`, `bundle-app`, `reindex`, `import`, `doctor`, `bench`
+- Warm local MCP daemon (`daemon`) auto-started by `mcp`, `open`, and `serve`
 - Markdown frontmatter schemas for `task`, `project`, `note`
 - SQLite migrations, FTS5 search, reverse wiki-link indexing
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
@@ -53,6 +54,7 @@ n10e --workspace <PATH> import <SOURCE_PATH>
 n10e --workspace <PATH> doctor
 n10e --workspace <PATH> bench --iterations 200 --query task
 n10e --workspace <PATH> seed-bench --count 5000
+n10e --workspace <PATH> daemon
 n10e --workspace <PATH> mcp
 ```
 

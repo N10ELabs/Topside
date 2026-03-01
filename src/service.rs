@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -9,7 +10,7 @@ use ulid::Ulid;
 use crate::activity::ActivityDraft;
 use crate::config::AppConfig;
 use crate::db::Db;
-use crate::git::read_git_context;
+use crate::git::{GitContext, read_git_context};
 use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
 use crate::repo_sync::{derive_sync_source_key, render_synced_task_body, scan_repo_todo_files};
@@ -38,11 +39,25 @@ impl ServiceError {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TaskUpdateRequest {
+    pub id: String,
+    pub expected_revision: String,
+    pub patch: TaskPatch,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArchiveEntityRequest {
+    pub id: String,
+    pub expected_revision: String,
+}
+
 #[derive(Clone)]
 pub struct AppService {
     pub config: AppConfig,
     pub db: Db,
     pub indexer: Arc<Indexer>,
+    git_context_cache: Arc<Mutex<Option<GitContextCacheEntry>>>,
 }
 
 impl AppService {
@@ -61,6 +76,7 @@ impl AppService {
             config,
             db,
             indexer,
+            git_context_cache: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -293,74 +309,128 @@ impl AppService {
         payload: CreateTaskPayload,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        self.ensure_project_exists(&payload.project_id)?;
-        let next_sort_order = match payload.sort_order {
-            Some(sort_order) => sort_order,
-            None => self.next_task_sort_order(&payload.project_id)?,
-        };
-
-        let now = Utc::now();
-        let id = format!("{}_{}", EntityType::Task.prefix(), Ulid::new());
-        let title_slug = slugify(&payload.title);
-        let path = self
-            .config
-            .tasks_dir()
-            .join(&payload.project_id)
-            .join(format!("{id}-{title_slug}.md"));
-        self.config.ensure_within_workspace(&path)?;
-
-        let status = payload.status.unwrap_or_default();
-        let completed_at = if status == TaskStatus::Done {
-            Some(now)
-        } else {
-            None
-        };
-
-        let mut fm = EntityFrontmatter::Task(TaskFrontmatter {
-            id: id.clone(),
-            entity_type: EntityType::Task,
-            title: payload.title,
-            project_id: payload.project_id,
-            status,
-            priority: payload.priority.unwrap_or_default(),
-            assignee: payload
-                .assignee
-                .unwrap_or_else(|| "agent:unassigned".to_string()),
-            due_at: payload.due_at,
-            sort_order: next_sort_order,
-            completed_at,
-            sync_kind: payload.sync_kind,
-            sync_path: payload.sync_path,
-            sync_key: payload.sync_key,
-            sync_managed: payload.sync_managed.unwrap_or(false),
-            tags: payload.tags,
-            created_at: now,
-            updated_at: now,
-            revision: String::new(),
-        });
-
-        let body = payload.body.unwrap_or_default();
-        let content = render_entity_markdown(&mut fm, &body)?;
-        atomic_write(&path, &content)?;
-        let indexed = self.indexer.index_file(&path)?;
-
-        self.record_entity_activity(
-            actor,
-            EntityActivityMeta {
-                action: "create_task",
-                entity_type: indexed.entity_type,
-                entity_id: &indexed.id,
-                path: &path,
-                before_revision: None,
-                after_revision: Some(indexed.revision.clone()),
-                summary: "Created task",
-            },
-        )?;
-
-        self.db
-            .read_entity_snapshot(&id)?
-            .context("created task not found after indexing")
+        self.create_tasks(vec![payload], actor)?
+            .into_iter()
+            .next()
+            .context("created task missing from batch result")
             .map_err(ServiceError::Other)
+    }
+
+    pub fn create_tasks(
+        &self,
+        payloads: Vec<CreateTaskPayload>,
+        actor: Actor,
+    ) -> Result<Vec<EntitySnapshot>, ServiceError> {
+        if payloads.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut next_sort_orders = std::collections::HashMap::<String, i64>::new();
+        let mut pending = Vec::with_capacity(payloads.len());
+        let mut paths = Vec::with_capacity(payloads.len());
+
+        for payload in payloads {
+            let next_sort_order = match next_sort_orders.entry(payload.project_id.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    self.ensure_project_exists(&payload.project_id)?;
+                    entry.insert(self.next_task_sort_order(&payload.project_id)?)
+                }
+            };
+
+            let assigned_sort_order = match payload.sort_order {
+                Some(sort_order) => {
+                    if sort_order >= *next_sort_order {
+                        *next_sort_order = sort_order + 1;
+                    }
+                    sort_order
+                }
+                None => {
+                    let sort_order = *next_sort_order;
+                    *next_sort_order += 1;
+                    sort_order
+                }
+            };
+
+            let now = Utc::now();
+            let id = format!("{}_{}", EntityType::Task.prefix(), Ulid::new());
+            let title_slug = slugify(&payload.title);
+            let path = self
+                .config
+                .tasks_dir()
+                .join(&payload.project_id)
+                .join(format!("{id}-{title_slug}.md"));
+            self.config.ensure_within_workspace(&path)?;
+
+            let status = payload.status.unwrap_or_default();
+            let completed_at = if status == TaskStatus::Done {
+                Some(now)
+            } else {
+                None
+            };
+
+            let mut frontmatter = EntityFrontmatter::Task(TaskFrontmatter {
+                id,
+                entity_type: EntityType::Task,
+                title: payload.title,
+                project_id: payload.project_id,
+                status,
+                priority: payload.priority.unwrap_or_default(),
+                assignee: payload
+                    .assignee
+                    .unwrap_or_else(|| "agent:unassigned".to_string()),
+                due_at: payload.due_at,
+                sort_order: assigned_sort_order,
+                completed_at,
+                sync_kind: payload.sync_kind,
+                sync_path: payload.sync_path,
+                sync_key: payload.sync_key,
+                sync_managed: payload.sync_managed.unwrap_or(false),
+                tags: payload.tags,
+                created_at: now,
+                updated_at: now,
+                revision: String::new(),
+            });
+
+            let body = payload.body.unwrap_or_default();
+            let content = render_entity_markdown(&mut frontmatter, &body)?;
+            atomic_write(&path, &content)?;
+
+            paths.push(path.clone());
+            pending.push(PendingMutation {
+                path,
+                body,
+                frontmatter,
+                before_revision: None,
+                archived: false,
+            });
+        }
+
+        let indexed = self.indexer.index_files(&paths)?;
+        let mut created = Vec::with_capacity(indexed.len());
+        let mut activity = Vec::with_capacity(indexed.len());
+        for (pending, indexed) in pending.into_iter().zip(indexed) {
+            let revision = indexed.revision.clone();
+            activity.push(OwnedEntityActivityMeta {
+                action: "create_task",
+                entity_type: EntityType::Task,
+                entity_id: pending.frontmatter.id().to_string(),
+                path: pending.path.clone(),
+                before_revision: None,
+                after_revision: Some(revision.clone()),
+                summary: "Created task",
+            });
+            created.push(snapshot_from_parts(
+                &pending.path,
+                pending.body,
+                pending.frontmatter,
+                revision,
+                pending.archived,
+            ));
+        }
+
+        self.record_entity_activities(&actor, activity)?;
+        Ok(created)
     }
 
     pub fn create_note(
@@ -426,74 +496,117 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        let (record, parsed) = self
-            .db
-            .parse_entity_from_disk(id)?
-            .context("task not found")?;
-
-        if record.entity_type != EntityType::Task {
-            return Err(anyhow::anyhow!("entity {id} is not a task").into());
-        }
-
-        self.enforce_revision(expected_revision, &parsed)?;
-
-        let (mut frontmatter, mut body) = split_task(parsed.frontmatter, parsed.body)?;
-
-        if let Some(value) = patch.title {
-            frontmatter.title = value;
-        }
-        if let Some(value) = patch.status {
-            if value == TaskStatus::Done && frontmatter.status != TaskStatus::Done {
-                frontmatter.completed_at = Some(Utc::now());
-            } else if value != TaskStatus::Done && frontmatter.status == TaskStatus::Done {
-                frontmatter.completed_at = None;
-            }
-            frontmatter.status = value;
-        }
-        if let Some(value) = patch.priority {
-            frontmatter.priority = value;
-        }
-        if let Some(value) = patch.assignee {
-            frontmatter.assignee = value;
-        }
-        if let Some(value) = patch.due_at {
-            frontmatter.due_at = parse_optional_datetime(&value)?;
-        }
-        if let Some(value) = patch.sort_order {
-            frontmatter.sort_order = value;
-        }
-        if let Some(value) = patch.tags {
-            frontmatter.tags = Some(value);
-        }
-        if let Some(value) = patch.body {
-            body = value;
-        }
-
-        frontmatter.updated_at = Utc::now();
-
-        let before = record.revision.clone();
-        let mut entity = EntityFrontmatter::Task(frontmatter);
-        let rendered = render_entity_markdown(&mut entity, &body)?;
-        atomic_write(&record.path, &rendered)?;
-        let indexed = self.indexer.index_file(&record.path)?;
-
-        self.record_entity_activity(
+        self.update_tasks(
+            vec![TaskUpdateRequest {
+                id: id.to_string(),
+                expected_revision: expected_revision.to_string(),
+                patch,
+            }],
             actor,
-            EntityActivityMeta {
+        )?
+        .into_iter()
+        .next()
+        .context("updated task missing from batch result")
+        .map_err(ServiceError::Other)
+    }
+
+    pub fn update_tasks(
+        &self,
+        updates: Vec<TaskUpdateRequest>,
+        actor: Actor,
+    ) -> Result<Vec<EntitySnapshot>, ServiceError> {
+        if updates.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut pending = Vec::with_capacity(updates.len());
+        let mut paths = Vec::with_capacity(updates.len());
+
+        for update in updates {
+            let (record, parsed) = self
+                .db
+                .parse_entity_from_disk(&update.id)?
+                .context("task not found")?;
+
+            if record.entity_type != EntityType::Task {
+                return Err(anyhow::anyhow!("entity {} is not a task", update.id).into());
+            }
+
+            self.enforce_revision(&update.expected_revision, &parsed)?;
+
+            let (mut frontmatter, mut body) = split_task(parsed.frontmatter, parsed.body)?;
+
+            if let Some(value) = update.patch.title {
+                frontmatter.title = value;
+            }
+            if let Some(value) = update.patch.status {
+                if value == TaskStatus::Done && frontmatter.status != TaskStatus::Done {
+                    frontmatter.completed_at = Some(Utc::now());
+                } else if value != TaskStatus::Done && frontmatter.status == TaskStatus::Done {
+                    frontmatter.completed_at = None;
+                }
+                frontmatter.status = value;
+            }
+            if let Some(value) = update.patch.priority {
+                frontmatter.priority = value;
+            }
+            if let Some(value) = update.patch.assignee {
+                frontmatter.assignee = value;
+            }
+            if let Some(value) = update.patch.due_at {
+                frontmatter.due_at = parse_optional_datetime(&value)?;
+            }
+            if let Some(value) = update.patch.sort_order {
+                frontmatter.sort_order = value;
+            }
+            if let Some(value) = update.patch.tags {
+                frontmatter.tags = Some(value);
+            }
+            if let Some(value) = update.patch.body {
+                body = value;
+            }
+
+            frontmatter.updated_at = Utc::now();
+
+            let mut entity = EntityFrontmatter::Task(frontmatter);
+            let rendered = render_entity_markdown(&mut entity, &body)?;
+            atomic_write(&record.path, &rendered)?;
+
+            paths.push(record.path.clone());
+            pending.push(PendingMutation {
+                path: record.path,
+                body,
+                frontmatter: entity,
+                before_revision: Some(record.revision),
+                archived: false,
+            });
+        }
+
+        let indexed = self.indexer.index_files(&paths)?;
+        let mut out = Vec::with_capacity(indexed.len());
+        let mut activity = Vec::with_capacity(indexed.len());
+        for (pending, indexed) in pending.into_iter().zip(indexed) {
+            let revision = indexed.revision.clone();
+            activity.push(OwnedEntityActivityMeta {
                 action: "update_task",
                 entity_type: EntityType::Task,
-                entity_id: id,
-                path: &record.path,
-                before_revision: Some(before),
-                after_revision: Some(indexed.revision.clone()),
+                entity_id: pending.frontmatter.id().to_string(),
+                path: pending.path.clone(),
+                before_revision: pending.before_revision,
+                after_revision: Some(revision.clone()),
                 summary: "Updated task",
-            },
-        )?;
+            });
+            out.push(snapshot_from_parts(
+                &pending.path,
+                pending.body,
+                pending.frontmatter,
+                revision,
+                pending.archived,
+            ));
+        }
 
-        self.db
-            .read_entity_snapshot(id)?
-            .context("updated task not found after indexing")
-            .map_err(ServiceError::Other)
+        self.record_entity_activities(&actor, activity)?;
+        Ok(out)
     }
 
     pub fn update_note(
@@ -698,6 +811,8 @@ impl AppService {
 
         let mut created = 0usize;
         let mut updated = 0usize;
+        let mut pending_creates = Vec::new();
+        let mut pending_updates = Vec::new();
 
         for candidate in &scan.task_candidates {
             let desired_status = if candidate.completed {
@@ -721,34 +836,52 @@ impl AppService {
                 }
 
                 if changed {
-                    self.update_task(&existing.id, patch, &existing.revision, actor.clone())?;
-                    updated += 1;
+                    if !pending_creates.is_empty() {
+                        created += self
+                            .create_tasks(std::mem::take(&mut pending_creates), actor.clone())?
+                            .len();
+                    }
+
+                    pending_updates.push(TaskUpdateRequest {
+                        id: existing.id.clone(),
+                        expected_revision: existing.revision.clone(),
+                        patch,
+                    });
                 }
                 continue;
             }
 
-            self.create_task(
-                CreateTaskPayload {
-                    title: candidate.title.clone(),
-                    project_id: project_id.to_string(),
-                    status: Some(desired_status),
-                    priority: Some(TaskPriority::P2),
-                    assignee: Some("agent:unassigned".to_string()),
-                    due_at: None,
-                    sort_order: None,
-                    sync_kind: Some(TaskSyncKind::RepoMarkdown),
-                    sync_path: Some(candidate.relative_path.clone()),
-                    sync_key: Some(candidate.sync_key.clone()),
-                    sync_managed: Some(true),
-                    tags: None,
-                    body: Some(render_synced_task_body(
-                        &candidate.relative_path,
-                        &candidate.section_path,
-                    )),
-                },
-                actor.clone(),
-            )?;
-            created += 1;
+            if !pending_updates.is_empty() {
+                updated += self
+                    .update_tasks(std::mem::take(&mut pending_updates), actor.clone())?
+                    .len();
+            }
+
+            pending_creates.push(CreateTaskPayload {
+                title: candidate.title.clone(),
+                project_id: project_id.to_string(),
+                status: Some(desired_status),
+                priority: Some(TaskPriority::P2),
+                assignee: Some("agent:unassigned".to_string()),
+                due_at: None,
+                sort_order: None,
+                sync_kind: Some(TaskSyncKind::RepoMarkdown),
+                sync_path: Some(candidate.relative_path.clone()),
+                sync_key: Some(candidate.sync_key.clone()),
+                sync_managed: Some(true),
+                tags: None,
+                body: Some(render_synced_task_body(
+                    &candidate.relative_path,
+                    &candidate.section_path,
+                )),
+            });
+        }
+
+        if !pending_updates.is_empty() {
+            updated += self.update_tasks(pending_updates, actor.clone())?.len();
+        }
+        if !pending_creates.is_empty() {
+            created += self.create_tasks(pending_creates, actor.clone())?.len();
         }
 
         let synced_at = Utc::now();
@@ -761,9 +894,6 @@ impl AppService {
         );
         let source_key = derive_sync_source_key(source_kind.as_str(), &source_locator);
 
-        let project_snapshot = self
-            .read_entity(project_id)?
-            .context("project not found during sync")?;
         self.update_project(
             project_id,
             ProjectPatch {
@@ -772,7 +902,7 @@ impl AppService {
                 last_sync_summary: Some(Some(summary.clone())),
                 ..ProjectPatch::default()
             },
-            &project_snapshot.revision,
+            &project.revision,
             actor,
         )?;
 
@@ -793,64 +923,123 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        let record = self.db.get_entity_record(id)?.context("entity not found")?;
+        self.archive_entities(
+            vec![ArchiveEntityRequest {
+                id: id.to_string(),
+                expected_revision: expected_revision.to_string(),
+            }],
+            actor,
+        )?
+        .into_iter()
+        .next()
+        .context("archived entity missing from batch result")
+        .map_err(ServiceError::Other)
+    }
 
-        let raw = std::fs::read_to_string(&record.path)
-            .with_context(|| format!("failed reading {}", record.path.display()))?;
-        let parsed = parse_entity_markdown(&raw)?;
-        self.enforce_revision(expected_revision, &parsed)?;
-
-        let archive_dir = self.config.archive_dir().join(record.entity_type.as_str());
-        std::fs::create_dir_all(&archive_dir)
-            .with_context(|| format!("failed creating {}", archive_dir.display()))?;
-
-        let file_name = record
-            .path
-            .file_name()
-            .and_then(|v| v.to_str())
-            .map(ToString::to_string)
-            .unwrap_or_else(|| format!("{}-{}.md", record.id, Ulid::new()));
-
-        let mut target = archive_dir.join(&file_name);
-        if target.exists() {
-            target = archive_dir.join(format!("{}-{}", Ulid::new(), file_name));
+    pub fn archive_entities(
+        &self,
+        requests: Vec<ArchiveEntityRequest>,
+        actor: Actor,
+    ) -> Result<Vec<EntitySnapshot>, ServiceError> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
         }
 
-        self.config.ensure_within_workspace(&target)?;
-        std::fs::rename(&record.path, &target).with_context(|| {
-            format!(
-                "failed moving {} to {}",
-                record.path.display(),
-                target.display()
-            )
-        })?;
+        let mut pending = Vec::with_capacity(requests.len());
+        let mut removed_paths = Vec::with_capacity(requests.len());
+        let mut target_paths = Vec::with_capacity(requests.len());
 
-        self.indexer.remove_path(&record.path)?;
-        let indexed = self.indexer.index_file(&target)?;
+        for request in requests {
+            let record = self
+                .db
+                .get_entity_record(&request.id)?
+                .context("entity not found")?;
 
-        self.record_entity_activity(
-            actor,
-            EntityActivityMeta {
-                action: "archive_entity",
-                entity_type: record.entity_type,
-                entity_id: &record.id,
-                path: &target,
+            let raw = std::fs::read_to_string(&record.path)
+                .with_context(|| format!("failed reading {}", record.path.display()))?;
+            let parsed = parse_entity_markdown(&raw)?;
+            self.enforce_revision(&request.expected_revision, &parsed)?;
+            let ParsedEntity {
+                frontmatter,
+                body,
+                revision: _,
+                links: _,
+            } = parsed;
+
+            let archive_dir = self.config.archive_dir().join(record.entity_type.as_str());
+            std::fs::create_dir_all(&archive_dir)
+                .with_context(|| format!("failed creating {}", archive_dir.display()))?;
+
+            let file_name = record
+                .path
+                .file_name()
+                .and_then(|v| v.to_str())
+                .map(ToString::to_string)
+                .unwrap_or_else(|| format!("{}-{}.md", record.id, Ulid::new()));
+
+            let mut target = archive_dir.join(&file_name);
+            if target.exists() {
+                target = archive_dir.join(format!("{}-{}", Ulid::new(), file_name));
+            }
+
+            self.config.ensure_within_workspace(&target)?;
+            std::fs::rename(&record.path, &target).with_context(|| {
+                format!(
+                    "failed moving {} to {}",
+                    record.path.display(),
+                    target.display()
+                )
+            })?;
+
+            removed_paths.push(record.path);
+            target_paths.push(target.clone());
+            pending.push(PendingMutation {
+                path: target,
+                body,
+                frontmatter,
                 before_revision: Some(record.revision),
-                after_revision: Some(indexed.revision),
-                summary: "Archived entity",
-            },
-        )?;
+                archived: true,
+            });
+        }
 
-        self.db
-            .read_entity_snapshot(id)?
-            .context("archived entity not found after indexing")
-            .map_err(ServiceError::Other)
+        self.db.remove_paths(&removed_paths)?;
+        let indexed = self.indexer.index_files(&target_paths)?;
+        let mut archived = Vec::with_capacity(indexed.len());
+        let mut activity = Vec::with_capacity(indexed.len());
+        for (pending, indexed) in pending.into_iter().zip(indexed) {
+            let revision = indexed.revision.clone();
+            activity.push(OwnedEntityActivityMeta {
+                action: "archive_entity",
+                entity_type: indexed.entity_type,
+                entity_id: pending.frontmatter.id().to_string(),
+                path: pending.path.clone(),
+                before_revision: pending.before_revision,
+                after_revision: Some(revision.clone()),
+                summary: "Archived entity",
+            });
+            archived.push(snapshot_from_parts(
+                &pending.path,
+                pending.body,
+                pending.frontmatter,
+                revision,
+                pending.archived,
+            ));
+        }
+
+        self.record_entity_activities(&actor, activity)?;
+        Ok(archived)
     }
 
     fn next_task_sort_order(&self, project_id: &str) -> Result<i64, ServiceError> {
-        let workspace = self.load_project_workspace(project_id)?;
-        let next = workspace
-            .active_tasks
+        let tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+        let next = tasks
             .iter()
             .map(effective_task_sort_order)
             .max()
@@ -881,14 +1070,24 @@ impl AppService {
             return Err(anyhow::anyhow!("reorder payload did not match active task set").into());
         }
 
+        let current_sort_orders = workspace
+            .active_tasks
+            .iter()
+            .map(|task| (task.id.clone(), effective_task_sort_order(task)))
+            .collect::<std::collections::HashMap<_, _>>();
         let now = Utc::now();
         for (index, task_id) in ordered_active_task_ids.iter().enumerate() {
+            let desired_sort_order = (index as i64) + 1;
+            if current_sort_orders.get(task_id).copied() == Some(desired_sort_order) {
+                continue;
+            }
+
             let (record, parsed) = self
                 .db
                 .parse_entity_from_disk(task_id)?
                 .context("task not found during reorder")?;
             let (mut frontmatter, body) = split_task(parsed.frontmatter, parsed.body)?;
-            frontmatter.sort_order = (index as i64) + 1;
+            frontmatter.sort_order = desired_sort_order;
             frontmatter.updated_at = now;
             let mut entity = EntityFrontmatter::Task(frontmatter);
             let rendered = render_entity_markdown(&mut entity, &body)?;
@@ -939,7 +1138,7 @@ impl AppService {
     }
 
     fn record_entity_activity(&self, actor: Actor, meta: EntityActivityMeta<'_>) -> Result<()> {
-        let git = read_git_context(&self.config.workspace_root);
+        let git = self.cached_git_context();
         let draft = ActivityDraft::new(actor, meta.action, meta.summary)
             .with_entity(meta.entity_type, meta.entity_id.to_string())
             .with_path(meta.path.to_string_lossy().to_string())
@@ -947,6 +1146,51 @@ impl AppService {
             .with_git(git.branch, git.commit);
         self.db.record_activity(draft)?;
         Ok(())
+    }
+
+    fn record_entity_activities(
+        &self,
+        actor: &Actor,
+        metas: Vec<OwnedEntityActivityMeta>,
+    ) -> Result<(), ServiceError> {
+        if metas.is_empty() {
+            return Ok(());
+        }
+
+        let git = self.cached_git_context();
+        let drafts = metas
+            .into_iter()
+            .map(|meta| {
+                ActivityDraft::new(actor.clone(), meta.action, meta.summary)
+                    .with_entity(meta.entity_type, meta.entity_id)
+                    .with_path(meta.path.to_string_lossy().to_string())
+                    .with_revisions(meta.before_revision, meta.after_revision)
+                    .with_git(git.branch.clone(), git.commit.clone())
+            })
+            .collect::<Vec<_>>();
+        self.db.record_activities(drafts)?;
+        Ok(())
+    }
+
+    fn cached_git_context(&self) -> GitContext {
+        let now = Instant::now();
+        let mut cache = match self.git_context_cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
+        if let Some(entry) = cache.as_ref() {
+            if now.duration_since(entry.captured_at) <= GIT_CONTEXT_CACHE_TTL {
+                return entry.context.clone();
+            }
+        }
+
+        let context = read_git_context(&self.config.workspace_root);
+        *cache = Some(GitContextCacheEntry {
+            captured_at: now,
+            context: context.clone(),
+        });
+        context
     }
 }
 
@@ -958,6 +1202,31 @@ struct EntityActivityMeta<'a> {
     before_revision: Option<String>,
     after_revision: Option<String>,
     summary: &'a str,
+}
+
+struct OwnedEntityActivityMeta {
+    action: &'static str,
+    entity_type: EntityType,
+    entity_id: String,
+    path: PathBuf,
+    before_revision: Option<String>,
+    after_revision: Option<String>,
+    summary: &'static str,
+}
+
+struct PendingMutation {
+    path: PathBuf,
+    body: String,
+    frontmatter: EntityFrontmatter,
+    before_revision: Option<String>,
+    archived: bool,
+}
+
+const GIT_CONTEXT_CACHE_TTL: Duration = Duration::from_secs(2);
+
+struct GitContextCacheEntry {
+    captured_at: Instant,
+    context: GitContext,
 }
 
 #[derive(Debug, Clone)]
@@ -1041,4 +1310,23 @@ fn atomic_write(path: &Path, content: &str) -> Result<()> {
         .with_context(|| format!("failed renaming {} -> {}", tmp.display(), path.display()))?;
 
     Ok(())
+}
+
+fn snapshot_from_parts(
+    path: &Path,
+    body: String,
+    frontmatter: EntityFrontmatter,
+    revision: String,
+    archived: bool,
+) -> EntitySnapshot {
+    EntitySnapshot {
+        id: frontmatter.id().to_string(),
+        entity_type: frontmatter.entity_type(),
+        title: frontmatter.title().to_string(),
+        path: path.to_string_lossy().to_string(),
+        body,
+        frontmatter,
+        revision,
+        archived,
+    }
 }

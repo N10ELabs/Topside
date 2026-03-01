@@ -35,11 +35,13 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/projects/{id}/sync", post(api_sync_project))
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
+        .route("/api/tasks/archive", post(api_archive_tasks))
         .route("/api/tasks/{id}", patch(api_update_task))
         .route("/api/tasks/{id}/archive", post(api_archive_task))
         .route("/api/tasks/reorder", post(api_reorder_tasks))
         .route("/api/notes", post(api_create_note))
         .route("/api/notes/{id}", patch(api_update_note))
+        .route("/api/notes/{id}/archive", post(api_archive_note))
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
         .with_state(state)
@@ -165,6 +167,18 @@ struct UpdateProjectRequest {
 struct ReorderTasksRequest {
     project_id: String,
     ordered_active_task_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ArchiveTasksRequest {
+    project_id: String,
+    tasks: Vec<ArchiveTaskItemRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ArchiveTaskItemRequest {
+    id: String,
+    expected_revision: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -469,6 +483,46 @@ async fn api_archive_task(
     }))
 }
 
+async fn api_archive_tasks(
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ArchiveTasksRequest>,
+) -> ApiResult<TaskMutationResponse> {
+    let project_id = request.project_id.trim();
+    if project_id.is_empty() {
+        return Err(bad_request_json("project_id is required"));
+    }
+    if request.tasks.is_empty() {
+        return Err(bad_request_json("at least one task is required"));
+    }
+
+    for task in &request.tasks {
+        let task_id = task.id.trim();
+        if task_id.is_empty() {
+            return Err(bad_request_json("task id is required"));
+        }
+
+        let expected_revision = task.expected_revision.trim();
+        if expected_revision.is_empty() {
+            return Err(bad_request_json("expected_revision is required"));
+        }
+
+        state
+            .service
+            .archive_entity(task_id, expected_revision, Actor::human("operator"))
+            .map_err(map_service_err_json)?;
+    }
+
+    let workspace = state
+        .service
+        .load_project_workspace(project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(TaskMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_task_id: None,
+    }))
+}
+
 async fn api_create_note(
     State(state): State<Arc<WebState>>,
     Json(request): Json<CreateNoteRequest>,
@@ -528,6 +582,32 @@ async fn api_update_note(
         .project_id()
         .map(ToString::to_string)
         .ok_or_else(|| bad_request_json("updated note was missing project_id"))?;
+    let workspace = state
+        .service
+        .load_project_workspace(&project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(NoteMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_note_id: None,
+    }))
+}
+
+async fn api_archive_note(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<NoteMutationResponse> {
+    let archived = state
+        .service
+        .archive_entity(&id, &request.expected_revision, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let project_id = archived
+        .frontmatter
+        .project_id()
+        .map(ToString::to_string)
+        .ok_or_else(|| bad_request_json("archived note was missing project_id"))?;
     let workspace = state
         .service
         .load_project_workspace(&project_id)

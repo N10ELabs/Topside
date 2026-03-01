@@ -19,3 +19,8 @@ mkdir -p .dev-workspace
 cargo run -- init .dev-workspace
 cargo run -- --workspace .dev-workspace dev
 '''
+
+[[actions]]
+name = "App Shell"
+icon = "tool"
+command = "cargo run -- --workspace \"/Users/anthonymarti/Desktop/N10E LABS Code/n10e-01\" open"

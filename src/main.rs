@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -15,7 +17,10 @@ use n10e::desktop::{run_native_window, window_title};
 use n10e::dev::run_dev_supervisor;
 use n10e::doctor::run_doctor;
 use n10e::http::{WebState, router};
-use n10e::mcp::{run_stdio_server_forever, spawn_stdio_server};
+use n10e::mcp::{
+    daemon_socket_path, run_daemon_server_forever, run_stdio_proxy_to_daemon,
+    run_stdio_server_forever,
+};
 use n10e::service::AppService;
 
 #[derive(Debug, Parser)]
@@ -61,6 +66,7 @@ enum Commands {
         #[arg(long, default_value_t = 5_000)]
         count: usize,
     },
+    Daemon,
     Mcp,
 }
 
@@ -81,6 +87,7 @@ async fn main() -> Result<()> {
         Commands::Doctor => cmd_doctor(cli.workspace),
         Commands::Bench { iterations, query } => cmd_bench(cli.workspace, iterations, &query),
         Commands::SeedBench { count } => cmd_seed_bench(cli.workspace, count),
+        Commands::Daemon => cmd_daemon(cli.workspace).await,
         Commands::Mcp => cmd_mcp(cli.workspace).await,
     }
 }
@@ -105,9 +112,15 @@ fn cmd_init(path: Option<PathBuf>) -> Result<()> {
 
 async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let config = load_config(workspace)?;
+    let socket_path = daemon_socket_path(&config.workspace_root);
+    if should_autostart_daemon() {
+        if let Err(err) = ensure_daemon_running(&config, &socket_path).await {
+            tracing::warn!(error = %err, "failed ensuring warm daemon during serve startup");
+        }
+    }
+
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
-    let _mcp = spawn_stdio_server(service.clone());
     let app = router(build_web_state(service));
     let (addr, listener) = bind_http_listener(&config).await?;
 
@@ -120,6 +133,13 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
 
 async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
     let config = load_config(workspace)?;
+    let socket_path = daemon_socket_path(&config.workspace_root);
+    if should_autostart_daemon() {
+        if let Err(err) = ensure_daemon_running(&config, &socket_path).await {
+            tracing::warn!(error = %err, "failed ensuring warm daemon during open startup");
+        }
+    }
+
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
     let app = router(build_web_state(service));
@@ -239,9 +259,39 @@ fn cmd_seed_bench(workspace: Option<PathBuf>, count: usize) -> Result<()> {
 
 async fn cmd_mcp(workspace: Option<PathBuf>) -> Result<()> {
     let config = load_config(workspace)?;
+    let socket_path = daemon_socket_path(&config.workspace_root);
+    if run_stdio_proxy_to_daemon(&socket_path).await? {
+        return Ok(());
+    }
+
+    if should_autostart_daemon() {
+        match ensure_daemon_running(&config, &socket_path).await {
+            Ok(()) => {
+                if run_stdio_proxy_to_daemon(&socket_path).await? {
+                    return Ok(());
+                }
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "failed auto-starting warm daemon; falling back to inline mcp");
+            }
+        }
+    }
+
     let service = Arc::new(AppService::bootstrap(config)?);
     let _watcher = service.start_watcher()?;
     run_stdio_server_forever(service).await
+}
+
+async fn cmd_daemon(workspace: Option<PathBuf>) -> Result<()> {
+    let config = load_config(workspace)?;
+    let socket_path = daemon_socket_path(&config.workspace_root);
+    let service = Arc::new(AppService::bootstrap(config)?);
+    let _watcher = service.start_watcher()?;
+
+    info!(socket = %socket_path.display(), "n10e daemon starting");
+    println!("n10e daemon listening on {}", socket_path.display());
+
+    run_daemon_server_forever(service, &socket_path).await
 }
 
 fn load_config(workspace_override: Option<PathBuf>) -> Result<AppConfig> {
@@ -313,6 +363,63 @@ fn resolve_absolute_path(path: PathBuf) -> Result<PathBuf> {
     } else {
         Ok(std::env::current_dir()?.join(path))
     }
+}
+
+fn should_autostart_daemon() -> bool {
+    std::env::var("N10E_MCP_SKIP_AUTOSTART")
+        .map(|value| value != "1")
+        .unwrap_or(true)
+}
+
+async fn ensure_daemon_running(config: &AppConfig, socket_path: &std::path::Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        if tokio::net::UnixStream::connect(socket_path).await.is_ok() {
+            return Ok(());
+        }
+
+        let mut child = spawn_daemon_process(&config.workspace_root)?;
+        let deadline = Instant::now() + Duration::from_secs(3);
+
+        loop {
+            if tokio::net::UnixStream::connect(socket_path).await.is_ok() {
+                return Ok(());
+            }
+
+            if let Some(status) = child.try_wait()? {
+                anyhow::bail!("daemon exited before becoming ready (status: {status})");
+            }
+
+            if Instant::now() >= deadline {
+                anyhow::bail!(
+                    "timed out waiting for daemon socket at {}",
+                    socket_path.display()
+                );
+            }
+
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = config;
+        let _ = socket_path;
+        anyhow::bail!("automatic warm-daemon startup is only supported on unix-like systems")
+    }
+}
+
+fn spawn_daemon_process(workspace_root: &std::path::Path) -> Result<Child> {
+    let binary = std::env::current_exe().context("failed locating current executable")?;
+    Command::new(binary)
+        .arg("--workspace")
+        .arg(workspace_root)
+        .arg("daemon")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("failed spawning warm daemon")
 }
 
 fn init_tracing() {

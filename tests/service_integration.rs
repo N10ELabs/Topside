@@ -1,5 +1,7 @@
 mod common;
 
+use std::time::Instant;
+
 use anyhow::Result;
 use rusqlite::params;
 
@@ -233,11 +235,11 @@ fn sync_project_imports_and_updates_repo_todo_tasks() -> Result<()> {
 
     std::fs::write(
         repo_root.path().join("to-do.md"),
-        "# Launch\n- [x] Pick a product name\n- [x] Ship alpha\n",
+        "# Launch\n- [x] Pick a product name\n- [x] Ship alpha\n- [ ] Add analytics\n",
     )?;
 
     let second_report = service.sync_project_from_source(&project.id, Actor::human("tester"))?;
-    assert_eq!(second_report.created, 0);
+    assert_eq!(second_report.created, 1);
     assert_eq!(second_report.updated, 1);
 
     let second_tasks = service.list_tasks(&TaskFilters {
@@ -248,11 +250,16 @@ fn sync_project_imports_and_updates_repo_todo_tasks() -> Result<()> {
         include_archived: false,
         limit: Some(20),
     })?;
-    assert_eq!(second_tasks.len(), 2);
+    assert_eq!(second_tasks.len(), 3);
     assert!(
         second_tasks
             .iter()
             .any(|task| task.title == "Pick a product name" && task.status == TaskStatus::Done)
+    );
+    assert!(
+        second_tasks
+            .iter()
+            .any(|task| task.title == "Add analytics" && task.status == TaskStatus::Todo)
     );
 
     let synced_project = service
@@ -266,7 +273,83 @@ fn sync_project_imports_and_updates_repo_todo_tasks() -> Result<()> {
             .last_sync_summary
             .as_deref()
             .unwrap_or_default()
-            .contains("Scanned 1 file(s), found 2 repo task(s)")
+            .contains("Scanned 1 file(s), found 3 repo task(s)")
+    );
+
+    Ok(())
+}
+
+#[test]
+#[ignore = "profiling harness; run with -- --ignored --nocapture"]
+fn sync_project_from_source_profile_first_and_mixed() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    let todo_path = repo_root.path().join("to-do.md");
+
+    let initial_task_count = 40usize;
+    let updated_task_count = 10usize;
+    let new_task_count = 10usize;
+
+    let mut initial_body = String::from("# Launch\n");
+    for index in 0..initial_task_count {
+        initial_body.push_str(&format!("- [ ] Initial task {}\n", index + 1));
+    }
+    std::fs::write(&todo_path, initial_body)?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Profiled Sync Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let first_started = Instant::now();
+    let first_report = service.sync_project_from_source(&project.id, Actor::human("tester"))?;
+    let first_elapsed = first_started.elapsed();
+    assert_eq!(first_report.created, initial_task_count);
+    assert_eq!(first_report.updated, 0);
+
+    let mut mixed_body = String::from("# Launch\n");
+    for index in 0..initial_task_count {
+        if index < updated_task_count {
+            mixed_body.push_str(&format!("- [x] Renamed task {}\n", index + 1));
+        } else {
+            mixed_body.push_str(&format!("- [ ] Initial task {}\n", index + 1));
+        }
+    }
+    for index in 0..new_task_count {
+        mixed_body.push_str(&format!("- [ ] Added task {}\n", index + 1));
+    }
+    std::fs::write(&todo_path, mixed_body)?;
+
+    let mixed_started = Instant::now();
+    let mixed_report = service.sync_project_from_source(&project.id, Actor::human("tester"))?;
+    let mixed_elapsed = mixed_started.elapsed();
+    assert_eq!(mixed_report.created, new_task_count);
+    assert_eq!(mixed_report.updated, updated_task_count);
+
+    let tasks = service.list_tasks(&TaskFilters {
+        status: None,
+        priority: None,
+        project_id: Some(project.id.clone()),
+        assignee: None,
+        include_archived: false,
+        limit: Some(100),
+    })?;
+    assert_eq!(tasks.len(), initial_task_count + new_task_count);
+
+    println!(
+        "sync_profile::initial_tasks={} updated_tasks={} new_tasks={} first_sync_ms={:.3} mixed_sync_ms={:.3}",
+        initial_task_count,
+        updated_task_count,
+        new_task_count,
+        first_elapsed.as_secs_f64() * 1000.0,
+        mixed_elapsed.as_secs_f64() * 1000.0,
     );
 
     Ok(())

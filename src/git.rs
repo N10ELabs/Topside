@@ -5,19 +5,13 @@ use std::process::Command;
 pub struct GitContext {
     pub branch: Option<String>,
     pub commit: Option<String>,
-    pub dirty: bool,
 }
 
 pub fn read_git_context(workspace_root: &Path) -> GitContext {
     let branch = run_git(workspace_root, &["rev-parse", "--abbrev-ref", "HEAD"]);
     let commit = run_git(workspace_root, &["rev-parse", "HEAD"]);
-    let status = run_git(workspace_root, &["status", "--porcelain"]);
 
-    GitContext {
-        branch,
-        commit,
-        dirty: status.map(|v| !v.trim().is_empty()).unwrap_or(false),
-    }
+    GitContext { branch, commit }
 }
 
 fn run_git(workspace_root: &Path, args: &[&str]) -> Option<String> {

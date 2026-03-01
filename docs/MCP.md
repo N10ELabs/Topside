@@ -1,7 +1,8 @@
 # MCP / Tool Interface
 
 `n10e mcp` starts a dedicated stdio JSON-RPC endpoint with tool methods.
-`n10e serve` also starts MCP stdio alongside the HTTP workspace UI.
+`n10e serve` and `n10e open` use the same warm daemon lifecycle as MCP-backed clients.
+`n10e daemon` keeps the MCP service warm on a local Unix socket, and `n10e mcp`, `n10e open`, and `n10e serve` will auto-start that daemon when needed.
 
 ## Supported tool names
 

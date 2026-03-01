@@ -5,10 +5,14 @@ use std::sync::Arc;
 use anyhow::Result;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
+use serde_json::json;
 use tower::util::ServiceExt;
 
 use n10e::http::{WebState, router};
-use n10e::types::{Actor, CreateProjectPayload, ProjectSourceKind, TaskFilters, TaskStatus};
+use n10e::types::{
+    Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, ProjectSourceKind,
+    TaskFilters, TaskStatus,
+};
 
 #[tokio::test]
 async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
@@ -178,6 +182,64 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
 }
 
 #[tokio::test]
+async fn note_archive_endpoint_removes_note_from_workspace() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Note Archive Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let note = service.create_note(
+        CreateNotePayload {
+            title: "HTTP Note".to_string(),
+            project_id: Some(project.id.clone()),
+            tags: None,
+            body: Some("archive me".to_string()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let archive_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/notes/{}/archive", note.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\"}}",
+                    note.revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+
+    let workspace = service.load_project_workspace(&project.id)?;
+    assert!(workspace.notes.is_empty());
+
+    let notes = service.list_notes(10, true)?;
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].id, note.id);
+    assert!(notes[0].archived);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
@@ -232,6 +294,111 @@ async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let non_dev_html_body = to_bytes(non_dev_html_response.into_body(), usize::MAX).await?;
     let non_dev_html = String::from_utf8(non_dev_html_body.to_vec())?;
     assert!(!non_dev_html.contains("/__dev/reload-token"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn bulk_archive_tasks_endpoint_archives_done_tasks() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Bulk Archive Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    service.create_task(
+        CreateTaskPayload {
+            title: "Done task one".to_string(),
+            project_id: project.id.clone(),
+            status: Some(TaskStatus::Done),
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    service.create_task(
+        CreateTaskPayload {
+            title: "Done task two".to_string(),
+            project_id: project.id.clone(),
+            status: Some(TaskStatus::Done),
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let done_tasks = service.list_tasks(&TaskFilters {
+        status: Some(TaskStatus::Done),
+        priority: None,
+        project_id: Some(project.id.clone()),
+        assignee: None,
+        include_archived: false,
+        limit: Some(10),
+    })?;
+    assert_eq!(done_tasks.len(), 2);
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let archive_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/tasks/archive")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "project_id": project.id,
+                        "tasks": done_tasks
+                            .iter()
+                            .map(|task| json!({
+                                "id": task.id,
+                                "expected_revision": task.revision,
+                            }))
+                            .collect::<Vec<_>>(),
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+
+    let remaining_done_tasks = service.list_tasks(&TaskFilters {
+        status: Some(TaskStatus::Done),
+        priority: None,
+        project_id: Some(project.id),
+        assignee: None,
+        include_archived: false,
+        limit: Some(10),
+    })?;
+    assert!(remaining_done_tasks.is_empty());
 
     Ok(())
 }

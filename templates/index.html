@@ -421,6 +421,16 @@
       line-height: 1;
     }
 
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .mode-toggle {
       display: inline-flex;
       align-items: center;
@@ -684,12 +694,13 @@
     }
 
     .task-row,
-    .task-draft,
-    .done-row {
+    .task-draft {
+      --task-row-floor: var(--task-row-min-height);
+      --task-row-vertical-chrome: 22px;
       display: grid;
       gap: 10px;
-      align-items: center;
-      min-height: var(--task-row-min-height);
+      align-items: start;
+      min-height: var(--task-row-floor);
       padding: 10px 12px;
       position: relative;
     }
@@ -753,10 +764,12 @@
 
     .task-row.is-heading,
     .task-draft.is-heading {
+      --task-row-floor: 36px;
+      --task-row-vertical-chrome: 16px;
       border: none;
       background: transparent;
       border-radius: 0;
-      min-height: 36px;
+      min-height: var(--task-row-floor);
       padding-top: 8px;
       padding-bottom: 8px;
       margin-bottom: 6px;
@@ -794,10 +807,37 @@
     }
 
     .task-input {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      min-height: 24px;
       padding: 0;
       border: none;
       background: transparent;
       border-radius: 0;
+      overflow: hidden;
+      resize: none;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      line-height: 1.45;
+    }
+
+    .task-input-measure {
+      position: absolute;
+      top: 0;
+      left: -10000px;
+      display: block;
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      margin: 0;
+      background: transparent;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      visibility: hidden;
+      pointer-events: none;
     }
 
     .task-heading-input {
@@ -966,7 +1006,28 @@
     }
 
     .done-row {
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      --task-row-floor: var(--task-row-min-height);
+      --task-row-vertical-chrome: 22px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      column-gap: 10px;
+      min-height: var(--task-row-floor);
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    .done-check {
+      grid-column: 1;
+      align-self: start;
+      margin-top: 2px;
+    }
+
+    .done-body {
+      grid-column: 2;
+      min-width: 0;
+      display: block;
+      padding: 0;
     }
 
     .done-section-heading {
@@ -986,6 +1047,12 @@
     }
 
     .done-title {
+      display: block;
+      min-width: 0;
+      min-height: 24px;
+      line-height: 1.45;
+      overflow-wrap: break-word;
+      word-break: break-word;
       color: #a8bac8;
       text-decoration: line-through;
     }
@@ -1044,9 +1111,21 @@
       color: var(--text);
       padding: 12px;
       display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 8px;
       text-align: left;
+    }
+
+    .note-toggle-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .note-toggle-title {
+      min-width: 0;
     }
 
     .note-card.open .note-toggle {
@@ -1059,6 +1138,18 @@
       gap: 12px;
       padding: 12px;
       padding-bottom: 6px;
+    }
+
+    .note-head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .note-head-actions .task-delete-btn {
+      opacity: 1;
+      pointer-events: auto;
     }
 
     .note-editor {
@@ -1093,22 +1184,60 @@
       box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.55);
     }
 
+    .note-toggle-caret,
     .note-collapse {
+      width: 18px;
+      height: 18px;
       border: none;
+      border-radius: 8px;
       background: transparent;
       color: var(--muted);
       cursor: pointer;
+      display: inline-grid;
+      place-items: center;
       padding: 0;
-      font-size: 11px;
-      font-family: "IBM Plex Mono", monospace;
-      white-space: nowrap;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      flex: 0 0 auto;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 160ms ease, transform 180ms ease, color 160ms ease, background-color 160ms ease;
     }
 
+    .note-toggle-caret {
+      pointer-events: none;
+    }
+
+    .note-toggle-caret svg,
+    .note-collapse svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transform: rotate(-90deg);
+      transition: transform 220ms ease;
+    }
+
+    .note-card.open .note-toggle-caret svg,
+    .note-card.open .note-collapse svg {
+      transform: rotate(0deg);
+    }
+
+    .note-toggle:hover .note-toggle-caret,
+    .note-toggle:focus-visible .note-toggle-caret,
+    .note-head-open:hover .note-collapse,
+    .note-head-open:focus-within .note-collapse {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .note-toggle:hover .note-toggle-caret,
+    .note-toggle:focus-visible .note-toggle-caret,
     .note-collapse:hover,
     .note-collapse:focus-visible {
       color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
       outline: none;
     }
 
@@ -1309,6 +1438,10 @@
       box-shadow: 0 26px 60px rgba(2, 8, 14, 0.42);
     }
 
+    .confirm-overlay-card {
+      width: min(440px, 100%);
+    }
+
     .overlay-head {
       display: flex;
       align-items: start;
@@ -1382,54 +1515,50 @@
       font-size: 13px;
     }
 
-    @media (max-width: 1120px) {
-      .layout {
-        grid-template-columns: 240px 1fr;
-        grid-template-areas:
-          "projects todo"
-          "notes notes";
-      }
-
-      .pane-projects { grid-area: projects; }
-      .todo-stack { grid-area: todo; }
-      .pane-notes { grid-area: notes; }
+    html[data-layout-mode="two"] .layout {
+      grid-template-columns: 240px 1fr;
+      grid-template-areas:
+        "projects todo"
+        "notes notes";
     }
 
-    @media (max-width: 820px) {
-      .shell {
-        padding: 10px;
-      }
+    html[data-layout-mode="two"] .pane-projects { grid-area: projects; }
+    html[data-layout-mode="two"] .todo-stack { grid-area: todo; }
+    html[data-layout-mode="two"] .pane-notes { grid-area: notes; }
 
-      .layout {
-        min-height: 0;
-        height: 100%;
-        grid-template-columns: 1fr;
-        grid-template-areas: none;
-      }
+    html[data-layout-mode="one"] .shell {
+      padding: 10px;
+    }
 
-      .pane-projects,
-      .todo-stack,
-      .pane-notes {
-        grid-area: auto;
-      }
+    html[data-layout-mode="one"] .layout {
+      min-height: 0;
+      height: 100%;
+      grid-template-columns: 1fr;
+      grid-template-areas: none;
+    }
 
-      .pane-projects {
-        border-right: none;
-        border-bottom: 1px solid var(--line);
-        padding-bottom: 10px;
-      }
+    html[data-layout-mode="one"] .pane-projects,
+    html[data-layout-mode="one"] .todo-stack,
+    html[data-layout-mode="one"] .pane-notes {
+      grid-area: auto;
+    }
 
-      .pane-projects .pane-head {
-        padding: var(--pane-head-pad-y) 16px;
-      }
+    html[data-layout-mode="one"] .pane-projects {
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
 
-      .pane-projects .pane-body {
-        padding: 0;
-      }
+    html[data-layout-mode="one"] .pane-projects .pane-head {
+      padding: var(--pane-head-pad-y) 16px;
+    }
 
-      .layout.empty-app .todo-stack {
-        grid-column: auto;
-      }
+    html[data-layout-mode="one"] .pane-projects .pane-body {
+      padding: 0;
+    }
+
+    html[data-layout-mode="one"] .layout.empty-app .todo-stack {
+      grid-column: auto;
     }
   </style>
 </head>
@@ -1474,6 +1603,14 @@
               <span>changelog</span>
             </div>
             <div class="pane-head-actions">
+              <button class="icon-btn" id="changelog-archive" type="button" aria-label="Archive completed tasks" title="Archive completed tasks">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 8h16"></path>
+                  <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
+                  <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
+                  <path d="M10 12h4"></path>
+                </svg>
+              </button>
               <button class="icon-btn todo-export-btn" id="changelog-export" type="button" aria-label="Copy changelog" title="Copy changelog">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
@@ -1521,6 +1658,8 @@
   </div>
 
   <div id="project-settings-overlay"></div>
+  <div id="note-archive-overlay"></div>
+  <div class="task-input-measure" id="task-input-measure" aria-hidden="true"></div>
 
   <script id="initial-state" type="application/json">{{ initial_state_json|safe }}</script>
   {% if dev_reload_enabled %}
@@ -1554,6 +1693,10 @@
     const noteModeKey = "n10e-note-mode";
     const changelogCollapseKey = "n10e-changelog-collapsed";
     const taskSectionCollapseKey = "n10e-task-sections-collapsed";
+    const layoutModeBreakpoints = Object.freeze({
+      oneColumn: 960,
+      twoColumn: 1360,
+    });
     const state = {
       projects: initialState.projects || [],
       selectedProjectId: initialState.selected_project_id || null,
@@ -1588,6 +1731,7 @@
       projectSettingsSourceInput: "",
       projectSettingsMessage: "",
       projectSettingsPickerFallback: false,
+      noteArchiveConfirmId: null,
       emptyAppAction: "local",
     };
 
@@ -1601,9 +1745,28 @@
     const todoStatus = document.getElementById("todo-status");
     const changelogPane = document.getElementById("changelog-pane");
     const changelogToggleButton = document.getElementById("changelog-toggle");
+    const changelogArchiveButton = document.getElementById("changelog-archive");
     const changelogExportButton = document.getElementById("changelog-export");
     const layout = document.querySelector(".layout");
+    const taskInputMeasure = document.getElementById("task-input-measure");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
+    const noteArchiveOverlay = document.getElementById("note-archive-overlay");
+    let taskRowSyncFrame = null;
+    if (typeof ResizeObserver !== "undefined") {
+      const taskListResizeObserver = new ResizeObserver(() => {
+        scheduleTaskRowSync();
+      });
+      [activeTaskList, doneTaskList].forEach((listNode) => {
+        if (listNode) taskListResizeObserver.observe(listNode);
+      });
+    }
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        scheduleTaskRowSync();
+      }).catch(() => {
+        // Ignore font readiness failures; resize on render/viewport changes still applies.
+      });
+    }
     const doneTimestampFormatter = typeof Intl !== "undefined"
       ? new Intl.DateTimeFormat(undefined, {
         year: "numeric",
@@ -1619,6 +1782,10 @@
 
     changelogExportButton.addEventListener("click", () => {
       exportChangelog();
+    });
+
+    changelogArchiveButton.addEventListener("click", () => {
+      archiveChangelog();
     });
 
     changelogToggleButton.addEventListener("click", () => {
@@ -1735,6 +1902,17 @@
         return;
       }
 
+      const doneRow = event.target.closest("[data-done-row-id]");
+      if (doneRow && !event.target.closest("[data-done-check-id]")) {
+        const doneCheck = doneRow.querySelector("[data-done-check-id]");
+        if (doneCheck) {
+          event.preventDefault();
+          doneCheck.checked = !doneCheck.checked;
+          doneCheck.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+      }
+
       const taskDeleteButton = event.target.closest("[data-task-delete-id]");
       if (taskDeleteButton) {
         event.preventDefault();
@@ -1828,6 +2006,30 @@
         }
       }
 
+      const noteArchiveClose = event.target.closest("[data-note-archive-close]");
+      const noteArchiveBackdrop = event.target instanceof HTMLElement
+        ? event.target.dataset.noteArchiveBackdrop === "true"
+        : false;
+      if (noteArchiveClose || noteArchiveBackdrop) {
+        closeNoteArchiveConfirm();
+        return;
+      }
+
+      const noteArchiveConfirm = event.target.closest("[data-note-archive-confirm]");
+      if (noteArchiveConfirm) {
+        await confirmNoteArchive();
+        return;
+      }
+
+      const noteAction = event.target.closest("[data-note-action]");
+      if (noteAction) {
+        const action = noteAction.dataset.noteAction;
+        if (action === "archive") {
+          openNoteArchiveConfirm(noteAction.dataset.noteActionId);
+          return;
+        }
+      }
+
       const noteToggle = event.target.closest("[data-note-id]");
       if (noteToggle && noteToggle.dataset.noteToggle === "true") {
         const noteId = noteToggle.dataset.noteId;
@@ -1863,14 +2065,14 @@
 
     document.addEventListener("focusin", (event) => {
       const taskInput = event.target.closest("[data-task-id]");
-      if (taskInput && taskInput.tagName === "INPUT") {
+      if (taskInput && taskInput.tagName === "TEXTAREA") {
         const task = findTask(taskInput.dataset.taskId);
         expandHeadingInput(taskInput, state.taskEdits[taskInput.dataset.taskId] ?? task?.title ?? taskInput.value);
         return;
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
-      if (draftInput && draftInput.tagName === "INPUT") {
+      if (draftInput && draftInput.tagName === "TEXTAREA") {
         const draft = getDraft(draftInput.dataset.taskDraftKey);
         expandHeadingInput(draftInput, draft?.title ?? draftInput.value);
       }
@@ -1902,17 +2104,23 @@
       }
 
       const taskInput = event.target.closest("[data-task-id]");
-      if (taskInput && taskInput.tagName === "INPUT") {
+      if (taskInput && taskInput.tagName === "TEXTAREA") {
         const taskId = taskInput.dataset.taskId;
-        state.taskEdits[taskId] = taskInput.value;
+        const title = normalizeTaskEditorValue(taskInput.value);
+        if (taskInput.value !== title) taskInput.value = title;
+        syncTaskRowFromInput(taskInput);
+        state.taskEdits[taskId] = title;
         debounceTaskSave(taskId);
         return;
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
-      if (draftInput && draftInput.tagName === "INPUT") {
+      if (draftInput && draftInput.tagName === "TEXTAREA") {
         const draft = getDraft(draftInput.dataset.taskDraftKey);
-        if (draft) draft.title = draftInput.value;
+        const title = normalizeTaskEditorValue(draftInput.value);
+        if (draftInput.value !== title) draftInput.value = title;
+        syncTaskRowFromInput(draftInput);
+        if (draft) draft.title = title;
         return;
       }
 
@@ -1938,8 +2146,14 @@
     });
 
     document.addEventListener("keydown", async (event) => {
+      if (state.noteArchiveConfirmId && event.key === "Escape") {
+        event.preventDefault();
+        closeNoteArchiveConfirm();
+        return;
+      }
+
       const taskInput = event.target.closest("[data-task-id]");
-      if (taskInput && taskInput.tagName === "INPUT") {
+      if (taskInput && taskInput.tagName === "TEXTAREA") {
         if (isHeaderShortcut(event)) {
           event.preventDefault();
           toggleTaskHeading(taskInput.dataset.taskId);
@@ -1957,7 +2171,7 @@
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
-      if (draftInput && draftInput.tagName === "INPUT") {
+      if (draftInput && draftInput.tagName === "TEXTAREA") {
         const draftKey = draftInput.dataset.taskDraftKey;
         const draft = getDraft(draftKey);
         if (!draft) return;
@@ -2008,14 +2222,14 @@
 
     document.addEventListener("blur", async (event) => {
       const taskInput = event.target.closest("[data-task-id]");
-      if (taskInput && taskInput.tagName === "INPUT") {
+      if (taskInput && taskInput.tagName === "TEXTAREA") {
         await saveTask(taskInput.dataset.taskId);
         const task = findTask(taskInput.dataset.taskId);
         collapseHeadingInput(taskInput, state.taskEdits[taskInput.dataset.taskId] ?? task?.title ?? taskInput.value);
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
-      if (draftInput && draftInput.tagName === "INPUT") {
+      if (draftInput && draftInput.tagName === "TEXTAREA") {
         const draftKey = draftInput.dataset.taskDraftKey;
         window.setTimeout(async () => {
           const draft = getDraft(draftKey);
@@ -2059,7 +2273,14 @@
     });
 
     document.addEventListener("dragstart", (event) => {
-      const row = event.target.closest("[data-draggable-task-id]");
+      const dragOrigin = event.target instanceof Element ? event.target : null;
+      if (!dragOrigin) return;
+      const dragHandle = dragOrigin.closest(".task-input, .task-check, .task-delete-btn, .task-copy-btn, .task-section-toggle");
+      if (dragHandle) {
+        event.preventDefault();
+        return;
+      }
+      const row = dragOrigin.closest("[data-draggable-task-id]");
       if (!row) return;
       state.draggedTaskId = row.dataset.draggableTaskId;
       row.classList.add("dragging");
@@ -2068,7 +2289,8 @@
     });
 
     document.addEventListener("dragend", (event) => {
-      const row = event.target.closest("[data-draggable-task-id]");
+      const dragOrigin = event.target instanceof Element ? event.target : null;
+      const row = dragOrigin ? dragOrigin.closest("[data-draggable-task-id]") : null;
       if (row) row.classList.remove("dragging");
       state.draggedTaskId = null;
       clearTaskDropIndicator();
@@ -2258,10 +2480,59 @@
       render();
     }
 
-    async function saveNote(noteId) {
+    async function archiveNote(noteId) {
+      if (!state.workspace) return;
+
+      clearTimeout(state.noteTimers[noteId]);
+      delete state.noteTimers[noteId];
+
+      const saved = await saveNote(noteId);
+      if (!saved || !state.workspace) return;
+
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return;
+
+      delete state.noteTitleEdits[noteId];
+      delete state.noteBodyEdits[noteId];
+      delete state.noteHtmlEdits[noteId];
+
+      const response = await fetchJson(`/api/notes/${noteId}/archive`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: note.revision
+        })
+      }, "note");
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      noteMessage.innerHTML = "";
+      render();
+    }
+
+    function openNoteArchiveConfirm(noteId) {
       if (!state.workspace) return;
       const note = state.workspace.notes.find((item) => item.id === noteId);
       if (!note) return;
+      state.noteArchiveConfirmId = noteId;
+      renderNoteArchiveConfirm();
+    }
+
+    function closeNoteArchiveConfirm() {
+      if (!state.noteArchiveConfirmId) return;
+      state.noteArchiveConfirmId = null;
+      renderNoteArchiveConfirm();
+    }
+
+    async function confirmNoteArchive() {
+      const noteId = state.noteArchiveConfirmId;
+      if (!noteId) return;
+      closeNoteArchiveConfirm();
+      await archiveNote(noteId);
+    }
+
+    async function saveNote(noteId) {
+      if (!state.workspace) return false;
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return false;
 
       const title = Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
         ? state.noteTitleEdits[noteId]
@@ -2276,7 +2547,7 @@
         delete state.noteTitleEdits[noteId];
         delete state.noteBodyEdits[noteId];
         delete state.noteHtmlEdits[noteId];
-        return;
+        return true;
       }
 
       const response = await fetchJson(`/api/notes/${noteId}`, {
@@ -2287,12 +2558,13 @@
           body
         })
       }, "note");
-      if (!response) return;
+      if (!response) return false;
       delete state.noteTitleEdits[noteId];
       delete state.noteBodyEdits[noteId];
       delete state.noteHtmlEdits[noteId];
       state.workspace = mergeWorkspacePreservingNoteOrder(state.workspace, response.workspace);
       noteMessage.innerHTML = "";
+      return true;
     }
 
     function debounceTaskSave(taskId) {
@@ -2557,12 +2829,111 @@
       return headingLabel !== null ? headingLabel : String(title);
     }
 
+    function normalizeTaskEditorValue(value = "") {
+      return String(value).replace(/\r\n?|\n/g, " ");
+    }
+
+    function readCssPixels(style, propertyName) {
+      const value = Number.parseFloat(style.getPropertyValue(propertyName));
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function measureTextElementHeight(element, textValue = "") {
+      if (!(element instanceof HTMLElement) || !(taskInputMeasure instanceof HTMLElement)) return null;
+
+      const elementRect = element.getBoundingClientRect();
+      const width = Math.ceil(elementRect.width);
+      if (width <= 0) return null;
+
+      const styles = window.getComputedStyle(element);
+      taskInputMeasure.style.width = `${width}px`;
+      taskInputMeasure.style.fontFamily = styles.fontFamily;
+      taskInputMeasure.style.fontSize = styles.fontSize;
+      taskInputMeasure.style.fontWeight = styles.fontWeight;
+      taskInputMeasure.style.fontStyle = styles.fontStyle;
+      taskInputMeasure.style.fontStretch = styles.fontStretch;
+      taskInputMeasure.style.fontVariant = styles.fontVariant;
+      taskInputMeasure.style.fontKerning = styles.fontKerning;
+      taskInputMeasure.style.letterSpacing = styles.letterSpacing;
+      taskInputMeasure.style.lineHeight = styles.lineHeight;
+      taskInputMeasure.style.textTransform = styles.textTransform;
+      taskInputMeasure.style.textIndent = styles.textIndent;
+      taskInputMeasure.style.wordSpacing = styles.wordSpacing;
+      taskInputMeasure.style.whiteSpace = styles.whiteSpace;
+      taskInputMeasure.style.overflowWrap = styles.overflowWrap;
+      taskInputMeasure.style.wordBreak = styles.wordBreak;
+      taskInputMeasure.textContent = `${textValue}\u200b`;
+
+      const measuredHeight = Math.ceil(taskInputMeasure.getBoundingClientRect().height);
+      taskInputMeasure.textContent = "";
+      return measuredHeight > 0 ? measuredHeight : null;
+    }
+
+    function measureTaskInputHeight(input) {
+      if (!(input instanceof HTMLTextAreaElement)) return null;
+      return measureTextElementHeight(input, input.value);
+    }
+
+    function syncTaskRowHeight(row) {
+      if (!(row instanceof HTMLElement)) return;
+
+      const textElement = row.querySelector(".task-input, .done-title");
+      if (!(textElement instanceof HTMLElement)) return;
+
+      const textHeight = textElement instanceof HTMLTextAreaElement
+        ? measureTaskInputHeight(textElement)
+        : measureTextElementHeight(textElement, textElement.textContent || "");
+      if (!textHeight) return;
+
+      const rowStyles = window.getComputedStyle(row);
+      const floor = readCssPixels(rowStyles, "--task-row-floor");
+      const verticalChrome = readCssPixels(rowStyles, "--task-row-vertical-chrome");
+      const nextRowMinHeight = `${Math.max(floor, textHeight + verticalChrome)}px`;
+
+      if (textElement instanceof HTMLTextAreaElement) {
+        const nextInputHeight = `${textHeight}px`;
+        if (textElement.style.height !== nextInputHeight) {
+          textElement.style.height = nextInputHeight;
+        }
+      } else {
+        const nextTextMinHeight = `${textHeight}px`;
+        if (textElement.style.minHeight !== nextTextMinHeight) {
+          textElement.style.minHeight = nextTextMinHeight;
+        }
+      }
+      if (row.style.minHeight !== nextRowMinHeight) {
+        row.style.minHeight = nextRowMinHeight;
+      }
+    }
+
+    function syncTaskRowFromInput(input) {
+      if (!(input instanceof HTMLTextAreaElement)) return;
+      syncTaskRowHeight(input.closest(".task-row, .task-draft"));
+    }
+
+    function syncAllTaskRowHeights() {
+      document.querySelectorAll(".task-row, .task-draft, .done-row").forEach((row) => {
+        syncTaskRowHeight(row);
+      });
+    }
+
+    function scheduleTaskRowSync() {
+      if (taskRowSyncFrame !== null) {
+        window.cancelAnimationFrame(taskRowSyncFrame);
+      }
+      taskRowSyncFrame = window.requestAnimationFrame(() => {
+        taskRowSyncFrame = null;
+        syncAllTaskRowHeights();
+      });
+    }
+
     function expandHeadingInput(input, rawTitle = "") {
       const headingLabel = getTaskHeadingLabel(rawTitle);
       if (!input || headingLabel === null || input.value !== headingLabel) return;
 
       const rawValue = String(rawTitle);
       input.value = rawValue;
+      syncTaskRowFromInput(input);
       window.requestAnimationFrame(() => {
         try {
           input.setSelectionRange(rawValue.length, rawValue.length);
@@ -2576,6 +2947,7 @@
       const headingLabel = getTaskHeadingLabel(rawTitle);
       if (!input || headingLabel === null) return;
       input.value = headingLabel;
+      syncTaskRowFromInput(input);
     }
 
     function buildActiveTaskSectionState(activeTasks, draftsByAfter) {
@@ -2732,13 +3104,14 @@
           data-draggable-task-id="${task.id}"
         >
           ${leadingControl}
-          <input
+          <textarea
             class="task-input${isHeading ? " task-heading-input" : ""}"
-            type="text"
-            value="${escapeAttribute(visibleTitle)}"
+            rows="1"
+            spellcheck="false"
+            draggable="false"
             placeholder="new task or ## section"
             data-task-id="${task.id}"
-          >
+          >${escapeHtml(visibleTitle)}</textarea>
           ${copyControl}
           <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
         </div>
@@ -2747,19 +3120,13 @@
 
     function renderDoneTaskRow(task) {
       return `
-        <label class="done-row">
+        <div class="done-row" data-done-row-id="${task.id}">
           <input class="done-check" type="checkbox" checked data-done-check-id="${task.id}">
-          <span class="done-title">${escapeHtml(getVisibleTaskTitle(task.title || "Untitled task"))}</span>
-          <span class="muted">${escapeHtml(formatDoneTaskTimestamp(task))}</span>
-        </label>
+          <div class="done-body">
+            <div class="done-title">${escapeHtml(getVisibleTaskTitle(task.title || "Untitled task"))}</div>
+          </div>
+        </div>
       `;
-    }
-
-    function formatDoneTaskTimestamp(task) {
-      return formatLocalTimestamp(
-        task.completed_at_iso || task.updated_at_iso,
-        task.completed_at_label || task.updated_at_label || ""
-      );
     }
 
     function formatLocalTimestamp(isoValue, fallbackLabel = "") {
@@ -2821,7 +3188,7 @@
           lastSection = sectionLabel;
         }
 
-        lines.push(`- [x] ${getVisibleTaskTitle(task.title || "Untitled task")} (${formatDoneTaskTimestamp(task)})`);
+        lines.push(`- [x] ${getVisibleTaskTitle(task.title || "Untitled task")}`);
       });
 
       return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -2863,6 +3230,30 @@
       await copyTextWithFallback("Copy changelog", exportText, "changelog copied", "changelog ready");
     }
 
+    async function archiveChangelog() {
+      if (!state.workspace || !state.workspace.done_tasks.length) return;
+
+      const itemCount = state.workspace.done_tasks.length;
+      const itemLabel = itemCount === 1 ? "1 completed task" : `${itemCount} completed tasks`;
+      if (!window.confirm(`Archive ${itemLabel} from the changelog?`)) return;
+
+      const response = await fetchJson("/api/tasks/archive", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: state.workspace.project.id,
+          tasks: state.workspace.done_tasks.map((task) => ({
+            id: task.id,
+            expected_revision: task.revision
+          }))
+        })
+      }, "task");
+      if (!response) return;
+
+      applyWorkspace(response.workspace);
+      flashTodoStatus("changelog archived");
+      render();
+    }
+
     function render() {
       layout.classList.toggle("empty-app", state.projects.length === 0);
       renderProjectTray();
@@ -2871,9 +3262,11 @@
       renderChangelogPane();
       renderNotes();
       renderProjectSettings();
+      renderNoteArchiveConfirm();
       refreshScrollRevealBindings();
       updateStarterButtons();
       updateModeButtons();
+      scheduleTaskRowSync();
       applyFocus();
     }
 
@@ -2968,6 +3361,27 @@
       return overlay;
     }
 
+    function getResponsiveLayoutWidth() {
+      const innerWidth = window.innerWidth || 0;
+      const outerWidth = typeof window.outerWidth === "number" ? window.outerWidth : 0;
+
+      // `outerWidth` stays stable when desktop browser zoom changes while `innerWidth` shrinks.
+      return Math.max(innerWidth, outerWidth);
+    }
+
+    function applyResponsiveLayoutMode() {
+      const width = getResponsiveLayoutWidth();
+      let nextMode = "three";
+      if (width <= layoutModeBreakpoints.oneColumn) {
+        nextMode = "one";
+      } else if (width <= layoutModeBreakpoints.twoColumn) {
+        nextMode = "two";
+      }
+
+      if (document.documentElement.dataset.layoutMode === nextMode) return;
+      document.documentElement.dataset.layoutMode = nextMode;
+    }
+
     function bindScrollReveal(node) {
       if (!node || node.dataset.scrollRevealBound === "true") return;
       node.dataset.scrollRevealBound = "true";
@@ -2984,6 +3398,8 @@
     }
 
     window.addEventListener("resize", () => {
+      applyResponsiveLayoutMode();
+      scheduleTaskRowSync();
       refreshScrollRevealBindings();
     });
 
@@ -3202,6 +3618,49 @@
       const closeButton = projectSettingsOverlay.querySelector("[data-project-settings-close]");
       if (closeButton) {
         closeButton.textContent = "×";
+      }
+    }
+
+    function renderNoteArchiveConfirm() {
+      const noteId = state.noteArchiveConfirmId;
+      if (!noteId) {
+        noteArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      const note = state.workspace?.notes.find((item) => item.id === noteId);
+      if (!note) {
+        state.noteArchiveConfirmId = null;
+        noteArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      const noteTitle = (state.noteTitleEdits[note.id] ?? note.title ?? "").trim() || "Untitled note";
+      noteArchiveOverlay.innerHTML = `
+        <div class="overlay-shell open" data-note-archive-backdrop="true">
+          <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive note">
+            <div class="overlay-head">
+              <div class="overlay-title">
+                <div class="small-label">archive note</div>
+                <h2>${escapeHtml(noteTitle)}</h2>
+              </div>
+              <button class="icon-btn" type="button" data-note-archive-close aria-label="Close archive confirmation">×</button>
+            </div>
+            <section class="overlay-section">
+              <div class="overlay-value">Move this note into the archive and remove it from the current workspace?</div>
+              <div class="overlay-muted">The markdown file stays in your workspace under archive/note/.</div>
+              <div class="overlay-inline-actions">
+                <button class="text-btn" type="button" data-note-archive-close>cancel</button>
+                <button class="text-btn danger-btn" type="button" data-note-archive-confirm>archive note</button>
+              </div>
+            </section>
+          </section>
+        </div>
+      `;
+
+      const confirmButton = noteArchiveOverlay.querySelector("[data-note-archive-confirm]");
+      if (confirmButton) {
+        confirmButton.focus();
       }
     }
 
@@ -3525,12 +3984,14 @@
 
       if (hidePane) {
         doneTaskList.innerHTML = "";
+        changelogArchiveButton.disabled = true;
         changelogExportButton.disabled = true;
         return;
       }
 
       if (!state.workspace) {
         doneTaskList.innerHTML = `<div class="empty-state">Select or create a project to review completed work.</div>`;
+        changelogArchiveButton.disabled = true;
         changelogExportButton.disabled = true;
         return;
       }
@@ -3542,6 +4003,7 @@
         doneTaskList.innerHTML = renderDoneTaskList(state.workspace.done_tasks, taskSectionMap);
       }
 
+      changelogArchiveButton.disabled = state.workspace.done_tasks.length === 0;
       changelogExportButton.disabled = state.workspace.done_tasks.length === 0;
     }
 
@@ -3595,13 +4057,14 @@
       return `
         <div class="task-draft${isHeading ? " is-heading" : ""}">
           ${leadingControl}
-          <input
+          <textarea
             class="task-input${isHeading ? " task-heading-input" : ""}"
-            type="text"
-            value="${escapeAttribute(visibleTitle)}"
+            rows="1"
+            spellcheck="false"
+            draggable="false"
             placeholder="new task or ## section"
             data-task-draft-key="${draft.key}"
-          >
+          >${escapeHtml(visibleTitle)}</textarea>
         </div>
       `;
     }
@@ -3630,12 +4093,26 @@
           <section class="note-card ${isOpen ? "open" : ""}">
             ${isOpen ? `
               <div class="note-head-open">
+                <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="true" aria-label="Collapse note" title="Collapse note">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 10 5 5 5-5"></path>
+                  </svg>
+                </button>
                 <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
-                <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-label="Collapse note" title="Collapse note">hide</button>
+                <div class="note-head-actions">
+                  <button class="task-delete-btn" type="button" data-note-action="archive" data-note-action-id="${note.id}" aria-label="Archive note" title="Archive note">×</button>
+                </div>
               </div>
             ` : `
-              <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true">
-                <span>${escapeHtml(note.title)}</span>
+              <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="false">
+                <span class="note-toggle-main">
+                  <span class="note-toggle-caret" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7 10 5 5 5-5"></path>
+                    </svg>
+                  </span>
+                  <span class="note-toggle-title">${escapeHtml(title)}</span>
+                </span>
                 <span class="muted">${escapeHtml(formatLocalTimestamp(note.updated_at_iso, note.updated_at_label))}</span>
               </button>
             `}
@@ -3695,6 +4172,7 @@
           const task = findTask(taskId);
           input.focus();
           expandHeadingInput(input, state.taskEdits[taskId] ?? task?.title ?? input.value);
+          syncTaskRowFromInput(input);
           state.focusTaskId = null;
           return;
         }
@@ -3707,6 +4185,7 @@
           const draft = getDraft(draftKey);
           input.focus();
           expandHeadingInput(input, draft?.title ?? input.value);
+          syncTaskRowFromInput(input);
           state.focusDraftKey = null;
           return;
         }
@@ -3902,6 +4381,7 @@
       return escapeHtml(value);
     }
 
+    applyResponsiveLayoutMode();
     render();
   </script>
 </body>

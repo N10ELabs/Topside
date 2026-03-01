@@ -6,14 +6,14 @@ project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 status: todo
 priority: P2
 assignee: agent:unassigned
-sort_order: 10
+sort_order: 20
 sync_kind: repo_markdown
 sync_path: docs/to-do.md
 sync_key: aaf2ad488a16cab3
 sync_managed: true
 created_at: 2026-02-27T03:17:08.483724+00:00
-updated_at: 2026-03-01T00:57:31.146870+00:00
-revision: 83ee6580aa4576c35af08f905ebdf5e07668ff305503bb40a2405dfed1a4cfa5
+updated_at: 2026-03-01T04:46:24.806537+00:00
+revision: 6369ce3a0169b19d2274d7faf5c6641baad70d7e83b71dcc01d7a697bb80de90
 ---
 Synced from repo file `docs/to-do.md`.
 

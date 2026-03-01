@@ -68,6 +68,21 @@ impl Indexer {
     }
 
     pub fn index_file(&self, path: &Path) -> Result<IndexedEntity> {
+        let indexed = self.build_indexed_entity(path)?;
+        self.db.upsert_indexed_entity(&indexed)?;
+        Ok(indexed)
+    }
+
+    pub fn index_files(&self, paths: &[PathBuf]) -> Result<Vec<IndexedEntity>> {
+        let mut indexed = Vec::with_capacity(paths.len());
+        for path in paths {
+            indexed.push(self.build_indexed_entity(path)?);
+        }
+        self.db.upsert_indexed_entities(&indexed)?;
+        Ok(indexed)
+    }
+
+    fn build_indexed_entity(&self, path: &Path) -> Result<IndexedEntity> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("failed reading markdown file {}", path.display()))?;
         let parsed = parse_entity_markdown(&raw)
@@ -118,8 +133,6 @@ impl Indexer {
             archived: path.starts_with(self.config.archive_dir()),
             links: parsed.links,
         };
-
-        self.db.upsert_indexed_entity(&indexed)?;
         Ok(indexed)
     }
 
