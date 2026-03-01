@@ -234,6 +234,46 @@
       display: none;
     }
 
+    .layout.project-starter .todo-stack {
+      grid-column: 2 / -1;
+    }
+
+    .layout.project-starter .pane-todo {
+      grid-template-rows: 1fr;
+    }
+
+    .layout.project-starter .pane-todo .pane-head {
+      display: none;
+    }
+
+    .layout.project-starter .pane-todo .pane-body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .layout.project-starter #task-message {
+      display: none;
+    }
+
+    .layout.project-starter #active-task-list {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .layout.project-starter .starter-shell {
+      width: 100%;
+      height: 100%;
+    }
+
+    .layout.project-starter .pane-changelog {
+      display: none;
+    }
+
+    .layout.project-starter .pane-notes {
+      display: none;
+    }
+
     .pane {
       min-height: 0;
       display: grid;
@@ -429,6 +469,17 @@
       stroke-width: 1.7;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .icon-btn.subtle {
+      border: none;
+      background: transparent;
+    }
+
+    .icon-btn.subtle:hover,
+    .icon-btn.subtle:focus-visible {
+      background: rgba(16, 33, 46, 0.84);
+      outline: none;
     }
 
     .mode-toggle {
@@ -680,6 +731,33 @@
       white-space: nowrap;
     }
 
+    .project-add-card {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 12px;
+      padding-right: 12px;
+    }
+
+    .project-add-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      color: #67e8f9;
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .project-add-icon svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
     .section-title,
     .small-label {
       color: var(--muted);
@@ -845,7 +923,7 @@
       font-size: 16px;
       line-height: 1.25;
       letter-spacing: -0.01em;
-      color: #7dd3fc;
+      color: #4fc3fa;
     }
 
     .task-row.is-heading .task-heading-input,
@@ -870,9 +948,9 @@
       place-items: center;
       padding: 0;
       position: relative;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateX(-4px);
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
       transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, background-color 120ms ease;
     }
 
@@ -880,14 +958,6 @@
       content: "";
       position: absolute;
       inset: -7px;
-    }
-
-    .task-row.is-heading:hover .task-section-toggle,
-    .task-row.is-heading:focus-within .task-section-toggle,
-    .task-row.is-heading.is-collapsed .task-section-toggle {
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateX(0);
     }
 
     .task-section-toggle svg {
@@ -1031,12 +1101,28 @@
     }
 
     .done-section-heading {
-      padding: 10px 12px 2px;
-      color: #7dd3fc;
-      font-size: 14px;
+      --task-row-floor: 36px;
+      --task-row-vertical-chrome: 16px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      column-gap: 10px;
+      min-height: var(--task-row-floor);
+      padding: 8px 12px;
+      margin-bottom: 6px;
+    }
+
+    .done-section-title {
+      display: block;
+      min-width: 0;
+      min-height: 20px;
+      font-size: 16px;
       font-weight: 700;
       line-height: 1.25;
       letter-spacing: -0.01em;
+      color: #4fc3fa;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .task-row.is-heading .task-input:focus,
@@ -1072,6 +1158,11 @@
     }
 
     .todo-export-btn:disabled {
+      opacity: 0.42;
+      cursor: default;
+    }
+
+    .icon-btn:disabled {
       opacity: 0.42;
       cursor: default;
     }
@@ -1568,9 +1659,6 @@
       <section class="pane pane-projects">
         <div class="pane-head">
           <span class="pane-title">projects</span>
-          <div class="pane-head-actions">
-            <button class="icon-btn" id="projects-add" type="button">+</button>
-          </div>
         </div>
         <div class="pane-body">
           <div id="project-tray"></div>
@@ -1584,6 +1672,19 @@
             <span class="pane-title">to-do</span>
             <div class="pane-head-actions">
               <span class="muted" id="todo-status">ready</span>
+              <button class="icon-btn" id="todo-toggle-header" type="button" aria-label="Convert selected row to header" title="Convert selected row to header (⇧⌘H)" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 6v12"></path>
+                  <path d="M16 6v12"></path>
+                  <path d="M8 12h8"></path>
+                </svg>
+              </button>
+              <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy selected row" title="Copy selected row" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+                  <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="pane-body">
@@ -1603,6 +1704,7 @@
               <span>changelog</span>
             </div>
             <div class="pane-head-actions">
+              <span class="muted" id="changelog-status"></span>
               <button class="icon-btn" id="changelog-archive" type="button" aria-label="Archive completed tasks" title="Archive completed tasks">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M4 8h16"></path>
@@ -1629,6 +1731,7 @@
         <div class="pane-head">
           <span class="pane-title">notes</span>
           <div class="pane-head-actions">
+            <span class="muted" id="note-status"></span>
             <div class="mode-toggle" aria-label="Notes view mode">
               <button class="mode-btn" type="button" data-note-mode="clean" aria-label="Clean view" title="Clean view">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1693,6 +1796,7 @@
     const noteModeKey = "n10e-note-mode";
     const changelogCollapseKey = "n10e-changelog-collapsed";
     const taskSectionCollapseKey = "n10e-task-sections-collapsed";
+    const doneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
     const layoutModeBreakpoints = Object.freeze({
       oneColumn: 960,
       twoColumn: 1360,
@@ -1705,6 +1809,7 @@
       noteMode: localStorage.getItem(noteModeKey) || "markdown",
       changelogCollapsed: localStorage.getItem(changelogCollapseKey) === "true",
       collapsedTaskSections: loadCollapsedTaskSections(),
+      collapsedDoneTaskSections: loadCollapsedDoneTaskSections(),
       openNoteId: initialState.workspace?.suggested_open_note_id || null,
       projectTrayMode: null,
       projectInput: "",
@@ -1718,9 +1823,12 @@
       noteTitleEdits: {},
       noteBodyEdits: {},
       noteHtmlEdits: {},
+      selectedTaskId: null,
       taskTimers: {},
       noteTimers: {},
       todoStatusTimer: null,
+      changelogStatusTimer: null,
+      noteStatusTimer: null,
       draggedTaskId: null,
       focusTaskId: null,
       focusDraftKey: null,
@@ -1743,6 +1851,10 @@
     const doneTaskList = document.getElementById("done-task-list");
     const notesList = document.getElementById("notes-list");
     const todoStatus = document.getElementById("todo-status");
+    const changelogStatus = document.getElementById("changelog-status");
+    const noteStatus = document.getElementById("note-status");
+    const todoHeaderToggleButton = document.getElementById("todo-toggle-header");
+    const todoCopySelectedButton = document.getElementById("todo-copy-selected");
     const changelogPane = document.getElementById("changelog-pane");
     const changelogToggleButton = document.getElementById("changelog-toggle");
     const changelogArchiveButton = document.getElementById("changelog-archive");
@@ -1788,6 +1900,26 @@
       archiveChangelog();
     });
 
+    todoHeaderToggleButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+
+    todoHeaderToggleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      const taskId = getSelectedActiveTaskId();
+      if (!taskId) return;
+      toggleTaskHeading(taskId);
+    });
+
+    todoCopySelectedButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+
+    todoCopySelectedButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      await copySelectedTask();
+    });
+
     changelogToggleButton.addEventListener("click", () => {
       state.changelogCollapsed = !state.changelogCollapsed;
       localStorage.setItem(changelogCollapseKey, String(state.changelogCollapsed));
@@ -1796,12 +1928,6 @@
       window.setTimeout(() => {
         refreshScrollRevealBindings();
       }, 240);
-    });
-
-    document.getElementById("projects-add").addEventListener("click", () => {
-      state.projectMessage = "";
-      state.projectTrayMode = state.projectTrayMode ? null : "chooser";
-      render();
     });
 
     document.getElementById("notes-add").addEventListener("click", async () => {
@@ -1895,10 +2021,28 @@
         return;
       }
 
+      const projectAddButton = event.target.closest("[data-project-add]");
+      if (projectAddButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.projectMessage = "";
+        state.projectTrayMode = state.projectTrayMode ? null : "chooser";
+        render();
+        return;
+      }
+
       const projectButton = event.target.closest("[data-project-select-id]");
       if (projectButton) {
         const projectId = projectButton.dataset.projectSelectId;
         await selectProject(projectId);
+        return;
+      }
+
+      const doneSectionToggle = event.target.closest("[data-done-section-toggle-id]");
+      if (doneSectionToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleDoneTaskSection(doneSectionToggle.dataset.doneSectionToggleId);
         return;
       }
 
@@ -2024,6 +2168,12 @@
       const noteAction = event.target.closest("[data-note-action]");
       if (noteAction) {
         const action = noteAction.dataset.noteAction;
+        if (action === "copy") {
+          event.preventDefault();
+          event.stopPropagation();
+          await copyNote(noteAction.dataset.noteActionId);
+          return;
+        }
         if (action === "archive") {
           openNoteArchiveConfirm(noteAction.dataset.noteActionId);
           return;
@@ -2066,9 +2216,14 @@
     document.addEventListener("focusin", (event) => {
       const taskInput = event.target.closest("[data-task-id]");
       if (taskInput && taskInput.tagName === "TEXTAREA") {
+        setSelectedTaskId(taskInput.dataset.taskId);
         const task = findTask(taskInput.dataset.taskId);
         expandHeadingInput(taskInput, state.taskEdits[taskInput.dataset.taskId] ?? task?.title ?? taskInput.value);
         return;
+      }
+
+      if (!event.target.closest("#todo-toggle-header, #todo-copy-selected")) {
+        setSelectedTaskId(null);
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
@@ -2616,10 +2771,14 @@
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
       state.workspace = workspace;
       if (!workspace) {
+        setSelectedTaskId(null);
         state.openNoteId = null;
         state.taskDrafts = [];
         syncLocation();
         return;
+      }
+      if (!workspace.active_tasks.some((task) => task.id === state.selectedTaskId)) {
+        setSelectedTaskId(null);
       }
       state.openNoteId = preferredOpenNoteId || state.openNoteId || workspace?.suggested_open_note_id || null;
       if (state.workspace && state.openNoteId) {
@@ -2670,9 +2829,28 @@
       }
     }
 
+    function loadCollapsedDoneTaskSections() {
+      try {
+        const rawValue = localStorage.getItem(doneTaskSectionCollapseKey);
+        if (!rawValue) return {};
+        const parsedValue = JSON.parse(rawValue);
+        return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
+      } catch (_error) {
+        return {};
+      }
+    }
+
     function saveCollapsedTaskSections() {
       try {
         localStorage.setItem(taskSectionCollapseKey, JSON.stringify(state.collapsedTaskSections));
+      } catch (_error) {
+        // Ignore storage failures and keep the in-memory state active.
+      }
+    }
+
+    function saveCollapsedDoneTaskSections() {
+      try {
+        localStorage.setItem(doneTaskSectionCollapseKey, JSON.stringify(state.collapsedDoneTaskSections));
       } catch (_error) {
         // Ignore storage failures and keep the in-memory state active.
       }
@@ -2684,9 +2862,20 @@
       return sections && typeof sections === "object" ? sections : {};
     }
 
+    function getProjectCollapsedDoneTaskSections(projectId = state.selectedProjectId) {
+      if (!projectId) return {};
+      const sections = state.collapsedDoneTaskSections?.[projectId];
+      return sections && typeof sections === "object" ? sections : {};
+    }
+
     function isTaskSectionCollapsed(taskId, projectId = state.selectedProjectId) {
       if (!taskId || !projectId) return false;
       return getProjectCollapsedTaskSections(projectId)[taskId] === true;
+    }
+
+    function isDoneTaskSectionCollapsed(taskId, projectId = state.selectedProjectId) {
+      if (!taskId || !projectId) return false;
+      return getProjectCollapsedDoneTaskSections(projectId)[taskId] === true;
     }
 
     function setTaskSectionCollapsed(taskId, collapsed) {
@@ -2711,9 +2900,37 @@
       saveCollapsedTaskSections();
     }
 
+    function setDoneTaskSectionCollapsed(taskId, collapsed) {
+      if (!taskId || !state.selectedProjectId) return;
+
+      const projectId = state.selectedProjectId;
+      const nextProjectSections = { ...getProjectCollapsedDoneTaskSections(projectId) };
+      if (collapsed) {
+        nextProjectSections[taskId] = true;
+      } else {
+        delete nextProjectSections[taskId];
+      }
+
+      const nextSections = { ...state.collapsedDoneTaskSections };
+      if (Object.keys(nextProjectSections).length) {
+        nextSections[projectId] = nextProjectSections;
+      } else {
+        delete nextSections[projectId];
+      }
+
+      state.collapsedDoneTaskSections = nextSections;
+      saveCollapsedDoneTaskSections();
+    }
+
     function toggleTaskSection(taskId) {
       if (!taskId) return;
       setTaskSectionCollapsed(taskId, !isTaskSectionCollapsed(taskId));
+      render();
+    }
+
+    function toggleDoneTaskSection(taskId) {
+      if (!taskId) return;
+      setDoneTaskSectionCollapsed(taskId, !isDoneTaskSectionCollapsed(taskId));
       render();
     }
 
@@ -2759,6 +2976,22 @@
       state.focusTaskId = taskId;
       debounceTaskSave(taskId);
       render();
+    }
+
+    function setSelectedTaskId(taskId) {
+      const nextTaskId = taskId || null;
+      if (state.selectedTaskId === nextTaskId) return;
+      state.selectedTaskId = nextTaskId;
+      renderTodoTaskActionButtons();
+    }
+
+    function getSelectedActiveTask() {
+      if (!state.workspace || !state.selectedTaskId) return null;
+      return state.workspace.active_tasks.find((task) => task.id === state.selectedTaskId) || null;
+    }
+
+    function getSelectedActiveTaskId() {
+      return getSelectedActiveTask()?.id || null;
     }
 
     function toggleDraftHeading(draftKey) {
@@ -2877,7 +3110,7 @@
     function syncTaskRowHeight(row) {
       if (!(row instanceof HTMLElement)) return;
 
-      const textElement = row.querySelector(".task-input, .done-title");
+      const textElement = row.querySelector(".task-input, .done-title, .done-section-title");
       if (!(textElement instanceof HTMLElement)) return;
 
       const textHeight = textElement instanceof HTMLTextAreaElement
@@ -2912,7 +3145,7 @@
     }
 
     function syncAllTaskRowHeights() {
-      document.querySelectorAll(".task-row, .task-draft, .done-row").forEach((row) => {
+      document.querySelectorAll(".task-row, .task-draft, .done-row, .done-section-heading").forEach((row) => {
         syncTaskRowHeight(row);
       });
     }
@@ -3038,27 +3271,97 @@
       return lines.join("\n").trim();
     }
 
-    function renderDoneTaskList(doneTasks, sectionMap) {
-      const rows = [];
-      let lastSection = null;
+    function buildDoneTaskSectionState(workspace) {
+      const sections = new Map();
+      const taskToSection = new Map();
+      if (!workspace) return { sections, taskToSection };
 
-      doneTasks.forEach((task) => {
-        const sectionLabel = sectionMap.get(task.id) || null;
-        if (sectionLabel !== lastSection) {
-          if (sectionLabel) {
-            rows.push(renderDoneSectionHeading(sectionLabel));
+      const doneTaskIds = new Set(workspace.done_tasks.map((task) => task.id));
+      const orderedTasks = [...workspace.active_tasks, ...workspace.done_tasks]
+        .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id));
+
+      let currentSectionTaskId = null;
+      let currentSectionLabel = null;
+      orderedTasks.forEach((task) => {
+        const headingLabel = getTaskHeadingLabel(task.title);
+        if (headingLabel !== null) {
+          currentSectionTaskId = headingLabel ? task.id : null;
+          currentSectionLabel = headingLabel || null;
+          if (currentSectionTaskId) {
+            sections.set(task.id, {
+              label: currentSectionLabel,
+              collapsed: isDoneTaskSectionCollapsed(task.id),
+              itemCount: 0
+            });
           }
-          lastSection = sectionLabel;
+          return;
         }
 
+        if (!currentSectionTaskId || !doneTaskIds.has(task.id)) return;
+
+        const section = sections.get(currentSectionTaskId);
+        if (!section) return;
+
+        section.itemCount += 1;
+        taskToSection.set(task.id, {
+          id: currentSectionTaskId,
+          label: currentSectionLabel
+        });
+      });
+
+      sections.forEach((section, taskId) => {
+        if (section.itemCount === 0) {
+          sections.delete(taskId);
+        }
+      });
+
+      return { sections, taskToSection };
+    }
+
+    function renderDoneTaskList(doneTasks, doneSectionState) {
+      const rows = [];
+      let lastSectionTaskId = null;
+
+      doneTasks.forEach((task) => {
+        const sectionMeta = doneSectionState.taskToSection.get(task.id) || null;
+        const sectionTaskId = sectionMeta?.id || null;
+        const section = sectionTaskId ? doneSectionState.sections.get(sectionTaskId) || null : null;
+
+        if (sectionTaskId !== lastSectionTaskId) {
+          if (sectionTaskId && section) {
+            rows.push(renderDoneSectionHeading(sectionTaskId, section));
+          }
+          lastSectionTaskId = sectionTaskId;
+        }
+
+        if (section?.collapsed) return;
         rows.push(renderDoneTaskRow(task));
       });
 
       return rows.join("");
     }
 
-    function renderDoneSectionHeading(title) {
-      return `<div class="done-section-heading">${escapeHtml(title)}</div>`;
+    function renderDoneSectionHeading(sectionTaskId, section) {
+      if (!sectionTaskId || !section?.label) return "";
+
+      return `
+        <div class="done-section-heading">
+          <button
+            class="task-section-toggle"
+            type="button"
+            draggable="false"
+            data-done-section-toggle-id="${sectionTaskId}"
+            aria-expanded="${section.collapsed ? "false" : "true"}"
+            aria-label="${section.collapsed ? "Expand section" : "Collapse section"}"
+            title="${section.collapsed ? "Expand section" : "Collapse section"}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 6 6 6-6 6"></path>
+            </svg>
+          </button>
+          <div class="done-section-title">${escapeHtml(section.label)}</div>
+        </div>
+      `;
     }
 
     function renderActiveTaskRow(task, sectionState = null) {
@@ -3153,15 +3456,36 @@
       }
     }
 
-    function flashTodoStatus(label, duration = 1800) {
-      if (state.todoStatusTimer) {
-        window.clearTimeout(state.todoStatusTimer);
+    function resetTransientStatusLabel(node) {
+      if (node) node.textContent = "";
+    }
+
+    function flashStatusLabel(node, timerKey, label, duration = 1800, onReset = null) {
+      if (!node) return;
+      if (state[timerKey]) {
+        window.clearTimeout(state[timerKey]);
       }
-      todoStatus.textContent = label;
-      state.todoStatusTimer = window.setTimeout(() => {
-        state.todoStatusTimer = null;
-        resetTodoStatusLabel();
+      node.textContent = label;
+      state[timerKey] = window.setTimeout(() => {
+        state[timerKey] = null;
+        if (onReset) {
+          onReset();
+          return;
+        }
+        resetTransientStatusLabel(node);
       }, duration);
+    }
+
+    function flashTodoStatus(label, duration = 1800) {
+      flashStatusLabel(todoStatus, "todoStatusTimer", label, duration, resetTodoStatusLabel);
+    }
+
+    function flashChangelogStatus(label, duration = 1800) {
+      flashStatusLabel(changelogStatus, "changelogStatusTimer", label, duration);
+    }
+
+    function flashNoteStatus(label, duration = 1800) {
+      flashStatusLabel(noteStatus, "noteStatusTimer", label, duration);
     }
 
     function buildChangelogExportText() {
@@ -3194,7 +3518,7 @@
       return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
-    async function copyTextWithFallback(copyLabel, exportText, successLabel, fallbackLabel) {
+    async function copyTextWithFallback(copyLabel, exportText, successLabel, fallbackLabel, flashStatus = flashTodoStatus) {
       if (!exportText) return false;
 
       let copied = false;
@@ -3212,7 +3536,7 @@
         if (manualCopy === null) return false;
       }
 
-      flashTodoStatus(copied ? successLabel : fallbackLabel);
+      flashStatus(copied ? successLabel : fallbackLabel);
       return true;
     }
 
@@ -3223,11 +3547,85 @@
       await copyTextWithFallback("Copy section", sectionText, "section copied", "section ready");
     }
 
+    function buildSelectedTaskCopyText(taskId) {
+      const task = findTask(taskId);
+      if (!task) return "";
+
+      const rawTitle = state.taskEdits[task.id] ?? task.title ?? "";
+      if (isMarkdownTaskHeading(rawTitle)) {
+        const sectionText = buildTaskSectionCopyText(task.id);
+        return sectionText || `## ${getVisibleTaskTitle(rawTitle || "Untitled section")}`;
+      }
+
+      const visibleTitle = getVisibleTaskTitle(rawTitle || "Untitled task");
+      return `- [ ] ${visibleTitle}`;
+    }
+
+    function buildActiveTodoCopyText() {
+      if (!state.workspace?.active_tasks?.length) return "";
+
+      const lines = [];
+      state.workspace.active_tasks.forEach((task) => {
+        const rawTitle = state.taskEdits[task.id] ?? task.title ?? "";
+        if (isMarkdownTaskHeading(rawTitle)) {
+          lines.push(`## ${getVisibleTaskTitle(rawTitle || "Untitled section")}`);
+          return;
+        }
+
+        lines.push(`- [ ] ${getVisibleTaskTitle(rawTitle || "Untitled task")}`);
+      });
+
+      return lines.join("\n").trim();
+    }
+
+    async function copySelectedTask() {
+      const taskId = getSelectedActiveTaskId();
+      const copyText = taskId
+        ? buildSelectedTaskCopyText(taskId)
+        : buildActiveTodoCopyText();
+      if (!copyText) return;
+
+      await copyTextWithFallback(
+        taskId ? "Copy selected row" : "Copy to-do list",
+        copyText,
+        taskId ? "row copied" : "to-do copied",
+        taskId ? "row ready" : "to-do ready"
+      );
+    }
+
+    function buildNoteCopyText(noteId) {
+      if (!state.workspace) return "";
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return "";
+
+      const title = Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
+        ? state.noteTitleEdits[noteId]
+        : note.title;
+      const body = state.noteMode === "clean"
+        ? cleanHtmlToMarkdown(state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
+        : (Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)
+          ? state.noteBodyEdits[noteId]
+          : note.body);
+
+      const trimmedTitle = String(title || "").trim();
+      const trimmedBody = String(body || "").trim();
+      if (trimmedTitle && trimmedBody) return `# ${trimmedTitle}\n\n${trimmedBody}`;
+      if (trimmedTitle) return `# ${trimmedTitle}`;
+      return trimmedBody;
+    }
+
+    async function copyNote(noteId) {
+      const copyText = buildNoteCopyText(noteId);
+      if (!copyText) return;
+
+      await copyTextWithFallback("Copy note", copyText, "note copied", "note ready", flashNoteStatus);
+    }
+
     async function exportChangelog() {
       const exportText = buildChangelogExportText();
       if (!exportText) return;
 
-      await copyTextWithFallback("Copy changelog", exportText, "changelog copied", "changelog ready");
+      await copyTextWithFallback("Copy changelog", exportText, "changelog copied", "changelog ready", flashChangelogStatus);
     }
 
     async function archiveChangelog() {
@@ -3256,6 +3654,7 @@
 
     function render() {
       layout.classList.toggle("empty-app", state.projects.length === 0);
+      layout.classList.toggle("project-starter", state.projectTrayMode === "chooser");
       renderProjectTray();
       renderProjects();
       renderTasks();
@@ -3266,8 +3665,32 @@
       refreshScrollRevealBindings();
       updateStarterButtons();
       updateModeButtons();
+      renderTodoTaskActionButtons();
       scheduleTaskRowSync();
       applyFocus();
+    }
+
+    function renderTodoTaskActionButtons() {
+      const showProjectStarter = state.projectTrayMode === "chooser";
+      const selectedTask = showProjectStarter ? null : getSelectedActiveTask();
+      const hasActiveTasks = !showProjectStarter && Boolean(state.workspace?.active_tasks?.length);
+      const headerLabel = selectedTask
+        ? (isMarkdownTaskHeading(state.taskEdits[selectedTask.id] ?? selectedTask.title)
+          ? "Convert selected header to task"
+          : "Convert selected row to header")
+        : "Convert selected row to header";
+      const copyLabel = selectedTask
+        ? (isMarkdownTaskHeading(state.taskEdits[selectedTask.id] ?? selectedTask.title)
+          ? "Copy selected section"
+          : "Copy selected row")
+        : "Copy to-do list";
+      const title = `${headerLabel} (⇧⌘H)`;
+      todoHeaderToggleButton.disabled = !selectedTask;
+      todoHeaderToggleButton.setAttribute("aria-label", headerLabel);
+      todoHeaderToggleButton.title = title;
+      todoCopySelectedButton.disabled = !hasActiveTasks;
+      todoCopySelectedButton.setAttribute("aria-label", copyLabel);
+      todoCopySelectedButton.title = copyLabel;
     }
 
     function showScrollbarWhileScrolling(node) {
@@ -3404,36 +3827,8 @@
     });
 
     function renderProjectTray() {
-      if (!state.projectTrayMode) {
+      if (!state.projectTrayMode || state.projectTrayMode === "chooser") {
         projectTray.innerHTML = state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : "";
-        return;
-      }
-
-      if (state.projectTrayMode === "chooser") {
-        projectTray.innerHTML = `
-          <div class="inline-shell">
-            <div class="project-chooser-grid">
-              <button class="project-chooser-btn" type="button" data-project-chooser="new" aria-label="Create a project in n10e" title="Create a project in n10e">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
-                </svg>
-              </button>
-              <button class="project-chooser-btn" type="button" data-project-chooser="local" aria-label="Link a local folder" title="Link a local folder">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3.5 9a2 2 0 0 1 2-2h4.1l1.8 2H18.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-              <button class="project-chooser-btn" type="button" data-project-chooser="github" aria-label="Connect a GitHub repository" title="Connect a GitHub repository">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="8" cy="8" r="2.2" fill="currentColor"></circle>
-                  <circle cx="8" cy="18" r="2.2" fill="currentColor"></circle>
-                  <circle cx="16" cy="14" r="2.2" fill="currentColor"></circle>
-                  <path d="M10.2 8H14a2 2 0 0 1 2 2v1.8M8 10.4v5.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
-        `;
         return;
       }
 
@@ -3499,12 +3894,28 @@
     }
 
     function renderProjects() {
+      const addProjectCard = `
+        <button
+          class="project-card project-select project-add-card"
+          type="button"
+          data-project-add
+        >
+          <span class="project-add-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14"></path>
+              <path d="M5 12h14"></path>
+            </svg>
+          </span>
+          <span class="project-card-title">Add Project</span>
+        </button>
+      `;
+
       if (!state.projects.length) {
-        projectList.innerHTML = `<div class="empty-state">No projects yet.</div>`;
+        projectList.innerHTML = `${addProjectCard}<div class="empty-state">No projects yet.</div>`;
         return;
       }
 
-      projectList.innerHTML = state.projects.map((project) => `
+      projectList.innerHTML = `${addProjectCard}${state.projects.map((project) => `
         <div class="project-row">
           <button
             class="project-card project-select ${project.id === state.selectedProjectId ? "active" : ""}"
@@ -3527,7 +3938,7 @@
             </svg>
           </button>
         </div>
-      `).join("");
+      `).join("")}`;
 
       projectList.querySelectorAll("[data-project-menu-id]").forEach((button) => {
         button.addEventListener("click", (event) => {
@@ -3936,6 +4347,12 @@
         return;
       }
 
+      if (state.projectTrayMode === "chooser") {
+        activeTaskList.innerHTML = renderEmptyAppState();
+        todoStatus.textContent = "";
+        return;
+      }
+
       if (!state.workspace) {
         activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
         resetTodoStatusLabel();
@@ -3984,6 +4401,7 @@
 
       if (hidePane) {
         doneTaskList.innerHTML = "";
+        resetTransientStatusLabel(changelogStatus);
         changelogArchiveButton.disabled = true;
         changelogExportButton.disabled = true;
         return;
@@ -3991,6 +4409,7 @@
 
       if (!state.workspace) {
         doneTaskList.innerHTML = `<div class="empty-state">Select or create a project to review completed work.</div>`;
+        resetTransientStatusLabel(changelogStatus);
         changelogArchiveButton.disabled = true;
         changelogExportButton.disabled = true;
         return;
@@ -3999,8 +4418,8 @@
       if (!state.workspace.done_tasks.length) {
         doneTaskList.innerHTML = `<div class="empty-state">Completed tasks will land here as a running changelog.</div>`;
       } else {
-        const taskSectionMap = buildTaskSectionMap(state.workspace);
-        doneTaskList.innerHTML = renderDoneTaskList(state.workspace.done_tasks, taskSectionMap);
+        const doneTaskSectionState = buildDoneTaskSectionState(state.workspace);
+        doneTaskList.innerHTML = renderDoneTaskList(state.workspace.done_tasks, doneTaskSectionState);
       }
 
       changelogArchiveButton.disabled = state.workspace.done_tasks.length === 0;
@@ -4072,16 +4491,19 @@
     function renderNotes() {
       noteMessage.innerHTML = state.noteMessage ? `<div class="message error">${escapeHtml(state.noteMessage)}</div>` : "";
       if (!state.projects.length) {
+        resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = "";
         return;
       }
 
       if (!state.workspace) {
+        resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = `<div class="empty-state">Select or create a project to start collecting notes.</div>`;
         return;
       }
 
       if (!state.workspace.notes.length) {
+        resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = `<div class="empty-state">Use the plus button to create the first project note.</div>`;
         return;
       }
@@ -4100,6 +4522,12 @@
                 </button>
                 <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
                 <div class="note-head-actions">
+                  <button class="icon-btn subtle" type="button" data-note-action="copy" data-note-action-id="${note.id}" aria-label="Copy note" title="Copy note">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+                      <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+                    </svg>
+                  </button>
                   <button class="task-delete-btn" type="button" data-note-action="archive" data-note-action-id="${note.id}" aria-label="Archive note" title="Archive note">×</button>
                 </div>
               </div>
