@@ -10,8 +10,8 @@ use tracing::{error, info, warn};
 
 use crate::service::{AppService, ServiceError};
 use crate::types::{
-    Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, NotePatch, SearchFilters,
-    TaskFilters, TaskPatch,
+    Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, NotePatch, ProjectPatch,
+    SearchFilters, TaskFilters, TaskPatch,
 };
 
 #[derive(Debug, Deserialize)]
@@ -192,6 +192,27 @@ async fn handle_tool_call(
             let rows = service.list_tasks(&filters).map_err(map_anyhow_to_rpc)?;
             json!(rows)
         }
+        "list_projects" => {
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(200) as usize;
+            let include_archived = args
+                .get("include_archived")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let rows = service
+                .list_projects(limit, include_archived)
+                .map_err(map_anyhow_to_rpc)?;
+            json!(rows)
+        }
+        "get_project_workspace" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| rpc_err(-32602, "get_project_workspace missing project_id", None))?;
+            let workspace = service
+                .load_project_workspace(project_id)
+                .map_err(map_anyhow_to_rpc)?;
+            json!(workspace)
+        }
         "create_project" => {
             let payload: CreateProjectPayload = serde_json::from_value(args).map_err(|e| {
                 rpc_err(
@@ -202,6 +223,32 @@ async fn handle_tool_call(
             })?;
             let entity = service
                 .create_project(payload, agent.clone())
+                .map_err(map_service_to_rpc)?;
+            json!(entity)
+        }
+        "update_project" => {
+            let id = args
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| rpc_err(-32602, "update_project missing id", None))?;
+            let expected_revision = args
+                .get("expected_revision")
+                .and_then(Value::as_str)
+                .ok_or_else(|| rpc_err(-32602, "update_project missing expected_revision", None))?;
+            let patch: ProjectPatch = serde_json::from_value(
+                args.get("patch")
+                    .cloned()
+                    .unwrap_or_else(|| Value::Object(Default::default())),
+            )
+            .map_err(|e| {
+                rpc_err(
+                    -32602,
+                    "invalid update_project patch",
+                    Some(json!({"error": e.to_string()})),
+                )
+            })?;
+            let entity = service
+                .update_project(id, patch, expected_revision, agent.clone())
                 .map_err(map_service_to_rpc)?;
             json!(entity)
         }
@@ -243,6 +290,33 @@ async fn handle_tool_call(
                 .update_task(id, patch, expected_revision, agent.clone())
                 .map_err(map_service_to_rpc)?;
             json!(entity)
+        }
+        "reorder_project_tasks" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| rpc_err(-32602, "reorder_project_tasks missing project_id", None))?;
+            let ordered_active_task_ids: Vec<String> =
+                serde_json::from_value(args.get("ordered_active_task_ids").cloned().ok_or_else(
+                    || {
+                        rpc_err(
+                            -32602,
+                            "reorder_project_tasks missing ordered_active_task_ids",
+                            None,
+                        )
+                    },
+                )?)
+                .map_err(|e| {
+                    rpc_err(
+                        -32602,
+                        "invalid ordered_active_task_ids",
+                        Some(json!({"error": e.to_string()})),
+                    )
+                })?;
+            let workspace = service
+                .reorder_project_tasks(project_id, &ordered_active_task_ids, agent.clone())
+                .map_err(map_service_to_rpc)?;
+            json!(workspace)
         }
         "create_note" => {
             let payload: CreateNotePayload = serde_json::from_value(args).map_err(|e| {
@@ -335,9 +409,13 @@ fn is_direct_tool_method(method: &str) -> bool {
         "search_context"
             | "read_entity"
             | "list_tasks"
+            | "list_projects"
+            | "get_project_workspace"
             | "create_project"
+            | "update_project"
             | "create_task"
             | "update_task"
+            | "reorder_project_tasks"
             | "create_note"
             | "update_note"
             | "archive_entity"
@@ -356,9 +434,22 @@ fn tool_definitions() -> Vec<Value> {
             "list_tasks",
             "List tasks by status/priority/project/assignee filters",
         ),
+        tool_def("list_projects", "List projects by archived state"),
+        tool_def(
+            "get_project_workspace",
+            "Load a project workspace with tasks and notes",
+        ),
         tool_def("create_project", "Create a project markdown entity"),
+        tool_def(
+            "update_project",
+            "Update a project with optimistic revision lock",
+        ),
         tool_def("create_task", "Create a task markdown entity"),
         tool_def("update_task", "Update a task with optimistic revision lock"),
+        tool_def(
+            "reorder_project_tasks",
+            "Reorder active project tasks and return the workspace snapshot",
+        ),
         tool_def("create_note", "Create a note markdown entity"),
         tool_def("update_note", "Update a note with optimistic revision lock"),
         tool_def(

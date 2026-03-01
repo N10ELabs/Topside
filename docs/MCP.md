@@ -8,9 +8,13 @@
 - `search_context`
 - `read_entity`
 - `list_tasks`
+- `list_projects`
+- `get_project_workspace`
 - `create_project`
+- `update_project`
 - `create_task`
 - `update_task`
+- `reorder_project_tasks`
 - `create_note`
 - `update_note`
 - `archive_entity`

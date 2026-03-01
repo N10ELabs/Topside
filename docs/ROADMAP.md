@@ -101,9 +101,13 @@ Last updated: 2026-02-26
 - [x] `search_context(query, filters, limit)`
 - [x] `read_entity(id_or_path)`
 - [x] `list_tasks(filters)`
+- [x] `list_projects(limit, include_archived)`
+- [x] `get_project_workspace(project_id)`
 - [x] `create_project(payload)`
+- [x] `update_project(id, patch, expected_revision)`
 - [x] `create_task(payload)`
 - [x] `update_task(id, patch, expected_revision)`
+- [x] `reorder_project_tasks(project_id, ordered_active_task_ids)`
 - [x] `create_note(payload)`
 - [x] `update_note(id, patch, expected_revision)`
 - [x] `archive_entity(id, expected_revision)`

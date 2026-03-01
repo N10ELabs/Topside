@@ -40,11 +40,13 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
             .with_title(title)
             .with_inner_size(LogicalSize::new(1440.0, 960.0))
             .with_min_inner_size(LogicalSize::new(1100.0, 720.0))
+            .with_transparent(true)
             .build(&event_loop)?;
 
         let allowed_origin = app_origin(url);
         let _webview = WebViewBuilder::new()
             .with_url(url)
+            .with_transparent(true)
             .with_initialization_script(
                 "window.__N10E_DESKTOP__ = true; document.documentElement.dataset.n10eDesktop = 'true';",
             )

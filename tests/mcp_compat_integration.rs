@@ -99,9 +99,42 @@ fn codex_style_direct_method_profile() -> Result<()> {
         .and_then(Value::as_str)
         .context("missing project id in direct create_project result")?
         .to_string();
+    let project_revision = created_project
+        .get("result")
+        .and_then(|v| v.get("revision"))
+        .and_then(Value::as_str)
+        .context("missing project revision in direct create_project result")?
+        .to_string();
+
+    let listed_projects = mcp.call(3, "list_projects", json!({ "limit": 20 }))?;
+    let projects = listed_projects
+        .get("result")
+        .and_then(Value::as_array)
+        .context("missing list_projects result array")?;
+    assert!(
+        projects.iter().any(|project| {
+            project.get("id").and_then(Value::as_str) == Some(project_id.as_str())
+        })
+    );
+
+    let updated_project = mcp.call(
+        4,
+        "update_project",
+        json!({
+            "id": project_id,
+            "expected_revision": project_revision,
+            "patch": { "title": "Codex Direct Project Renamed" }
+        }),
+    )?;
+    let updated_title = updated_project
+        .get("result")
+        .and_then(|v| v.get("title"))
+        .and_then(Value::as_str)
+        .context("missing updated project title")?;
+    assert_eq!(updated_title, "Codex Direct Project Renamed");
 
     let created_task = mcp.call(
-        3,
+        5,
         "create_task",
         json!({
             "title": "Codex Direct Task",
@@ -124,7 +157,7 @@ fn codex_style_direct_method_profile() -> Result<()> {
         .to_string();
 
     let conflict = mcp.call(
-        4,
+        6,
         "update_task",
         json!({
             "id": task_id,
@@ -141,7 +174,7 @@ fn codex_style_direct_method_profile() -> Result<()> {
     assert_eq!(code, -32010);
 
     let update_ok = mcp.call(
-        5,
+        7,
         "update_task",
         json!({
             "id": created_task["result"]["id"],
@@ -151,7 +184,92 @@ fn codex_style_direct_method_profile() -> Result<()> {
     )?;
     assert!(update_ok.get("result").is_some());
 
-    let search = mcp.call(6, "search_context", json!({ "query": "Codex" }))?;
+    let created_task_second = mcp.call(
+        8,
+        "create_task",
+        json!({
+            "title": "Codex Active Task B",
+            "project_id": project_id
+        }),
+    )?;
+    let second_task_id = created_task_second
+        .get("result")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .context("missing second task id from create_task")?
+        .to_string();
+
+    let created_task_third = mcp.call(
+        9,
+        "create_task",
+        json!({
+            "title": "Codex Active Task C",
+            "project_id": project_id
+        }),
+    )?;
+    let third_task_id = created_task_third
+        .get("result")
+        .and_then(|v| v.get("id"))
+        .and_then(Value::as_str)
+        .context("missing third task id from create_task")?
+        .to_string();
+
+    let reordered_workspace = mcp.call(
+        10,
+        "reorder_project_tasks",
+        json!({
+            "project_id": project_id,
+            "ordered_active_task_ids": [third_task_id, second_task_id]
+        }),
+    )?;
+    let reordered_active = reordered_workspace
+        .get("result")
+        .and_then(|v| v.get("active_tasks"))
+        .and_then(Value::as_array)
+        .context("missing active_tasks in reorder_project_tasks result")?;
+    assert_eq!(
+        reordered_active
+            .first()
+            .and_then(|task| task.get("id"))
+            .and_then(Value::as_str),
+        Some(third_task_id.as_str())
+    );
+    assert_eq!(
+        reordered_active
+            .get(1)
+            .and_then(|task| task.get("id"))
+            .and_then(Value::as_str),
+        Some(second_task_id.as_str())
+    );
+
+    let workspace = mcp.call(
+        11,
+        "get_project_workspace",
+        json!({ "project_id": project_id }),
+    )?;
+    let workspace_result = workspace
+        .get("result")
+        .context("missing get_project_workspace result")?;
+    let workspace_project_title = workspace_result
+        .get("project")
+        .and_then(|v| v.get("title"))
+        .and_then(Value::as_str)
+        .context("missing workspace project title")?;
+    assert_eq!(workspace_project_title, "Codex Direct Project Renamed");
+    let done_tasks = workspace_result
+        .get("done_tasks")
+        .and_then(Value::as_array)
+        .context("missing done_tasks in workspace result")?;
+    assert_eq!(done_tasks.len(), 1);
+    assert_eq!(
+        done_tasks
+            .first()
+            .and_then(|task| task.get("id"))
+            .and_then(Value::as_str),
+        Some(task_id.as_str())
+    );
+
+    let search = mcp.call(12, "search_context", json!({ "query": "Codex" }))?;
     let result_len = search
         .get("result")
         .and_then(Value::as_array)
@@ -178,6 +296,16 @@ fn claude_style_tools_call_profile() -> Result<()> {
         .and_then(Value::as_array)
         .context("tools/list missing tools")?;
     assert!(tools_list.iter().any(|tool| tool["name"] == "create_note"));
+    assert!(
+        tools_list
+            .iter()
+            .any(|tool| tool["name"] == "list_projects")
+    );
+    assert!(
+        tools_list
+            .iter()
+            .any(|tool| tool["name"] == "get_project_workspace")
+    );
 
     let create_project = mcp.call(
         3,
@@ -216,8 +344,26 @@ fn claude_style_tools_call_profile() -> Result<()> {
         .context("missing note id from create_note")?
         .to_string();
 
-    let read_note = mcp.call(
+    let list_projects = mcp.call(
         5,
+        "tools/call",
+        json!({
+            "name": "list_projects",
+            "arguments": { "limit": 20 }
+        }),
+    )?;
+    let listed_projects = list_projects
+        .get("result")
+        .and_then(Value::as_array)
+        .context("missing tools/call list_projects result array")?;
+    assert!(
+        listed_projects.iter().any(|project| {
+            project.get("id").and_then(Value::as_str) == Some(project_id.as_str())
+        })
+    );
+
+    let read_note = mcp.call(
+        6,
         "tools/call",
         json!({
             "name": "read_entity",
@@ -226,8 +372,30 @@ fn claude_style_tools_call_profile() -> Result<()> {
     )?;
     assert!(read_note.get("result").is_some());
 
+    let workspace = mcp.call(
+        7,
+        "tools/call",
+        json!({
+            "name": "get_project_workspace",
+            "arguments": { "project_id": project_id }
+        }),
+    )?;
+    let workspace_notes = workspace
+        .get("result")
+        .and_then(|v| v.get("notes"))
+        .and_then(Value::as_array)
+        .context("missing notes in tools/call get_project_workspace result")?;
+    assert_eq!(workspace_notes.len(), 1);
+    assert_eq!(
+        workspace_notes
+            .first()
+            .and_then(|note| note.get("id"))
+            .and_then(Value::as_str),
+        Some(note_id.as_str())
+    );
+
     let activity = mcp.call(
-        6,
+        8,
         "tools/call",
         json!({
             "name": "list_recent_activity",

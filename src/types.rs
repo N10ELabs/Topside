@@ -705,7 +705,7 @@ pub struct NotePatch {
     pub body: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProjectPatch {
     pub title: Option<String>,
     pub status: Option<ProjectStatus>,
