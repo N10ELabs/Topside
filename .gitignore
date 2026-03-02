@@ -1,5 +1,8 @@
 /target
 /.n10e
+/.dev-workspace
+/.codex/environments
+*.n10e-sync.json
 /dist
 *.log
 /.claude
