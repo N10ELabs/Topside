@@ -116,7 +116,7 @@
       "title": "Connect any unfinished options in project settings menus",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJNG52W43MNNXB4YNANZXH4M"
@@ -125,7 +125,7 @@
       "title": "Complete headers should have a mark as complete option that removes them from to-do",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJP34YREFD1S5PEYPAG2EGWC"
@@ -134,7 +134,7 @@
       "title": "Correct pane title placement and find alternative for dropdown chevron",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJNG52W4M08CEBDKPWBG71PN"
@@ -143,7 +143,7 @@
       "title": "Ensure scroll position does not change on task highlight",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJNG52W4MAEEPNPYFY5XTRKW"
@@ -184,7 +184,7 @@
       "title": "Create bidirectional sync as to-do.md",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJNG52W4H7SDFGNASDJJS4F5"
@@ -193,7 +193,7 @@
       "title": "Update todo pane as to-do.md",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJNG52W4YGB6QP5B10E98HQ4"

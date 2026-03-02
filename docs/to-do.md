@@ -13,16 +13,16 @@
 - [x] Support manual reconcile flows for conflicting edits
 - [ ] Record assignment audit events and guardrails for automated reassignment
 ## Section: Phase 6 - Visual Polish and Functionality
-- [ ] Connect any unfinished options in project settings menus
-- [ ] Complete headers should have a mark as complete option that removes them from to-do
-- [ ] Correct pane title placement and find alternative for dropdown chevron
-- [ ] Ensure scroll position does not change on task highlight
+- [x] Connect any unfinished options in project settings menus
+- [x] Complete headers should have a mark as complete option that removes them from to-do
+- [x] Correct pane title placement and find alternative for dropdown chevron
+- [x] Ensure scroll position does not change on task highlight
 - [ ] Put headers with borders and indent the tasks as clean no border rows
 - [ ] Remove the lines below pane titles. Cleaner UI
 - [ ] Visual animation when tasks are created or destroyed by agent in todo.md
 ## Phase 7 - Hub as Interactive Codebase
-- [ ] Create bidirectional sync as to-do.md
-- [ ] Update todo pane as to-do.md
+- [x] Create bidirectional sync as to-do.md
+- [x] Update todo pane as to-do.md
 - [x] Add buttons for to-do pane
 - [x] Update notes as /notes (this will later sync to docs
 - [ ] Initial project selection should initilaize todo.md in project workspace

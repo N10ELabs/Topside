@@ -277,6 +277,22 @@
       display: none;
     }
 
+    .pane.pane-archive {
+      display: none;
+      min-height: 0;
+    }
+
+    .layout.archive-view .todo-stack,
+    .layout.archive-view .pane-notes {
+      display: none;
+    }
+
+    .layout.archive-view .pane.pane-archive {
+      display: grid;
+      grid-column: 2 / -1;
+      grid-row: 1 / -1;
+    }
+
     .pane {
       min-height: 0;
       display: grid;
@@ -824,51 +840,10 @@
       outline: none;
     }
 
-    .archive-menu-panel {
-      position: absolute;
-      left: 0;
-      bottom: calc(100% + 10px);
-      width: min(420px, calc(100vw - 56px));
-      max-height: min(70vh, 520px);
-      overflow: auto;
-      display: none;
-      padding: 10px;
-      border: 1px solid var(--line-strong);
-      border-radius: 14px;
-      background: rgba(8, 15, 21, 0.97);
-      box-shadow: 0 24px 48px rgba(2, 8, 14, 0.45);
-      scrollbar-width: thin;
-      scrollbar-color: rgba(125, 211, 252, 0.28) transparent;
-    }
-
-    .archive-menu.open .archive-menu-panel {
-      display: grid;
-      gap: 10px;
-    }
-
-    .archive-menu-panel::-webkit-scrollbar {
-      width: 7px;
-      height: 7px;
-    }
-
-    .archive-menu-panel::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .archive-menu-panel::-webkit-scrollbar-thumb {
-      background: rgba(125, 211, 252, 0.24);
-      border: 1px solid rgba(56, 189, 248, 0.12);
-      border-radius: 999px;
-      box-shadow: none;
-    }
-
-    .archive-menu-panel::-webkit-scrollbar-thumb:hover {
-      background: rgba(125, 211, 252, 0.36);
-    }
-
     .archive-menu-shell {
       display: grid;
       gap: 10px;
+      width: 100%;
     }
 
     .archive-menu-head {
@@ -894,6 +869,7 @@
     .archive-menu-list {
       display: grid;
       gap: 8px;
+      align-content: start;
     }
 
     .archive-menu-section-label {
@@ -2104,6 +2080,7 @@
     html[data-layout-mode="two"] .pane-projects { grid-area: projects; }
     html[data-layout-mode="two"] .todo-stack { grid-area: todo; }
     html[data-layout-mode="two"] .pane-notes { grid-area: notes; }
+    html[data-layout-mode="two"] .pane-archive { grid-area: auto; }
 
     html[data-layout-mode="one"] .shell {
       padding: 10px;
@@ -2118,8 +2095,14 @@
 
     html[data-layout-mode="one"] .pane-projects,
     html[data-layout-mode="one"] .todo-stack,
-    html[data-layout-mode="one"] .pane-notes {
+    html[data-layout-mode="one"] .pane-notes,
+    html[data-layout-mode="one"] .pane-archive {
       grid-area: auto;
+    }
+
+    html[data-layout-mode="one"] .layout.archive-view .pane-archive {
+      grid-column: 1 / -1;
+      grid-row: auto;
     }
 
     html[data-layout-mode="one"] .pane-projects {
@@ -2162,7 +2145,6 @@
                 </svg>
                 <span>archive</span>
               </button>
-              <div class="archive-menu-panel" id="archive-menu-panel"></div>
             </div>
           </div>
         </div>
@@ -2254,9 +2236,8 @@
             <div class="note-picker" id="note-link-picker-wrap">
               <button class="icon-btn" id="notes-link" type="button" aria-label="Link markdown file" title="Link markdown file">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 4v10"></path>
-                  <path d="m8 10 4 4 4-4"></path>
-                  <path d="M5 18h14"></path>
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07L12 5"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07L12 19"></path>
                 </svg>
               </button>
               <div class="note-picker-panel" id="note-link-picker"></div>
@@ -2267,6 +2248,18 @@
         <div class="pane-body">
           <div id="note-message"></div>
           <div id="notes-list" class="notes-list"></div>
+        </div>
+      </section>
+
+      <section class="pane pane-archive" id="archive-pane">
+        <div class="pane-head">
+          <span class="pane-title">archive</span>
+          <div class="pane-head-actions">
+            <span class="muted" id="archive-status"></span>
+          </div>
+        </div>
+        <div class="pane-body">
+          <div id="archive-body" class="archive-menu-shell"></div>
         </div>
       </section>
     </main>
@@ -2374,7 +2367,9 @@
     const projectList = document.getElementById("project-list");
     const archiveMenuWrap = document.getElementById("archive-menu-wrap");
     const archiveMenuToggle = document.getElementById("archive-menu-toggle");
-    const archiveMenuPanel = document.getElementById("archive-menu-panel");
+    const archivePane = document.getElementById("archive-pane");
+    const archiveStatus = document.getElementById("archive-status");
+    const archiveBody = document.getElementById("archive-body");
     const taskMessage = document.getElementById("task-message");
     const noteMessage = document.getElementById("note-message");
     const activeTaskList = document.getElementById("active-task-list");
@@ -2510,9 +2505,10 @@
         closeArchiveMenu();
         return;
       }
+      state.projectTrayMode = null;
       state.archiveMenuOpen = true;
       state.archiveEmptyConfirm = false;
-      renderArchiveMenu();
+      render();
       await loadArchiveMenu();
     });
 
@@ -2540,10 +2536,6 @@
     });
 
     document.addEventListener("click", async (event) => {
-      if (state.archiveMenuOpen && !event.target.closest("#archive-menu-wrap")) {
-        closeArchiveMenu();
-      }
-
       if (state.noteFilePickerOpen && !event.target.closest("#note-link-picker-wrap")) {
         closeNoteFilePicker();
       }
@@ -2777,7 +2769,7 @@
         event.preventDefault();
         event.stopPropagation();
         state.archiveEmptyConfirm = true;
-        renderArchiveMenu();
+        renderArchivePane();
         return;
       }
 
@@ -2786,7 +2778,7 @@
         event.preventDefault();
         event.stopPropagation();
         state.archiveEmptyConfirm = false;
-        renderArchiveMenu();
+        renderArchivePane();
         return;
       }
 
@@ -3185,8 +3177,18 @@
       render();
     });
 
+    function isAlternateProjectViewOpen() {
+      return Boolean(state.projectTrayMode || state.archiveMenuOpen || state.archiveEmptyConfirm);
+    }
+
     async function selectProject(projectId) {
-      if (state.selectedProjectId === projectId) return;
+      if (state.selectedProjectId === projectId) {
+        if (!isAlternateProjectViewOpen()) return;
+        closeArchiveMenu();
+        state.projectTrayMode = null;
+        render();
+        return;
+      }
       await saveOpenNote();
       const workspace = await fetchJson(`/api/projects/${projectId}/workspace`, {}, "project");
       if (!workspace) return;
@@ -3225,22 +3227,22 @@
       if (!state.archiveMenuOpen && !state.archiveEmptyConfirm) return;
       state.archiveMenuOpen = false;
       state.archiveEmptyConfirm = false;
-      renderArchiveMenu();
+      render();
     }
 
     async function loadArchiveMenu() {
       state.archiveMenuLoading = true;
-      renderArchiveMenu();
+      renderArchivePane();
       const response = await fetchJson("/api/archive", {}, "project");
       state.archiveMenuLoading = false;
       if (!response) {
-        renderArchiveMenu();
+        renderArchivePane();
         return;
       }
 
       state.archiveItems = Array.isArray(response.items) ? response.items : [];
       state.archiveTotalCount = Number.isFinite(response.total_count) ? response.total_count : 0;
-      renderArchiveMenu();
+      renderArchivePane();
     }
 
     function applyArchiveMutation(response) {
@@ -3281,23 +3283,27 @@
     }
 
     function renderArchiveMenu() {
-      archiveMenuWrap.classList.toggle("open", state.archiveMenuOpen);
       archiveMenuToggle.classList.toggle("active", state.archiveMenuOpen);
+      archiveMenuToggle.setAttribute("aria-pressed", state.archiveMenuOpen ? "true" : "false");
+      archiveMenuToggle.title = state.archiveMenuOpen ? "Close archive" : "Open archive";
+      archiveMenuToggle.setAttribute(
+        "aria-label",
+        state.archiveMenuOpen ? "Close archive" : "Open archive"
+      );
+    }
+
+    function renderArchivePane() {
+      archivePane.setAttribute("aria-hidden", state.archiveMenuOpen ? "false" : "true");
 
       if (!state.archiveMenuOpen) {
-        archiveMenuPanel.innerHTML = "";
+        archiveStatus.textContent = "";
+        archiveBody.innerHTML = "";
         return;
       }
 
       if (state.archiveMenuLoading) {
-        archiveMenuPanel.innerHTML = `
-          <div class="archive-menu-shell">
-            <div class="archive-menu-head">
-              <span class="archive-menu-title">archive</span>
-              <span class="archive-menu-count">loading…</span>
-            </div>
-          </div>
-        `;
+        archiveStatus.textContent = "loading…";
+        archiveBody.innerHTML = `<div class="empty-state">Loading archive…</div>`;
         return;
       }
 
@@ -3334,6 +3340,8 @@
       const totalLabel = state.archiveTotalCount === 1
         ? "1 item"
         : `${state.archiveTotalCount} items`;
+      archiveStatus.textContent = totalLabel;
+
       const emptyStateMarkup = state.archiveItems.length
         ? ""
         : `<div class="empty-state">Archive is empty.</div>`;
@@ -3353,19 +3361,13 @@
             </div>
           `);
 
-      archiveMenuPanel.innerHTML = `
-        <div class="archive-menu-shell">
-          <div class="archive-menu-head">
-            <span class="archive-menu-title">archive</span>
-            <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
-          </div>
-          ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
-          <div class="archive-menu-list">
-            ${itemsMarkup}
-          </div>
-          ${emptyStateMarkup}
-          ${actionsMarkup}
+      archiveBody.innerHTML = `
+        ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
+        <div class="archive-menu-list">
+          ${itemsMarkup}
         </div>
+        ${emptyStateMarkup}
+        ${actionsMarkup}
       `;
     }
 
@@ -3414,7 +3416,7 @@
       }, "task");
       if (!response) return;
       applyWorkspace(response.workspace);
-      render();
+      render({ preserveShellScroll: true });
     }
 
     async function saveTask(taskId) {
@@ -4946,10 +4948,12 @@
     function render(options = {}) {
       const scrollState = options.preserveShellScroll ? captureShellScrollState() : null;
       layout.classList.toggle("empty-app", state.projects.length === 0);
-      layout.classList.toggle("project-starter", state.projectTrayMode === "chooser");
+      layout.classList.toggle("project-starter", state.projectTrayMode === "chooser" && !state.archiveMenuOpen);
+      layout.classList.toggle("archive-view", state.archiveMenuOpen);
       renderProjectTray();
       renderProjects();
       renderArchiveMenu();
+      renderArchivePane();
       renderTasks();
       renderChangelogPane();
       renderNotes();
@@ -5176,6 +5180,7 @@
     }
 
     function renderProjects() {
+      const highlightSelectedProject = !isAlternateProjectViewOpen();
       const addProjectCard = `
         <button
           class="project-card project-select project-add-card"
@@ -5200,7 +5205,7 @@
       projectList.innerHTML = `${addProjectCard}${state.projects.map((project) => `
         <div class="project-row">
           <button
-            class="project-card project-select ${project.id === state.selectedProjectId ? "active" : ""}"
+            class="project-card project-select ${highlightSelectedProject && project.id === state.selectedProjectId ? "active" : ""}"
             type="button"
             data-project-select-id="${project.id}"
           >
