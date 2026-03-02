@@ -9,9 +9,9 @@ use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
 use crate::types::{
-    ActivityItem, EntitySnapshot, EntityType, IndexedEntity, NoteDetail, NoteItem, ParsedEntity,
-    ProjectItem, ProjectSourceKind, SearchFilters, SearchResult, TaskFilters, TaskItem,
-    TaskPriority, TaskStatus, TaskSyncKind, TaskSyncMode, TaskSyncStatus,
+    ActivityItem, EntitySnapshot, EntityType, IndexedEntity, NoteDetail, NoteItem, NoteSyncKind,
+    NoteSyncStatus, ParsedEntity, ProjectItem, ProjectSourceKind, SearchFilters, SearchResult,
+    TaskFilters, TaskItem, TaskPriority, TaskStatus, TaskSyncKind, TaskSyncMode, TaskSyncStatus,
 };
 
 #[derive(Clone)]
@@ -265,7 +265,9 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, title, project_id, path, updated_at, revision, archived
+                SELECT id, title, project_id, sync_kind, sync_path, sync_status,
+                       sync_last_seen_hash, sync_last_inbound_at, sync_last_outbound_at,
+                       sync_conflict_summary, sync_conflict_at, path, updated_at, revision, archived
                 FROM notes
                 WHERE (?1 = 1 OR archived = 0)
                 ORDER BY updated_at DESC
@@ -276,19 +278,97 @@ impl Db {
             let rows = stmt.query_map(
                 params![if include_archived { 1 } else { 0 }, limit as i64],
                 |row| {
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
+                    let sync_last_inbound_at = row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let sync_last_outbound_at = row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let sync_conflict_at = row
+                        .get::<_, Option<String>>(10)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(12)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
                     Ok(NoteItem {
                         id: row.get(0)?,
                         title: row.get(1)?,
                         project_id: row.get(2)?,
-                        path: row.get(3)?,
+                        sync_kind: row
+                            .get::<_, Option<String>>(3)?
+                            .map(|value| parse_note_sync_kind(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        sync_path: row.get(4)?,
+                        sync_status: row
+                            .get::<_, Option<String>>(5)?
+                            .map(|value| parse_note_sync_status(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        sync_last_seen_hash: row.get(6)?,
+                        sync_last_inbound_at,
+                        sync_last_outbound_at,
+                        sync_conflict_summary: row.get(9)?,
+                        sync_conflict_at,
+                        path: row.get(11)?,
                         updated_at,
-                        revision: row.get(5)?,
-                        archived: row.get::<_, i64>(6)? != 0,
+                        revision: row.get(13)?,
+                        archived: row.get::<_, i64>(14)? != 0,
                     })
                 },
+            )?;
+
+            let mut out = Vec::new();
+            for row in rows {
+                out.push(row?);
+            }
+            Ok(out)
+        })
+    }
+
+    pub fn find_repo_markdown_note_id(
+        &self,
+        project_id: &str,
+        sync_path: &str,
+    ) -> Result<Option<String>> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                r#"
+                SELECT id
+                FROM notes
+                WHERE project_id = ?1
+                  AND sync_kind = ?2
+                  AND sync_path = ?3
+                  AND archived = 0
+                LIMIT 1
+                "#,
+                params![project_id, NoteSyncKind::RepoMarkdown.as_str(), sync_path],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(Into::into)
+        })
+    }
+
+    pub fn list_repo_markdown_note_ids_for_project(&self, project_id: &str) -> Result<Vec<String>> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT id
+                FROM notes
+                WHERE project_id = ?1
+                  AND sync_kind = ?2
+                  AND archived = 0
+                ORDER BY updated_at DESC
+                "#,
+            )?;
+
+            let rows = stmt.query_map(
+                params![project_id, NoteSyncKind::RepoMarkdown.as_str()],
+                |row| row.get::<_, String>(0),
             )?;
 
             let mut out = Vec::new();
@@ -308,7 +388,10 @@ impl Db {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT n.id, n.project_id, e.title, e.body, e.path, n.updated_at, n.revision, n.archived
+                SELECT n.id, n.project_id, e.title, e.body, n.sync_kind, n.sync_path,
+                       n.sync_status, n.sync_last_seen_hash, n.sync_last_inbound_at,
+                       n.sync_last_outbound_at, n.sync_conflict_summary, n.sync_conflict_at,
+                       e.path, n.updated_at, n.revision, n.archived
                 FROM notes n
                 INNER JOIN entities e ON e.id = n.id
                 WHERE n.project_id = ?1
@@ -319,9 +402,25 @@ impl Db {
             )?;
 
             let rows = stmt.query_map(
-                params![project_id, if include_archived { 1 } else { 0 }, limit as i64],
+                params![
+                    project_id,
+                    if include_archived { 1 } else { 0 },
+                    limit as i64
+                ],
                 |row| {
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                    let sync_last_inbound_at = row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let sync_last_outbound_at = row
+                        .get::<_, Option<String>>(9)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let sync_conflict_at = row
+                        .get::<_, Option<String>>(11)?
+                        .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
+                        .map(|value| value.with_timezone(&Utc));
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(13)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
 
@@ -330,10 +429,26 @@ impl Db {
                         project_id: row.get(1)?,
                         title: row.get(2)?,
                         body: row.get(3)?,
-                        path: row.get(4)?,
+                        sync_kind: row
+                            .get::<_, Option<String>>(4)?
+                            .map(|value| parse_note_sync_kind(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        sync_path: row.get(5)?,
+                        sync_status: row
+                            .get::<_, Option<String>>(6)?
+                            .map(|value| parse_note_sync_status(&value))
+                            .transpose()
+                            .map_err(to_sql_err)?,
+                        sync_last_seen_hash: row.get(7)?,
+                        sync_last_inbound_at,
+                        sync_last_outbound_at,
+                        sync_conflict_summary: row.get(10)?,
+                        sync_conflict_at,
+                        path: row.get(12)?,
                         updated_at,
-                        revision: row.get(6)?,
-                        archived: row.get::<_, i64>(7)? != 0,
+                        revision: row.get(14)?,
+                        archived: row.get::<_, i64>(15)? != 0,
                     })
                 },
             )?;
@@ -813,10 +928,26 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
         EntityType::Note => {
             tx.execute(
                 r#"
-                INSERT INTO notes (id, project_id, path, title, created_at, updated_at, revision, archived)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                INSERT INTO notes (
+                    id, project_id, sync_kind, sync_path, sync_status, sync_last_seen_hash,
+                    sync_last_inbound_at, sync_last_outbound_at, sync_conflict_summary,
+                    sync_conflict_at, path, title, created_at, updated_at, revision, archived
+                )
+                VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6,
+                    ?7, ?8, ?9,
+                    ?10, ?11, ?12, ?13, ?14, ?15, ?16
+                )
                 ON CONFLICT(id) DO UPDATE SET
                     project_id = excluded.project_id,
+                    sync_kind = excluded.sync_kind,
+                    sync_path = excluded.sync_path,
+                    sync_status = excluded.sync_status,
+                    sync_last_seen_hash = excluded.sync_last_seen_hash,
+                    sync_last_inbound_at = excluded.sync_last_inbound_at,
+                    sync_last_outbound_at = excluded.sync_last_outbound_at,
+                    sync_conflict_summary = excluded.sync_conflict_summary,
+                    sync_conflict_at = excluded.sync_conflict_at,
                     path = excluded.path,
                     title = excluded.title,
                     created_at = excluded.created_at,
@@ -827,6 +958,14 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
                 params![
                     entity.id,
                     entity.project_id,
+                    entity.note_sync_kind.as_ref().map(NoteSyncKind::as_str),
+                    entity.note_sync_path,
+                    entity.note_sync_status.as_ref().map(NoteSyncStatus::as_str),
+                    entity.note_sync_last_seen_hash,
+                    entity.note_sync_last_inbound_at.map(|v| v.to_rfc3339()),
+                    entity.note_sync_last_outbound_at.map(|v| v.to_rfc3339()),
+                    entity.note_sync_conflict_summary,
+                    entity.note_sync_conflict_at.map(|v| v.to_rfc3339()),
                     path,
                     entity.title,
                     entity.created_at.to_rfc3339(),
@@ -973,6 +1112,17 @@ fn parse_task_sync_status(value: &str) -> Result<TaskSyncStatus> {
         .context("invalid task sync status value in sqlite")
 }
 
+fn parse_note_sync_kind(value: &str) -> Result<NoteSyncKind> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<NoteSyncKind>(&encoded).context("invalid note sync kind value in sqlite")
+}
+
+fn parse_note_sync_status(value: &str) -> Result<NoteSyncStatus> {
+    let encoded = format!("\"{}\"", value);
+    serde_json::from_str::<NoteSyncStatus>(&encoded)
+        .context("invalid note sync status value in sqlite")
+}
+
 fn to_sql_err(err: anyhow::Error) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         0,
@@ -986,6 +1136,7 @@ fn apply_migration(conn: &mut Connection, name: &str, sql: &str) -> Result<()> {
         "002_project_sources_and_task_order" => apply_project_source_and_task_order_migration(conn),
         "003_project_and_task_sync_metadata" => apply_project_and_task_sync_migration(conn),
         "004_managed_task_sync_projects" => apply_managed_task_sync_project_migration(conn),
+        "005_note_sync_metadata" => apply_note_sync_migration(conn),
         _ => conn.execute_batch(sql).map_err(Into::into),
     }
 }
@@ -1079,6 +1230,40 @@ fn apply_managed_task_sync_project_migration(conn: &mut Connection) -> Result<()
         r#"
         CREATE INDEX IF NOT EXISTS idx_projects_task_sync_enabled ON projects(task_sync_enabled);
         CREATE INDEX IF NOT EXISTS idx_projects_task_sync_status ON projects(task_sync_status);
+        "#,
+    )?;
+    Ok(())
+}
+
+fn apply_note_sync_migration(conn: &mut Connection) -> Result<()> {
+    if !has_column(conn, "notes", "sync_kind")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_kind TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_path")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_path TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_status")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_status TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_last_seen_hash")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_last_seen_hash TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_last_inbound_at")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_last_inbound_at TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_last_outbound_at")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_last_outbound_at TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_conflict_summary")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_conflict_summary TEXT;")?;
+    }
+    if !has_column(conn, "notes", "sync_conflict_at")? {
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN sync_conflict_at TEXT;")?;
+    }
+    conn.execute_batch(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_notes_project_sync_path ON notes(project_id, sync_path);
+        CREATE INDEX IF NOT EXISTS idx_notes_sync_status ON notes(sync_status);
         "#,
     )?;
     Ok(())
@@ -1178,6 +1363,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
     CREATE TABLE IF NOT EXISTS notes (
         id TEXT PRIMARY KEY,
         project_id TEXT,
+        sync_kind TEXT,
+        sync_path TEXT,
+        sync_status TEXT,
+        sync_last_seen_hash TEXT,
+        sync_last_inbound_at TEXT,
+        sync_last_outbound_at TEXT,
+        sync_conflict_summary TEXT,
+        sync_conflict_at TEXT,
         path TEXT NOT NULL,
         title TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -1231,10 +1424,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
     CREATE INDEX IF NOT EXISTS idx_projects_task_sync_enabled ON projects(task_sync_enabled);
     CREATE INDEX IF NOT EXISTS idx_projects_task_sync_status ON projects(task_sync_status);
     CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_project_sync_path ON notes(project_id, sync_path);
+    CREATE INDEX IF NOT EXISTS idx_notes_sync_status ON notes(sync_status);
     CREATE INDEX IF NOT EXISTS idx_activity_occurred_at ON activity_events(occurred_at);
     "#,
     ),
     ("002_project_sources_and_task_order", ""),
     ("003_project_and_task_sync_metadata", ""),
     ("004_managed_task_sync_projects", ""),
+    ("005_note_sync_metadata", ""),
 ];

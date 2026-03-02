@@ -277,6 +277,45 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
             if let Some(project_id) = &note.project_id {
                 out.push_str(&format!("project_id: {}\n", yaml_scalar(project_id)));
             }
+            if let Some(sync_kind) = &note.sync_kind {
+                out.push_str(&format!("sync_kind: {}\n", sync_kind.as_str()));
+            }
+            if let Some(sync_path) = &note.sync_path {
+                out.push_str(&format!("sync_path: {}\n", yaml_scalar(sync_path)));
+            }
+            if let Some(sync_status) = &note.sync_status {
+                out.push_str(&format!("sync_status: {}\n", sync_status.as_str()));
+            }
+            if let Some(sync_last_seen_hash) = &note.sync_last_seen_hash {
+                out.push_str(&format!(
+                    "sync_last_seen_hash: {}\n",
+                    yaml_scalar(sync_last_seen_hash)
+                ));
+            }
+            if let Some(sync_last_inbound_at) = note.sync_last_inbound_at {
+                out.push_str(&format!(
+                    "sync_last_inbound_at: {}\n",
+                    sync_last_inbound_at.to_rfc3339()
+                ));
+            }
+            if let Some(sync_last_outbound_at) = note.sync_last_outbound_at {
+                out.push_str(&format!(
+                    "sync_last_outbound_at: {}\n",
+                    sync_last_outbound_at.to_rfc3339()
+                ));
+            }
+            if let Some(sync_conflict_summary) = &note.sync_conflict_summary {
+                out.push_str(&format!(
+                    "sync_conflict_summary: {}\n",
+                    yaml_scalar(sync_conflict_summary)
+                ));
+            }
+            if let Some(sync_conflict_at) = note.sync_conflict_at {
+                out.push_str(&format!(
+                    "sync_conflict_at: {}\n",
+                    sync_conflict_at.to_rfc3339()
+                ));
+            }
             render_tags(&mut out, note.tags.as_ref());
             out.push_str(&format!("created_at: {}\n", note.created_at.to_rfc3339()));
             out.push_str(&format!("updated_at: {}\n", note.updated_at.to_rfc3339()));

@@ -2,7 +2,7 @@
 
 Local-first project context hub and agent memory layer.
 
-`n10e` keeps markdown on disk as the source of truth, indexes it into SQLite (FTS5), serves a simplified three-pane knowledge hub UI, and exposes curated MCP tools over stdio for coding agents.
+`n10e` keeps markdown on disk as the source of truth, indexes it into SQLite (FTS5), serves a simplified three-pane knowledge hub UI, and retains a minimal MCP-compatible stdio endpoint for client compatibility.
 
 The goal is not to become another generic agent dashboard. The goal is to make project context durable, inspectable, and fast for both humans and agents to pick up.
 
@@ -11,7 +11,6 @@ The goal is not to become another generic agent dashboard. The goal is to make p
 V0 foundation implemented:
 - Rust single binary (`n10e`)
 - Commands: `init`, `serve`, `open`, `bundle-app`, `reindex`, `import`, `doctor`, `bench`
-- Warm local MCP daemon (`daemon`) auto-started by `mcp`, `open`, and `serve`
 - Markdown frontmatter schemas for `task`, `project`, `note`
 - SQLite migrations, FTS5 search, reverse wiki-link indexing
 - Optimistic-lock writes (`expected_revision`) and archive-only delete path
@@ -19,7 +18,7 @@ V0 foundation implemented:
 - Three-pane workspace UI: projects, inline to-do, and notes
 - Linked project sources for local folders and GitHub repos
 - Manual Phase 1 repo sync from linked local folders by scanning `to-do.md` checklist files into `n10e` tasks
-- MCP stdio JSON-RPC tool surface (curated core)
+- MCP stdio JSON-RPC compatibility endpoint (no operational tools exposed)
 
 ## Install
 
@@ -54,7 +53,6 @@ n10e --workspace <PATH> import <SOURCE_PATH>
 n10e --workspace <PATH> doctor
 n10e --workspace <PATH> bench --iterations 200 --query task
 n10e --workspace <PATH> seed-bench --count 5000
-n10e --workspace <PATH> daemon
 n10e --workspace <PATH> mcp
 ```
 

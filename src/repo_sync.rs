@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
 const TODO_FILE_NAMES: &[&str] = &["to-do.md", "todo.md", "TODO.md"];
+const DOCS_ROOT: &str = "docs";
 
 #[derive(Debug, Clone)]
 pub struct RepoTaskCandidate {
@@ -19,6 +20,13 @@ pub struct RepoTaskCandidate {
 pub struct RepoSyncScan {
     pub files_scanned: usize,
     pub task_candidates: Vec<RepoTaskCandidate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepoMarkdownDocCandidate {
+    pub relative_path: String,
+    pub display_name: String,
+    pub display_subpath: String,
 }
 
 pub fn derive_sync_source_key(kind: &str, locator: &str) -> String {
@@ -67,6 +75,53 @@ pub fn scan_repo_todo_files(root: &Path) -> Result<RepoSyncScan> {
         files_scanned,
         task_candidates,
     })
+}
+
+pub fn list_repo_markdown_docs(root: &Path) -> Result<Vec<RepoMarkdownDocCandidate>> {
+    let docs_root = root.join(DOCS_ROOT);
+    if !docs_root.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut out = Vec::new();
+    for entry in WalkDir::new(&docs_root)
+        .into_iter()
+        .filter_entry(|entry| !is_ignored(entry.path()))
+    {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        if !entry.file_type().is_file() || !is_markdown_file(entry.path()) {
+            continue;
+        }
+
+        let relative_path = entry
+            .path()
+            .strip_prefix(root)
+            .unwrap_or(entry.path())
+            .to_string_lossy()
+            .to_string();
+        let display_name = entry
+            .path()
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("untitled.md")
+            .to_string();
+        let display_subpath = entry
+            .path()
+            .parent()
+            .and_then(|parent| parent.strip_prefix(root).ok())
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        out.push(RepoMarkdownDocCandidate {
+            relative_path,
+            display_name,
+            display_subpath,
+        });
+    }
+
+    out.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(out)
 }
 
 pub fn render_synced_task_body(relative_path: &str, section_path: &[String]) -> String {
@@ -170,6 +225,13 @@ fn is_supported_todo_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .map(|name| TODO_FILE_NAMES.iter().any(|candidate| candidate == &name))
+        .unwrap_or(false)
+}
+
+fn is_markdown_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("md"))
         .unwrap_or(false)
 }
 

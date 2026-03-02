@@ -12,25 +12,28 @@ use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
 use crate::config::AppConfig;
-use crate::db::Db;
+use crate::db::{Db, StoredEntityRecord};
 use crate::git::{GitContext, read_git_context};
 use crate::indexer::{Indexer, WatcherRuntime};
 use crate::markdown::{parse_entity_markdown, parse_optional_datetime, render_entity_markdown};
-use crate::repo_sync::{derive_sync_source_key, render_synced_task_body, scan_repo_todo_files};
+use crate::repo_sync::{
+    RepoMarkdownDocCandidate, derive_sync_source_key, list_repo_markdown_docs,
+    render_synced_task_body, scan_repo_todo_files,
+};
 use crate::task_sync::{
     ManagedTodoEntryKind, ManagedTodoRenderEntry, OUTBOUND_DEBOUNCE_MS, ParsedManagedTodoEntry,
-    WATCHER_DEBOUNCE_MS, compute_file_hash, compute_file_hash_from_path,
-    ensure_parent_dir, ensure_sync_key_for_title, managed_todo_sidecar_path,
+    WATCHER_DEBOUNCE_MS, compute_file_hash, compute_file_hash_from_path, ensure_parent_dir,
+    ensure_sync_key_for_title, is_heading_title, managed_todo_sidecar_path,
     normalize_managed_task_sync_file, parse_managed_todo, parse_managed_todo_sidecar,
     render_entry_from_task, render_managed_todo, render_managed_todo_sidecar,
     resolve_managed_file_path, task_title_from_entry,
 };
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
-    EntitySnapshot, EntityType, NoteFrontmatter, NoteItem, NotePatch, ParsedEntity,
-    ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters, SearchResult,
-    TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus, TaskSyncKind,
-    TaskSyncMode, TaskSyncStatus,
+    EntitySnapshot, EntityType, NoteFrontmatter, NoteItem, NotePatch, NoteSyncKind, NoteSyncStatus,
+    ParsedEntity, ProjectFrontmatter, ProjectPatch, ProjectStatus, ProjectWorkspace, SearchFilters,
+    SearchResult, TaskFilters, TaskFrontmatter, TaskItem, TaskPatch, TaskPriority, TaskStatus,
+    TaskSyncKind, TaskSyncMode, TaskSyncStatus,
 };
 
 #[derive(Debug, Error)]
@@ -64,6 +67,12 @@ pub struct ArchiveEntityRequest {
     pub expected_revision: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct RestoreEntityRequest {
+    pub id: String,
+    pub expected_revision: String,
+}
+
 #[derive(Clone)]
 pub struct AppService {
     pub config: AppConfig,
@@ -71,6 +80,7 @@ pub struct AppService {
     pub indexer: Arc<Indexer>,
     git_context_cache: Arc<Mutex<Option<GitContextCacheEntry>>>,
     task_sync_runtime: Arc<Mutex<ManagedTaskSyncRuntime>>,
+    note_sync_runtime: Arc<Mutex<ManagedNoteSyncRuntime>>,
 }
 
 impl AppService {
@@ -91,6 +101,7 @@ impl AppService {
             indexer,
             git_context_cache: Arc::new(Mutex::new(None)),
             task_sync_runtime: Arc::new(Mutex::new(ManagedTaskSyncRuntime::default())),
+            note_sync_runtime: Arc::new(Mutex::new(ManagedNoteSyncRuntime::default())),
         })
     }
 
@@ -98,6 +109,7 @@ impl AppService {
         let runtime = self.indexer.clone().start_watcher()?;
         self.reconcile_managed_task_sync_project_defaults()?;
         self.restore_managed_task_sync_watchers()?;
+        self.restore_note_sync_watchers()?;
         Ok(runtime)
     }
 
@@ -491,6 +503,14 @@ impl AppService {
             entity_type: EntityType::Note,
             title: payload.title,
             project_id: payload.project_id,
+            sync_kind: None,
+            sync_path: None,
+            sync_status: None,
+            sync_last_seen_hash: None,
+            sync_last_inbound_at: None,
+            sync_last_outbound_at: None,
+            sync_conflict_summary: None,
+            sync_conflict_at: None,
             tags: payload.tags,
             created_at: now,
             updated_at: now,
@@ -521,6 +541,124 @@ impl AppService {
             .map_err(ServiceError::Other)
     }
 
+    pub fn list_linkable_note_files(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<RepoMarkdownDocCandidate>, ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked docs require a project with a linked local source folder"
+            )));
+        }
+
+        let source_locator = project
+            .source_locator
+            .as_deref()
+            .with_context(|| "project has no linked local source folder")
+            .map_err(ServiceError::Other)?;
+        let source_root = PathBuf::from(source_locator);
+        if !source_root.is_dir() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked source path is not a directory"
+            )));
+        }
+
+        let excluded_sync_file =
+            normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        let mut candidates = list_repo_markdown_docs(&source_root).map_err(ServiceError::Other)?;
+        candidates.retain(|candidate| candidate.relative_path != excluded_sync_file);
+        Ok(candidates)
+    }
+
+    pub fn link_note_to_repo_file(
+        &self,
+        project_id: &str,
+        relative_path: &str,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        let normalized_relative_path =
+            self.validate_linkable_repo_markdown_path(&project, relative_path)?;
+
+        if let Some(existing_id) =
+            self.find_synced_note_id(project_id, &normalized_relative_path)?
+        {
+            let note = self.load_note_state(&existing_id)?;
+            if note.1.sync_status == Some(NoteSyncStatus::Live) {
+                self.ensure_note_sync_watcher(&existing_id)?;
+            }
+            return self
+                .db
+                .read_entity_snapshot(&existing_id)?
+                .context("synced note not found after lookup")
+                .map_err(ServiceError::Other);
+        }
+
+        let target_path = self.note_sync_target_path(&project, &normalized_relative_path)?;
+        let body = std::fs::read_to_string(&target_path)
+            .with_context(|| format!("failed reading {}", target_path.display()))
+            .map_err(ServiceError::Other)?;
+        let now = Utc::now();
+        let id = format!("{}_{}", EntityType::Note.prefix(), Ulid::new());
+        let title = synced_note_title_from_path(&normalized_relative_path);
+        let title_slug = slugify(&title);
+        let note_path = self
+            .config
+            .notes_dir()
+            .join(project_id)
+            .join(format!("{id}-{title_slug}.md"));
+        self.config
+            .ensure_within_workspace(&note_path)
+            .map_err(ServiceError::Other)?;
+
+        let snapshot = self.write_note_entity(
+            &note_path,
+            body.clone(),
+            NoteFrontmatter {
+                id: id.clone(),
+                entity_type: EntityType::Note,
+                title,
+                project_id: Some(project_id.to_string()),
+                sync_kind: Some(NoteSyncKind::RepoMarkdown),
+                sync_path: Some(normalized_relative_path.clone()),
+                sync_status: Some(NoteSyncStatus::Live),
+                sync_last_seen_hash: Some(compute_file_hash(&body)),
+                sync_last_inbound_at: Some(now),
+                sync_last_outbound_at: None,
+                sync_conflict_summary: None,
+                sync_conflict_at: None,
+                tags: None,
+                created_at: now,
+                updated_at: now,
+                revision: String::new(),
+            },
+            None,
+            false,
+            actor,
+            "link_note_to_repo_file",
+            "Linked note to repo markdown file",
+        )?;
+
+        self.ensure_note_sync_watcher(&id)?;
+        Ok(snapshot)
+    }
+
+    pub fn resolve_note_sync_from_file(
+        &self,
+        note_id: &str,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        self.import_note_sync_from_disk(note_id, true)
+    }
+
+    pub fn resolve_note_sync_from_local(
+        &self,
+        note_id: &str,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        self.clear_note_sync_dirty(note_id);
+        self.write_note_sync_file_from_local(note_id, false)
+    }
+
     pub fn update_task(
         &self,
         id: &str,
@@ -528,25 +666,86 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
+        let requested_status = patch.status.clone();
         let updated = self
             .update_tasks(
-            vec![TaskUpdateRequest {
-                id: id.to_string(),
-                expected_revision: expected_revision.to_string(),
-                patch,
-            }],
-            actor,
-        )?
-        .into_iter()
-        .next()
-        .context("updated task missing from batch result")
-        .map_err(ServiceError::Other)?;
+                vec![TaskUpdateRequest {
+                    id: id.to_string(),
+                    expected_revision: expected_revision.to_string(),
+                    patch,
+                }],
+                actor.clone(),
+            )?
+            .into_iter()
+            .next()
+            .context("updated task missing from batch result")
+            .map_err(ServiceError::Other)?;
 
         if let Some(project_id) = updated.frontmatter.project_id() {
+            if requested_status
+                .as_ref()
+                .is_some_and(|status| *status != TaskStatus::Done)
+            {
+                self.reactivate_section_heading_for_task(project_id, &updated.id, actor)?;
+            }
             self.queue_managed_task_sync_outbound(project_id, "update_task");
         }
 
         Ok(updated)
+    }
+
+    fn reactivate_section_heading_for_task(
+        &self,
+        project_id: &str,
+        task_id: &str,
+        actor: Actor,
+    ) -> Result<(), ServiceError> {
+        let mut tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(5_000),
+        })?;
+        tasks.sort_by(|left, right| {
+            effective_task_sort_order(left)
+                .cmp(&effective_task_sort_order(right))
+                .then(left.created_at.cmp(&right.created_at))
+        });
+
+        let Some(task_index) = tasks.iter().position(|task| task.id == task_id) else {
+            return Ok(());
+        };
+        let reopened_task = &tasks[task_index];
+        if reopened_task.status == TaskStatus::Done || is_heading_title(&reopened_task.title) {
+            return Ok(());
+        }
+
+        let Some(section_heading) = tasks[..task_index]
+            .iter()
+            .rev()
+            .find(|task| is_heading_title(&task.title))
+        else {
+            return Ok(());
+        };
+        if section_heading.status != TaskStatus::Done {
+            return Ok(());
+        }
+
+        self.update_tasks(
+            vec![TaskUpdateRequest {
+                id: section_heading.id.clone(),
+                expected_revision: section_heading.revision.clone(),
+                patch: TaskPatch {
+                    status: Some(TaskStatus::Todo),
+                    ..Default::default()
+                },
+            }],
+            actor,
+        )?;
+
+        Ok(())
     }
 
     pub fn update_tasks(
@@ -611,8 +810,10 @@ impl AppService {
                 && frontmatter.sync_managed
                 && frontmatter.sync_kind == Some(TaskSyncKind::ManagedTodoFile)
             {
-                frontmatter.sync_key =
-                    Some(ensure_sync_key_for_title(frontmatter.sync_key.as_deref(), &frontmatter.title));
+                frontmatter.sync_key = Some(ensure_sync_key_for_title(
+                    frontmatter.sync_key.as_deref(),
+                    &frontmatter.title,
+                ));
             }
 
             frontmatter.updated_at = Utc::now();
@@ -665,21 +866,18 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        let (record, parsed) = self
-            .db
-            .parse_entity_from_disk(id)?
-            .context("note not found")?;
-
-        if record.entity_type != EntityType::Note {
-            return Err(anyhow::anyhow!("entity {id} is not a note").into());
+        let (record, mut frontmatter, mut body, current_revision) = self.load_note_state(id)?;
+        if current_revision != expected_revision {
+            return Err(ServiceError::Conflict {
+                expected: expected_revision.to_string(),
+                current: current_revision,
+            });
         }
 
-        self.enforce_revision(expected_revision, &parsed)?;
-
-        let (mut frontmatter, mut body) = split_note(parsed.frontmatter, parsed.body)?;
-
         if let Some(value) = patch.title {
-            frontmatter.title = value;
+            if frontmatter.sync_kind.is_none() {
+                frontmatter.title = value;
+            }
         }
         if let Some(value) = patch.project_id {
             if !value.is_empty() {
@@ -696,29 +894,26 @@ impl AppService {
 
         frontmatter.updated_at = Utc::now();
 
-        let before = record.revision.clone();
-        let mut entity = EntityFrontmatter::Note(frontmatter);
-        let rendered = render_entity_markdown(&mut entity, &body)?;
-        atomic_write(&record.path, &rendered)?;
-        let indexed = self.indexer.index_file(&record.path)?;
-
-        self.record_entity_activity(
+        let snapshot = self.write_note_entity(
+            &record.path,
+            body,
+            frontmatter,
+            Some(record.revision.clone()),
+            record.archived,
             actor,
-            EntityActivityMeta {
-                action: "update_note",
-                entity_type: EntityType::Note,
-                entity_id: id,
-                path: &record.path,
-                before_revision: Some(before),
-                after_revision: Some(indexed.revision.clone()),
-                summary: "Updated note",
-            },
+            "update_note",
+            "Updated note",
         )?;
 
-        self.db
-            .read_entity_snapshot(id)?
-            .context("updated note not found after indexing")
-            .map_err(ServiceError::Other)
+        if let EntityFrontmatter::Note(note) = &snapshot.frontmatter {
+            if note.sync_kind == Some(NoteSyncKind::RepoMarkdown)
+                && note.sync_status == Some(NoteSyncStatus::Live)
+            {
+                self.queue_note_sync_outbound(&snapshot.id);
+            }
+        }
+
+        Ok(snapshot)
     }
 
     pub fn update_project(
@@ -740,6 +935,8 @@ impl AppService {
         self.enforce_revision(expected_revision, &parsed)?;
 
         let (mut frontmatter, mut body) = split_project(parsed.frontmatter, parsed.body)?;
+        let previous_source_kind = frontmatter.source_kind.clone();
+        let previous_source_locator = frontmatter.source_locator.clone();
 
         if let Some(value) = patch.title {
             frontmatter.title = value;
@@ -799,6 +996,8 @@ impl AppService {
             body = value;
         }
 
+        let source_link_changed = frontmatter.source_kind != previous_source_kind
+            || frontmatter.source_locator != previous_source_locator;
         frontmatter.updated_at = Utc::now();
 
         let before = record.revision.clone();
@@ -837,6 +1036,9 @@ impl AppService {
             } else {
                 self.clear_managed_task_sync_watcher(id);
             }
+        }
+        if source_link_changed {
+            let _ = self.reconcile_project_note_sync_watchers(id);
         }
 
         Ok(snapshot)
@@ -1063,6 +1265,12 @@ impl AppService {
         }
         let live_project = self.get_project_item(project_id)?;
         self.ensure_managed_task_sync_watcher(&live_project)?;
+        self.record_project_sync_activity(
+            Actor::human("operator"),
+            project_id,
+            "enable_task_sync",
+            "Enabled managed task sync",
+        )?;
         self.get_project_item(project_id)
     }
 
@@ -1086,6 +1294,12 @@ impl AppService {
             Actor::human("operator"),
         )?;
         self.clear_managed_task_sync_dirty(project_id);
+        self.record_project_sync_activity(
+            Actor::human("operator"),
+            project_id,
+            "pause_task_sync",
+            "Paused managed task sync",
+        )?;
         self.get_project_item(project_id)
     }
 
@@ -1118,6 +1332,12 @@ impl AppService {
         let live_project = self.get_project_item(project_id)?;
         self.ensure_managed_task_sync_watcher(&live_project)?;
         self.import_managed_task_sync_from_disk(project_id, false)?;
+        self.record_project_sync_activity(
+            Actor::human("operator"),
+            project_id,
+            "resume_task_sync",
+            "Resumed managed task sync",
+        )?;
         self.get_project_item(project_id)
     }
 
@@ -1131,6 +1351,12 @@ impl AppService {
 
         self.clear_managed_task_sync_dirty(project_id);
         self.import_managed_task_sync_from_disk(project_id, true)?;
+        self.record_project_sync_activity(
+            Actor::human("operator"),
+            project_id,
+            "resolve_task_sync_from_file",
+            "Resolved managed task sync using sync file",
+        )?;
         self.get_project_item(project_id)
     }
 
@@ -1144,6 +1370,12 @@ impl AppService {
 
         self.clear_managed_task_sync_dirty(project_id);
         self.write_managed_task_sync_file_from_local(&project, false)?;
+        self.record_project_sync_activity(
+            Actor::human("operator"),
+            project_id,
+            "resolve_task_sync_from_local",
+            "Resolved managed task sync using n10e state",
+        )?;
         self.get_project_item(project_id)
     }
 
@@ -1153,26 +1385,182 @@ impl AppService {
         expected_revision: &str,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
+        let record = self
+            .db
+            .get_entity_record(id)?
+            .context("entity not found")
+            .map_err(ServiceError::Other)?;
+
+        if record.entity_type == EntityType::Project {
+            return self.archive_project_entity(record, expected_revision, actor);
+        }
+
         let archived = self
             .archive_entities(
-            vec![ArchiveEntityRequest {
-                id: id.to_string(),
-                expected_revision: expected_revision.to_string(),
-            }],
-            actor,
-        )?
-        .into_iter()
-        .next()
-        .context("archived entity missing from batch result")
-        .map_err(ServiceError::Other)?;
+                vec![ArchiveEntityRequest {
+                    id: id.to_string(),
+                    expected_revision: expected_revision.to_string(),
+                }],
+                actor,
+            )?
+            .into_iter()
+            .next()
+            .context("archived entity missing from batch result")
+            .map_err(ServiceError::Other)?;
 
         if archived.entity_type == EntityType::Task {
             if let Some(project_id) = archived.frontmatter.project_id() {
                 self.queue_managed_task_sync_outbound(project_id, "archive_task");
             }
+        } else if archived.entity_type == EntityType::Note {
+            self.clear_note_sync_runtime(&archived.id);
         }
 
         Ok(archived)
+    }
+
+    pub fn restore_entity(
+        &self,
+        id: &str,
+        expected_revision: &str,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let record = self
+            .db
+            .get_entity_record(id)?
+            .context("entity not found")
+            .map_err(ServiceError::Other)?;
+        if !record.archived {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "entity is not archived"
+            )));
+        }
+
+        if record.entity_type == EntityType::Project {
+            return self.restore_project_entity(record, expected_revision, actor);
+        }
+
+        let restored = self
+            .restore_entities(
+                vec![RestoreEntityRequest {
+                    id: id.to_string(),
+                    expected_revision: expected_revision.to_string(),
+                }],
+                actor,
+            )?
+            .into_iter()
+            .next()
+            .context("restored entity missing from batch result")
+            .map_err(ServiceError::Other)?;
+
+        self.finish_restored_entity(&restored);
+        Ok(restored)
+    }
+
+    fn archive_project_entity(
+        &self,
+        record: StoredEntityRecord,
+        expected_revision: &str,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let tasks = self.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(record.id.clone()),
+            assignee: None,
+            include_archived: false,
+            limit: Some(10_000),
+        })?;
+        let notes = self
+            .db
+            .list_note_details_for_project(&record.id, 10_000, false)
+            .map_err(ServiceError::Other)?;
+
+        let mut requests = Vec::with_capacity(1 + tasks.len() + notes.len());
+        requests.push(ArchiveEntityRequest {
+            id: record.id.clone(),
+            expected_revision: expected_revision.to_string(),
+        });
+        requests.extend(tasks.iter().map(|task| ArchiveEntityRequest {
+            id: task.id.clone(),
+            expected_revision: task.revision.clone(),
+        }));
+        requests.extend(notes.iter().map(|note| ArchiveEntityRequest {
+            id: note.id.clone(),
+            expected_revision: note.revision.clone(),
+        }));
+
+        let archived = self.archive_entities(requests, actor)?;
+
+        self.clear_managed_task_sync_dirty(&record.id);
+        self.clear_managed_task_sync_dirty_flag(&record.id);
+        self.clear_managed_task_sync_watcher(&record.id);
+        for note in notes {
+            self.clear_note_sync_runtime(&note.id);
+        }
+
+        archived
+            .into_iter()
+            .find(|entity| entity.id == record.id)
+            .context("archived project missing from batch result")
+            .map_err(ServiceError::Other)
+    }
+
+    fn restore_project_entity(
+        &self,
+        record: StoredEntityRecord,
+        expected_revision: &str,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let tasks = self
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(record.id.clone()),
+                assignee: None,
+                include_archived: true,
+                limit: Some(10_000),
+            })?
+            .into_iter()
+            .filter(|task| task.archived)
+            .collect::<Vec<_>>();
+        let notes = self
+            .db
+            .list_note_details_for_project(&record.id, 10_000, true)
+            .map_err(ServiceError::Other)?
+            .into_iter()
+            .filter(|note| note.archived)
+            .collect::<Vec<_>>();
+
+        let restored_project = self
+            .restore_entities(
+                vec![RestoreEntityRequest {
+                    id: record.id.clone(),
+                    expected_revision: expected_revision.to_string(),
+                }],
+                actor.clone(),
+            )?
+            .into_iter()
+            .next()
+            .context("restored project missing from batch result")
+            .map_err(ServiceError::Other)?;
+
+        let mut child_requests = Vec::with_capacity(tasks.len() + notes.len());
+        child_requests.extend(tasks.into_iter().map(|task| RestoreEntityRequest {
+            id: task.id,
+            expected_revision: task.revision,
+        }));
+        child_requests.extend(notes.into_iter().map(|note| RestoreEntityRequest {
+            id: note.id,
+            expected_revision: note.revision,
+        }));
+
+        if !child_requests.is_empty() {
+            self.restore_entities(child_requests, actor)?;
+        }
+
+        self.finish_restored_project(&record.id);
+        Ok(restored_project)
     }
 
     pub fn archive_entities(
@@ -1269,6 +1657,154 @@ impl AppService {
         Ok(archived)
     }
 
+    pub fn restore_entities(
+        &self,
+        requests: Vec<RestoreEntityRequest>,
+        actor: Actor,
+    ) -> Result<Vec<EntitySnapshot>, ServiceError> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut pending = Vec::with_capacity(requests.len());
+        let mut removed_paths = Vec::with_capacity(requests.len());
+        let mut target_paths = Vec::with_capacity(requests.len());
+
+        for request in requests {
+            let record = self
+                .db
+                .get_entity_record(&request.id)?
+                .context("entity not found")?;
+            if !record.archived {
+                return Err(ServiceError::Other(anyhow::anyhow!(
+                    "entity {} is not archived",
+                    request.id
+                )));
+            }
+
+            let raw = std::fs::read_to_string(&record.path)
+                .with_context(|| format!("failed reading {}", record.path.display()))?;
+            let parsed = parse_entity_markdown(&raw)?;
+            self.enforce_revision(&request.expected_revision, &parsed)?;
+            let ParsedEntity {
+                frontmatter,
+                body,
+                revision: _,
+                links: _,
+            } = parsed;
+
+            let mut target = self.restore_target_path(&frontmatter)?;
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("failed creating {}", parent.display()))?;
+            }
+
+            let file_name = target
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(ToString::to_string)
+                .unwrap_or_else(|| format!("{}-{}.md", record.id, Ulid::new()));
+            if target.exists() {
+                let parent = target
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .context("restore target had no parent")
+                    .map_err(ServiceError::Other)?;
+                target = parent.join(format!("{}-{}", Ulid::new(), file_name));
+            }
+
+            self.config.ensure_within_workspace(&target)?;
+            std::fs::rename(&record.path, &target).with_context(|| {
+                format!(
+                    "failed moving {} to {}",
+                    record.path.display(),
+                    target.display()
+                )
+            })?;
+
+            removed_paths.push(record.path);
+            target_paths.push(target.clone());
+            pending.push(PendingMutation {
+                path: target,
+                body,
+                frontmatter,
+                before_revision: Some(record.revision),
+                archived: false,
+            });
+        }
+
+        self.db.remove_paths(&removed_paths)?;
+        let indexed = self.indexer.index_files(&target_paths)?;
+        let mut restored = Vec::with_capacity(indexed.len());
+        let mut activity = Vec::with_capacity(indexed.len());
+        for (pending, indexed) in pending.into_iter().zip(indexed) {
+            let revision = indexed.revision.clone();
+            activity.push(OwnedEntityActivityMeta {
+                action: "restore_entity",
+                entity_type: indexed.entity_type,
+                entity_id: pending.frontmatter.id().to_string(),
+                path: pending.path.clone(),
+                before_revision: pending.before_revision,
+                after_revision: Some(revision.clone()),
+                summary: "Restored entity",
+            });
+            restored.push(snapshot_from_parts(
+                &pending.path,
+                pending.body,
+                pending.frontmatter,
+                revision,
+                pending.archived,
+            ));
+        }
+
+        self.record_entity_activities(&actor, activity)?;
+        Ok(restored)
+    }
+
+    pub fn empty_archive(&self) -> Result<usize, ServiceError> {
+        let archived_projects = self
+            .list_projects(10_000, true)?
+            .into_iter()
+            .filter(|project| project.archived)
+            .map(|project| PathBuf::from(project.path));
+        let archived_tasks = self
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: None,
+                assignee: None,
+                include_archived: true,
+                limit: Some(10_000),
+            })?
+            .into_iter()
+            .filter(|task| task.archived)
+            .map(|task| PathBuf::from(task.path));
+        let archived_notes = self
+            .list_notes(10_000, true)?
+            .into_iter()
+            .filter(|note| note.archived)
+            .map(|note| PathBuf::from(note.path));
+
+        let paths = archived_projects
+            .chain(archived_tasks)
+            .chain(archived_notes)
+            .collect::<Vec<_>>();
+        if paths.is_empty() {
+            return Ok(0);
+        }
+
+        for path in &paths {
+            if path.exists() {
+                std::fs::remove_file(path)
+                    .with_context(|| format!("failed removing {}", path.display()))
+                    .map_err(ServiceError::Other)?;
+            }
+        }
+
+        self.db.remove_paths(&paths)?;
+        Ok(paths.len())
+    }
+
     fn next_task_sort_order(&self, project_id: &str) -> Result<i64, ServiceError> {
         let tasks = self.list_tasks(&TaskFilters {
             status: None,
@@ -1354,12 +1890,85 @@ impl AppService {
         Ok(())
     }
 
-    fn get_project_item(&self, project_id: &str) -> Result<crate::types::ProjectItem, ServiceError> {
+    fn get_project_item(
+        &self,
+        project_id: &str,
+    ) -> Result<crate::types::ProjectItem, ServiceError> {
         self.list_projects(500, false)?
             .into_iter()
             .find(|item| item.id == project_id)
             .with_context(|| format!("project {project_id} not found"))
             .map_err(ServiceError::Other)
+    }
+
+    fn restore_target_path(
+        &self,
+        frontmatter: &EntityFrontmatter,
+    ) -> Result<PathBuf, ServiceError> {
+        match frontmatter {
+            EntityFrontmatter::Project(project) => Ok(self.config.projects_dir().join(format!(
+                "{}-{}.md",
+                project.id,
+                slugify(&project.title)
+            ))),
+            EntityFrontmatter::Task(task) => {
+                self.get_project_item(&task.project_id)?;
+                Ok(self.config.tasks_dir().join(&task.project_id).join(format!(
+                    "{}-{}.md",
+                    task.id,
+                    slugify(&task.title)
+                )))
+            }
+            EntityFrontmatter::Note(note) => {
+                let base_dir = match note.project_id.as_deref() {
+                    Some(project_id) => {
+                        self.get_project_item(project_id)?;
+                        self.config.notes_dir().join(project_id)
+                    }
+                    None => self.config.notes_dir().join("inbox"),
+                };
+
+                Ok(base_dir.join(format!("{}-{}.md", note.id, slugify(&note.title))))
+            }
+        }
+    }
+
+    fn finish_restored_entity(&self, restored: &EntitySnapshot) {
+        match &restored.frontmatter {
+            EntityFrontmatter::Task(task) => {
+                self.queue_managed_task_sync_outbound(&task.project_id, "restore_task");
+            }
+            EntityFrontmatter::Note(note) => {
+                if note.sync_kind == Some(NoteSyncKind::RepoMarkdown)
+                    && note.sync_status == Some(NoteSyncStatus::Live)
+                {
+                    if let Some(project_id) = note.project_id.as_deref() {
+                        let _ = self.reconcile_project_note_sync_watchers(project_id);
+                    }
+                }
+            }
+            EntityFrontmatter::Project(_) => self.finish_restored_project(&restored.id),
+        }
+    }
+
+    fn finish_restored_project(&self, project_id: &str) {
+        let Ok(project) = self.get_project_item(project_id) else {
+            return;
+        };
+
+        if project.task_sync_enabled
+            && project.task_sync_mode == Some(TaskSyncMode::ManagedTodoFile)
+            && project.task_sync_status == Some(TaskSyncStatus::Live)
+        {
+            if let Err(err) = self.ensure_managed_task_sync_watcher(&project) {
+                self.clear_managed_task_sync_watcher(project_id);
+                let _ = self.pause_managed_task_sync_for_error(project_id, &err.to_string());
+            } else {
+                self.queue_managed_task_sync_outbound(project_id, "restore_project");
+            }
+        }
+
+        let _ = self.reconcile_project_note_sync_watchers(project_id);
     }
 
     fn managed_task_sync_defaults_for_new_task(
@@ -1400,6 +2009,560 @@ impl AppService {
         ))
     }
 
+    fn load_note_state(
+        &self,
+        note_id: &str,
+    ) -> Result<(StoredEntityRecord, NoteFrontmatter, String, String), ServiceError> {
+        let (record, parsed) = self
+            .db
+            .parse_entity_from_disk(note_id)?
+            .context("note not found")
+            .map_err(ServiceError::Other)?;
+        if record.entity_type != EntityType::Note {
+            return Err(anyhow::anyhow!("entity {note_id} is not a note").into());
+        }
+
+        let current_revision = parsed.revision.clone();
+        let (frontmatter, body) =
+            split_note(parsed.frontmatter, parsed.body).map_err(ServiceError::Other)?;
+        Ok((record, frontmatter, body, current_revision))
+    }
+
+    fn write_note_entity(
+        &self,
+        path: &Path,
+        body: String,
+        frontmatter: NoteFrontmatter,
+        before_revision: Option<String>,
+        archived: bool,
+        actor: Actor,
+        action: &'static str,
+        summary: &'static str,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let mut entity = EntityFrontmatter::Note(frontmatter);
+        let rendered = render_entity_markdown(&mut entity, &body).map_err(ServiceError::Other)?;
+        atomic_write(path, &rendered).map_err(ServiceError::Other)?;
+        let indexed = self.indexer.index_file(path).map_err(ServiceError::Other)?;
+        let revision = indexed.revision.clone();
+
+        self.record_entity_activity(
+            actor,
+            EntityActivityMeta {
+                action,
+                entity_type: EntityType::Note,
+                entity_id: entity.id(),
+                path,
+                before_revision,
+                after_revision: Some(revision.clone()),
+                summary,
+            },
+        )
+        .map_err(ServiceError::Other)?;
+
+        Ok(snapshot_from_parts(path, body, entity, revision, archived))
+    }
+
+    fn find_synced_note_id(
+        &self,
+        project_id: &str,
+        sync_path: &str,
+    ) -> Result<Option<String>, ServiceError> {
+        self.db
+            .find_repo_markdown_note_id(project_id, sync_path)
+            .map_err(ServiceError::Other)
+    }
+
+    fn validate_linkable_repo_markdown_path(
+        &self,
+        project: &crate::types::ProjectItem,
+        relative_path: &str,
+    ) -> Result<String, ServiceError> {
+        let normalized = relative_path
+            .trim()
+            .replace('\\', "/")
+            .trim_start_matches('/')
+            .to_string();
+        if normalized.is_empty() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "relative_path is required"
+            )));
+        }
+        if !normalized.starts_with("docs/") || !normalized.to_ascii_lowercase().ends_with(".md") {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked docs must be markdown files under docs/"
+            )));
+        }
+
+        let excluded_sync_file =
+            normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+        if normalized == excluded_sync_file {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "the managed task sync file cannot also be linked as a note"
+            )));
+        }
+
+        let target_path = self.note_sync_target_path(project, &normalized)?;
+        if !target_path.is_file() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "selected markdown file does not exist"
+            )));
+        }
+
+        Ok(normalized)
+    }
+
+    fn note_sync_target_path(
+        &self,
+        project: &crate::types::ProjectItem,
+        relative_path: &str,
+    ) -> Result<PathBuf, ServiceError> {
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked docs require a project with a linked local source folder"
+            )));
+        }
+
+        let source_locator = project
+            .source_locator
+            .as_deref()
+            .with_context(|| "project has no linked local source folder")
+            .map_err(ServiceError::Other)?;
+        let source_root = PathBuf::from(source_locator);
+        if !source_root.is_dir() {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "linked source path is not a directory"
+            )));
+        }
+
+        resolve_managed_file_path(source_locator, relative_path).map_err(ServiceError::Other)
+    }
+
+    fn note_sync_target_path_from_frontmatter(
+        &self,
+        frontmatter: &NoteFrontmatter,
+    ) -> Result<PathBuf, ServiceError> {
+        let project_id = frontmatter
+            .project_id
+            .as_deref()
+            .with_context(|| "synced note is missing project_id")
+            .map_err(ServiceError::Other)?;
+        let sync_path = frontmatter
+            .sync_path
+            .as_deref()
+            .with_context(|| "synced note is missing sync_path")
+            .map_err(ServiceError::Other)?;
+        let project = self.get_project_item(project_id)?;
+        self.note_sync_target_path(&project, sync_path)
+    }
+
+    fn reconcile_project_note_sync_watchers(&self, project_id: &str) -> Result<(), ServiceError> {
+        let note_ids = self
+            .db
+            .list_repo_markdown_note_ids_for_project(project_id)
+            .map_err(ServiceError::Other)?;
+
+        for note_id in note_ids {
+            self.clear_note_sync_runtime(&note_id);
+            let Ok((_record, frontmatter, _body, _current_revision)) =
+                self.load_note_state(&note_id)
+            else {
+                continue;
+            };
+            if frontmatter.sync_status != Some(NoteSyncStatus::Live) {
+                continue;
+            }
+
+            if let Err(err) = self.ensure_note_sync_watcher(&note_id) {
+                let _ = self.mark_note_sync_conflict(
+                    &note_id,
+                    &format!("Linked note sync watcher paused: {err}"),
+                );
+                continue;
+            }
+
+            let _ = self.import_note_sync_from_disk(&note_id, false);
+        }
+
+        Ok(())
+    }
+
+    fn restore_note_sync_watchers(&self) -> Result<()> {
+        for note in self.list_notes(5_000, false)? {
+            if note.sync_kind == Some(NoteSyncKind::RepoMarkdown)
+                && note.sync_status == Some(NoteSyncStatus::Live)
+            {
+                if let Err(err) = self.ensure_note_sync_watcher(&note.id) {
+                    let _ = self.mark_note_sync_conflict(
+                        &note.id,
+                        &format!("Linked note sync watcher paused: {err}"),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_note_sync_watcher(&self, note_id: &str) -> Result<(), ServiceError> {
+        let (_record, frontmatter, _body, _current_revision) = self.load_note_state(note_id)?;
+        if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown)
+            || frontmatter.sync_status != Some(NoteSyncStatus::Live)
+        {
+            return Ok(());
+        }
+
+        let target_path = self.note_sync_target_path_from_frontmatter(&frontmatter)?;
+        let parent = target_path
+            .parent()
+            .map(Path::to_path_buf)
+            .with_context(|| "linked markdown file has no parent directory")
+            .map_err(ServiceError::Other)?;
+
+        {
+            let mut runtime = self.note_sync_runtime.lock().map_err(|_| {
+                ServiceError::Other(anyhow::anyhow!("note sync runtime mutex poisoned"))
+            })?;
+            let state = runtime.notes.entry(note_id.to_string()).or_default();
+            if state.watcher_path.as_ref() == Some(&target_path) && state.watcher.is_some() {
+                return Ok(());
+            }
+            state.watcher = None;
+            state.watcher_path = Some(target_path.clone());
+        }
+
+        let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
+        let mut watcher = notify::recommended_watcher(move |event| {
+            let _ = tx.send(event);
+        })
+        .map_err(|err| ServiceError::Other(err.into()))?;
+        watcher
+            .watch(&parent, RecursiveMode::NonRecursive)
+            .map_err(|err| ServiceError::Other(err.into()))?;
+
+        let service = self.clone();
+        let note_id_key = note_id.to_string();
+        let note_id_for_thread = note_id_key.clone();
+        let target_for_thread = target_path.clone();
+        let debounce = Duration::from_millis(WATCHER_DEBOUNCE_MS);
+        let thread = std::thread::spawn(move || {
+            while let Ok(first) = rx.recv() {
+                let mut touched_target = watch_event_hits_target(first, &target_for_thread);
+
+                loop {
+                    match rx.recv_timeout(debounce) {
+                        Ok(next) => {
+                            touched_target =
+                                touched_target || watch_event_hits_target(next, &target_for_thread);
+                        }
+                        Err(RecvTimeoutError::Timeout) => break,
+                        Err(RecvTimeoutError::Disconnected) => return,
+                    }
+                }
+
+                if touched_target {
+                    let _ = service.handle_note_sync_file_event(&note_id_for_thread);
+                }
+            }
+        });
+
+        let mut runtime = self.note_sync_runtime.lock().map_err(|_| {
+            ServiceError::Other(anyhow::anyhow!("note sync runtime mutex poisoned"))
+        })?;
+        let state = runtime.notes.entry(note_id_key).or_default();
+        if state.watcher_path.as_ref() == Some(&target_path) {
+            state.watcher = Some(ManagedNoteSyncWatcherRuntime {
+                _watcher: watcher,
+                _thread: thread,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn clear_note_sync_dirty(&self, note_id: &str) {
+        if let Ok(mut runtime) = self.note_sync_runtime.lock() {
+            if let Some(state) = runtime.notes.get_mut(note_id) {
+                state.dirty_outbound = false;
+                state.last_outbound_hash = None;
+            }
+        }
+    }
+
+    fn clear_note_sync_dirty_flag(&self, note_id: &str) {
+        if let Ok(mut runtime) = self.note_sync_runtime.lock() {
+            if let Some(state) = runtime.notes.get_mut(note_id) {
+                state.dirty_outbound = false;
+            }
+        }
+    }
+
+    fn clear_note_sync_runtime(&self, note_id: &str) {
+        if let Ok(mut runtime) = self.note_sync_runtime.lock() {
+            runtime.notes.remove(note_id);
+        }
+    }
+
+    fn queue_note_sync_outbound(&self, note_id: &str) {
+        let nonce = {
+            let Ok(mut runtime) = self.note_sync_runtime.lock() else {
+                return;
+            };
+            let state = runtime.notes.entry(note_id.to_string()).or_default();
+            state.dirty_outbound = true;
+            state.outbound_nonce = state.outbound_nonce.saturating_add(1);
+            state.outbound_nonce
+        };
+
+        let service = self.clone();
+        let note_id = note_id.to_string();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(OUTBOUND_DEBOUNCE_MS));
+            let _ = service.flush_note_sync_outbound(&note_id, nonce);
+        });
+    }
+
+    fn flush_note_sync_outbound(&self, note_id: &str, nonce: u64) -> Result<(), ServiceError> {
+        let should_flush = {
+            let runtime = self.note_sync_runtime.lock().map_err(|_| {
+                ServiceError::Other(anyhow::anyhow!("note sync runtime mutex poisoned"))
+            })?;
+            runtime
+                .notes
+                .get(note_id)
+                .map(|state| state.dirty_outbound && state.outbound_nonce == nonce)
+                .unwrap_or(false)
+        };
+        if !should_flush {
+            return Ok(());
+        }
+
+        let result = match self.load_note_state(note_id) {
+            Ok((_record, frontmatter, _body, _current_revision)) => {
+                if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown)
+                    || frontmatter.sync_status != Some(NoteSyncStatus::Live)
+                {
+                    self.clear_note_sync_dirty_flag(note_id);
+                    return Ok(());
+                }
+                self.write_note_sync_file_from_local(note_id, true)
+                    .map(|_| ())
+            }
+            Err(err) => {
+                self.clear_note_sync_dirty(note_id);
+                Err(err)
+            }
+        };
+
+        self.clear_note_sync_dirty_flag(note_id);
+        result
+    }
+
+    fn handle_note_sync_file_event(&self, note_id: &str) -> Result<(), ServiceError> {
+        let (_record, frontmatter, _body, _current_revision) = self.load_note_state(note_id)?;
+        if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown)
+            || frontmatter.sync_status != Some(NoteSyncStatus::Live)
+        {
+            return Ok(());
+        }
+
+        let target_path = self.note_sync_target_path_from_frontmatter(&frontmatter)?;
+        let current_hash =
+            compute_file_hash_from_path(&target_path).map_err(ServiceError::Other)?;
+        let (dirty_outbound, last_outbound_hash) = self
+            .note_sync_runtime
+            .lock()
+            .map_err(|_| ServiceError::Other(anyhow::anyhow!("note sync runtime mutex poisoned")))?
+            .notes
+            .get(note_id)
+            .map(|state| (state.dirty_outbound, state.last_outbound_hash.clone()))
+            .unwrap_or((false, None));
+
+        if let (Some(current_hash), Some(outbound_hash)) =
+            (current_hash.as_deref(), last_outbound_hash.as_deref())
+        {
+            if current_hash == outbound_hash {
+                return Ok(());
+            }
+        }
+
+        if dirty_outbound {
+            self.mark_note_sync_conflict(
+                note_id,
+                "Linked note sync detected local and file edits before reconciliation.",
+            )?;
+            return Ok(());
+        }
+
+        self.import_note_sync_from_disk(note_id, false).map(|_| ())
+    }
+
+    fn import_note_sync_from_disk(
+        &self,
+        note_id: &str,
+        force: bool,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let (record, mut frontmatter, _body, current_revision) = self.load_note_state(note_id)?;
+        if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "note is not linked to a repo markdown file"
+            )));
+        }
+
+        let target_path = self.note_sync_target_path_from_frontmatter(&frontmatter)?;
+        let raw = match std::fs::read_to_string(&target_path) {
+            Ok(raw) => raw,
+            Err(err) => {
+                self.mark_note_sync_conflict(
+                    note_id,
+                    "Linked markdown file is missing or unreadable.",
+                )?;
+                return Err(ServiceError::Other(
+                    anyhow::Error::new(err)
+                        .context(format!("failed reading {}", target_path.display())),
+                ));
+            }
+        };
+        let file_hash = compute_file_hash(&raw);
+        if !force && frontmatter.sync_last_seen_hash.as_deref() == Some(file_hash.as_str()) {
+            return self
+                .db
+                .read_entity_snapshot(note_id)?
+                .context("synced note not found after sync check")
+                .map_err(ServiceError::Other);
+        }
+
+        frontmatter.title =
+            synced_note_title_from_path(frontmatter.sync_path.as_deref().unwrap_or(""));
+        frontmatter.sync_status = Some(NoteSyncStatus::Live);
+        frontmatter.sync_last_seen_hash = Some(file_hash);
+        frontmatter.sync_last_inbound_at = Some(Utc::now());
+        frontmatter.sync_conflict_summary = None;
+        frontmatter.sync_conflict_at = None;
+        frontmatter.updated_at = Utc::now();
+
+        let action = if force {
+            "resolve_note_sync_from_file"
+        } else {
+            "import_note_sync_from_file"
+        };
+        let summary = if force {
+            "Resolved linked note sync using file"
+        } else {
+            "Imported linked note from file"
+        };
+
+        let snapshot = self.write_note_entity(
+            &record.path,
+            raw,
+            frontmatter,
+            Some(current_revision),
+            record.archived,
+            Actor::agent("note-sync"),
+            action,
+            summary,
+        )?;
+        self.ensure_note_sync_watcher(note_id)?;
+        Ok(snapshot)
+    }
+
+    fn write_note_sync_file_from_local(
+        &self,
+        note_id: &str,
+        enforce_hash_match: bool,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let (record, mut frontmatter, body, current_revision) = self.load_note_state(note_id)?;
+        if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown) {
+            return Err(ServiceError::Other(anyhow::anyhow!(
+                "note is not linked to a repo markdown file"
+            )));
+        }
+
+        let target_path = self.note_sync_target_path_from_frontmatter(&frontmatter)?;
+        let current_hash =
+            compute_file_hash_from_path(&target_path).map_err(ServiceError::Other)?;
+        if enforce_hash_match {
+            if let (Some(known_hash), Some(current_hash)) = (
+                frontmatter.sync_last_seen_hash.as_deref(),
+                current_hash.as_deref(),
+            ) {
+                if known_hash != current_hash {
+                    self.mark_note_sync_conflict(
+                        note_id,
+                        "Linked note sync detected external edits before n10e could write back.",
+                    )?;
+                    return Err(ServiceError::Other(anyhow::anyhow!(
+                        "linked markdown file changed externally"
+                    )));
+                }
+            }
+        }
+
+        ensure_parent_dir(&target_path).map_err(ServiceError::Other)?;
+        atomic_write(&target_path, &body).map_err(ServiceError::Other)?;
+        let new_hash = compute_file_hash(&body);
+        if let Ok(mut runtime) = self.note_sync_runtime.lock() {
+            let state = runtime.notes.entry(note_id.to_string()).or_default();
+            state.last_outbound_hash = Some(new_hash.clone());
+        }
+
+        frontmatter.title =
+            synced_note_title_from_path(frontmatter.sync_path.as_deref().unwrap_or(""));
+        frontmatter.sync_status = Some(NoteSyncStatus::Live);
+        frontmatter.sync_last_seen_hash = Some(new_hash);
+        frontmatter.sync_last_outbound_at = Some(Utc::now());
+        frontmatter.sync_conflict_summary = None;
+        frontmatter.sync_conflict_at = None;
+        frontmatter.updated_at = Utc::now();
+
+        let action = if enforce_hash_match {
+            "sync_note_to_repo_file"
+        } else {
+            "resolve_note_sync_from_local"
+        };
+        let summary = if enforce_hash_match {
+            "Synced linked note to file"
+        } else {
+            "Resolved linked note sync using n10e"
+        };
+
+        let snapshot = self.write_note_entity(
+            &record.path,
+            body,
+            frontmatter,
+            Some(current_revision),
+            record.archived,
+            Actor::agent("note-sync"),
+            action,
+            summary,
+        )?;
+        self.ensure_note_sync_watcher(note_id)?;
+        Ok(snapshot)
+    }
+
+    fn mark_note_sync_conflict(&self, note_id: &str, summary: &str) -> Result<(), ServiceError> {
+        self.clear_note_sync_dirty(note_id);
+        let (record, mut frontmatter, body, current_revision) = self.load_note_state(note_id)?;
+        if frontmatter.sync_kind != Some(NoteSyncKind::RepoMarkdown) {
+            return Ok(());
+        }
+
+        frontmatter.sync_status = Some(NoteSyncStatus::Conflict);
+        frontmatter.sync_conflict_summary = Some(summary.to_string());
+        frontmatter.sync_conflict_at = Some(Utc::now());
+        frontmatter.updated_at = Utc::now();
+
+        self.write_note_entity(
+            &record.path,
+            body,
+            frontmatter,
+            Some(current_revision),
+            record.archived,
+            Actor::agent("note-sync"),
+            "note_sync_conflict",
+            "Linked note sync entered conflict",
+        )?;
+        Ok(())
+    }
+
     fn restore_managed_task_sync_watchers(&self) -> Result<()> {
         for project in self.list_projects(500, false)? {
             if project.task_sync_enabled
@@ -1417,27 +2580,28 @@ impl AppService {
 
     fn reconcile_managed_task_sync_project_defaults(&self) -> Result<()> {
         for project in self.list_projects(500, false)? {
-            if !project.task_sync_enabled || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+            if !project.task_sync_enabled
+                || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
             {
                 continue;
             }
 
-            let normalized_sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+            let normalized_sync_file =
+                normalize_managed_task_sync_file(project.task_sync_file.as_deref());
             if project.task_sync_file.as_deref() == Some(normalized_sync_file.as_str()) {
                 continue;
             }
 
-            self
-                .update_project(
-                    &project.id,
-                    ProjectPatch {
-                        task_sync_file: Some(Some(normalized_sync_file)),
-                        ..ProjectPatch::default()
-                    },
-                    &project.revision,
-                    Actor::agent("task-sync"),
-                )
-                .map_err(|err| anyhow::anyhow!(err.to_string()))?;
+            self.update_project(
+                &project.id,
+                ProjectPatch {
+                    task_sync_file: Some(Some(normalized_sync_file)),
+                    ..ProjectPatch::default()
+                },
+                &project.revision,
+                Actor::agent("task-sync"),
+            )
+            .map_err(|err| anyhow::anyhow!(err.to_string()))?;
         }
 
         Ok(())
@@ -1447,7 +2611,8 @@ impl AppService {
         &self,
         project: &crate::types::ProjectItem,
     ) -> Result<(), ServiceError> {
-        if !project.task_sync_enabled || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
+        if !project.task_sync_enabled
+            || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
         {
             return Ok(());
         }
@@ -1460,10 +2625,9 @@ impl AppService {
             .map_err(ServiceError::Other)?;
 
         {
-            let mut runtime = self
-                .task_sync_runtime
-                .lock()
-                .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+            let mut runtime = self.task_sync_runtime.lock().map_err(|_| {
+                ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned"))
+            })?;
             let state = runtime.projects.entry(project.id.clone()).or_default();
             if state.watcher_path.as_ref() == Some(&target_path) && state.watcher.is_some() {
                 return Ok(());
@@ -1492,7 +2656,8 @@ impl AppService {
                 loop {
                     match rx.recv_timeout(debounce) {
                         Ok(next) => {
-                            touched_target = touched_target || watch_event_hits_target(next, &target_for_thread);
+                            touched_target =
+                                touched_target || watch_event_hits_target(next, &target_for_thread);
                         }
                         Err(RecvTimeoutError::Timeout) => break,
                         Err(RecvTimeoutError::Disconnected) => return,
@@ -1505,10 +2670,9 @@ impl AppService {
             }
         });
 
-        let mut runtime = self
-            .task_sync_runtime
-            .lock()
-            .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+        let mut runtime = self.task_sync_runtime.lock().map_err(|_| {
+            ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned"))
+        })?;
         let state = runtime.projects.entry(project.id.clone()).or_default();
         if state.watcher_path.as_ref() == Some(&target_path) {
             state.watcher = Some(ManagedTaskSyncWatcherRuntime {
@@ -1567,12 +2731,15 @@ impl AppService {
         });
     }
 
-    fn flush_managed_task_sync_outbound(&self, project_id: &str, nonce: u64) -> Result<(), ServiceError> {
+    fn flush_managed_task_sync_outbound(
+        &self,
+        project_id: &str,
+        nonce: u64,
+    ) -> Result<(), ServiceError> {
         let should_flush = {
-            let runtime = self
-                .task_sync_runtime
-                .lock()
-                .map_err(|_| ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned")))?;
+            let runtime = self.task_sync_runtime.lock().map_err(|_| {
+                ServiceError::Other(anyhow::anyhow!("task sync runtime mutex poisoned"))
+            })?;
             runtime
                 .projects
                 .get(project_id)
@@ -1665,7 +2832,8 @@ impl AppService {
                 .context("task not found while enabling managed sync")
                 .map_err(ServiceError::Other)?;
             let (mut frontmatter, body) = split_task(parsed.frontmatter, parsed.body)?;
-            let desired_key = ensure_sync_key_for_title(frontmatter.sync_key.as_deref(), &frontmatter.title);
+            let desired_key =
+                ensure_sync_key_for_title(frontmatter.sync_key.as_deref(), &frontmatter.title);
             let needs_update = frontmatter.sync_kind != Some(TaskSyncKind::ManagedTodoFile)
                 || frontmatter.sync_path.as_deref() != Some(sync_file)
                 || !frontmatter.sync_managed
@@ -1680,13 +2848,16 @@ impl AppService {
             frontmatter.sync_managed = true;
 
             let mut entity = EntityFrontmatter::Task(frontmatter);
-            let rendered = render_entity_markdown(&mut entity, &body).map_err(ServiceError::Other)?;
+            let rendered =
+                render_entity_markdown(&mut entity, &body).map_err(ServiceError::Other)?;
             atomic_write(&record.path, &rendered).map_err(ServiceError::Other)?;
             paths.push(record.path);
         }
 
         if !paths.is_empty() {
-            self.indexer.index_files(&paths).map_err(ServiceError::Other)?;
+            self.indexer
+                .index_files(&paths)
+                .map_err(ServiceError::Other)?;
         }
 
         Ok(())
@@ -1721,7 +2892,9 @@ impl AppService {
         &self,
         project: &crate::types::ProjectItem,
     ) -> Result<PathBuf, ServiceError> {
-        Ok(managed_todo_sidecar_path(&self.managed_task_sync_file_path(project)?))
+        Ok(managed_todo_sidecar_path(
+            &self.managed_task_sync_file_path(project)?,
+        ))
     }
 
     fn managed_task_sync_entries_from_local(
@@ -1809,9 +2982,10 @@ impl AppService {
         let sync_path = self.managed_task_sync_file_path(project)?;
         let current_hash = compute_file_hash_from_path(&sync_path).map_err(ServiceError::Other)?;
         if enforce_hash_match {
-            if let (Some(known_hash), Some(current_hash)) =
-                (project.task_sync_last_seen_hash.as_deref(), current_hash.as_deref())
-            {
+            if let (Some(known_hash), Some(current_hash)) = (
+                project.task_sync_last_seen_hash.as_deref(),
+                current_hash.as_deref(),
+            ) {
                 if known_hash != current_hash {
                     self.mark_managed_task_sync_conflict(
                         &project.id,
@@ -1894,11 +3068,8 @@ impl AppService {
         }
 
         let parsed = parse_managed_todo(&raw, &sidecar_entries);
-        let needs_rewrite = self.reconcile_managed_task_sync_entries(
-            project_id,
-            &sync_file,
-            parsed.entries,
-        )?;
+        let needs_rewrite =
+            self.reconcile_managed_task_sync_entries(project_id, &sync_file, parsed.entries)?;
 
         if needs_rewrite || parsed.had_inline_sync_keys {
             let refreshed_project = self.get_project_item(project_id)?;
@@ -2070,6 +3241,12 @@ impl AppService {
             &project.revision,
             Actor::agent("task-sync"),
         )?;
+        self.record_project_sync_activity(
+            Actor::agent("task-sync"),
+            project_id,
+            "task_sync_conflict",
+            summary,
+        )?;
         Ok(())
     }
 
@@ -2090,6 +3267,12 @@ impl AppService {
             },
             &project.revision,
             Actor::agent("task-sync"),
+        )?;
+        self.record_project_sync_activity(
+            Actor::agent("task-sync"),
+            project_id,
+            "task_sync_paused",
+            format!("Paused managed task sync: {summary}"),
         )?;
         Ok(())
     }
@@ -2149,6 +3332,31 @@ impl AppService {
             .collect::<Vec<_>>();
         self.db.record_activities(drafts)?;
         Ok(())
+    }
+
+    fn record_project_sync_activity(
+        &self,
+        actor: Actor,
+        project_id: &str,
+        action: &'static str,
+        summary: impl Into<String>,
+    ) -> Result<(), ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        let project_path = PathBuf::from(&project.path);
+        let summary = summary.into();
+        self.record_entity_activity(
+            actor,
+            EntityActivityMeta {
+                action,
+                entity_type: EntityType::Project,
+                entity_id: &project.id,
+                path: &project_path,
+                before_revision: None,
+                after_revision: None,
+                summary: &summary,
+            },
+        )
+        .map_err(ServiceError::Other)
     }
 
     fn cached_git_context(&self) -> GitContext {
@@ -2225,6 +3433,11 @@ struct ManagedTaskSyncRuntime {
 }
 
 #[derive(Default)]
+struct ManagedNoteSyncRuntime {
+    notes: HashMap<String, ManagedNoteSyncNoteRuntime>,
+}
+
+#[derive(Default)]
 struct ManagedTaskSyncProjectRuntime {
     dirty_outbound: bool,
     outbound_nonce: u64,
@@ -2233,7 +3446,21 @@ struct ManagedTaskSyncProjectRuntime {
     watcher: Option<ManagedTaskSyncWatcherRuntime>,
 }
 
+#[derive(Default)]
+struct ManagedNoteSyncNoteRuntime {
+    dirty_outbound: bool,
+    outbound_nonce: u64,
+    last_outbound_hash: Option<String>,
+    watcher_path: Option<PathBuf>,
+    watcher: Option<ManagedNoteSyncWatcherRuntime>,
+}
+
 struct ManagedTaskSyncWatcherRuntime {
+    _watcher: RecommendedWatcher,
+    _thread: std::thread::JoinHandle<()>,
+}
+
+struct ManagedNoteSyncWatcherRuntime {
     _watcher: RecommendedWatcher,
     _thread: std::thread::JoinHandle<()>,
 }
@@ -2287,6 +3514,15 @@ fn watch_event_hits_target(event: notify::Result<Event>, target: &Path) -> bool 
         }
         Err(_) => false,
     }
+}
+
+fn synced_note_title_from_path(sync_path: &str) -> String {
+    Path::new(sync_path)
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "Linked doc".to_string())
 }
 
 fn slugify(value: &str) -> String {

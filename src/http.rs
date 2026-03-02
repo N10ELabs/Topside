@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -15,7 +16,7 @@ use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ServiceError};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectPatch,
-    ProjectSourceKind, ProjectWorkspace, TaskPatch, TaskStatus,
+    ProjectSourceKind, ProjectWorkspace, TaskFilters, TaskPatch, TaskStatus,
 };
 
 #[derive(Clone)]
@@ -30,13 +31,28 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/__dev/reload-token", get(dev_reload_token))
         .route("/reindex", post(reindex_now))
         .route("/api/ui-state", get(api_ui_state))
+        .route("/api/archive", get(api_archive_contents))
+        .route("/api/archive/empty", post(api_empty_archive))
+        .route(
+            "/api/archive/{id}/restore",
+            post(api_restore_archived_entity),
+        )
         .route("/api/projects", get(api_projects).post(api_create_project))
         .route("/api/projects/{id}", patch(api_update_project))
         .route("/api/projects/{id}/archive", post(api_archive_project))
         .route("/api/projects/{id}/sync", post(api_sync_project))
-        .route("/api/projects/{id}/task-sync/enable", post(api_enable_task_sync))
-        .route("/api/projects/{id}/task-sync/pause", post(api_pause_task_sync))
-        .route("/api/projects/{id}/task-sync/resume", post(api_resume_task_sync))
+        .route(
+            "/api/projects/{id}/task-sync/enable",
+            post(api_enable_task_sync),
+        )
+        .route(
+            "/api/projects/{id}/task-sync/pause",
+            post(api_pause_task_sync),
+        )
+        .route(
+            "/api/projects/{id}/task-sync/resume",
+            post(api_resume_task_sync),
+        )
         .route(
             "/api/projects/{id}/task-sync/resolve-file",
             post(api_resolve_task_sync_file),
@@ -44,6 +60,14 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route(
             "/api/projects/{id}/task-sync/resolve-local",
             post(api_resolve_task_sync_local),
+        )
+        .route(
+            "/api/projects/{id}/notes/linkable-files",
+            get(api_project_linkable_note_files),
+        )
+        .route(
+            "/api/projects/{id}/notes/link-file",
+            post(api_link_note_file),
         )
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
         .route("/api/tasks", post(api_create_task))
@@ -53,6 +77,14 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/tasks/reorder", post(api_reorder_tasks))
         .route("/api/notes", post(api_create_note))
         .route("/api/notes/{id}", patch(api_update_note))
+        .route(
+            "/api/notes/{id}/sync/resolve-file",
+            post(api_resolve_note_sync_file),
+        )
+        .route(
+            "/api/notes/{id}/sync/resolve-local",
+            post(api_resolve_note_sync_local),
+        )
         .route("/api/notes/{id}/archive", post(api_archive_note))
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
@@ -85,6 +117,28 @@ struct UiStatePayload {
     selected_project_id: Option<String>,
     workspace: Option<WorkspacePayload>,
     server_port: u16,
+}
+
+#[derive(Debug, Serialize)]
+struct ArchiveContentsPayload {
+    total_count: usize,
+    items: Vec<ArchivedEntityPayload>,
+}
+
+#[derive(Debug, Serialize)]
+struct ArchivedEntityPayload {
+    id: String,
+    entity_type: String,
+    title: String,
+    revision: String,
+    context_label: String,
+    detail_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ArchiveMutationResponse {
+    archive: ArchiveContentsPayload,
+    ui_state: UiStatePayload,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -133,6 +187,15 @@ struct NotePayload {
     title: String,
     body: String,
     rendered_html: String,
+    sync_kind: Option<String>,
+    sync_path: Option<String>,
+    sync_status: Option<String>,
+    sync_last_inbound_at_iso: Option<String>,
+    sync_last_inbound_at_label: Option<String>,
+    sync_last_outbound_at_iso: Option<String>,
+    sync_last_outbound_at_label: Option<String>,
+    sync_conflict_summary: Option<String>,
+    sync_conflict_at_label: Option<String>,
     revision: String,
     updated_at_iso: String,
     updated_at_label: String,
@@ -208,10 +271,22 @@ struct CreateNoteRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct LinkNoteFileRequest {
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct UpdateNoteRequest {
     expected_revision: String,
     title: Option<String>,
     body: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct LinkableNoteFilePayload {
+    relative_path: String,
+    display_name: String,
+    display_subpath: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -222,6 +297,11 @@ struct PickDirectoryResponse {
 #[derive(Debug, Deserialize)]
 struct ExpectedRevisionRequest {
     expected_revision: String,
+    current_project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurrentProjectRequest {
     current_project_id: Option<String>,
 }
 
@@ -309,8 +389,47 @@ async fn api_ui_state(
     State(state): State<Arc<WebState>>,
     Query(query): Query<ProjectQuery>,
 ) -> ApiResult<UiStatePayload> {
-    let payload = build_ui_state_payload(&state.service, query.project_id).map_err(internal_api_err)?;
+    let payload =
+        build_ui_state_payload(&state.service, query.project_id).map_err(internal_api_err)?;
     Ok(Json(payload))
+}
+
+async fn api_archive_contents(
+    State(state): State<Arc<WebState>>,
+) -> ApiResult<ArchiveContentsPayload> {
+    let payload = build_archive_payload(&state.service).map_err(internal_api_err)?;
+    Ok(Json(payload))
+}
+
+async fn api_restore_archived_entity(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<ArchiveMutationResponse> {
+    state
+        .service
+        .restore_entity(&id, &request.expected_revision, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+
+    let ui_state = build_ui_state_payload(&state.service, request.current_project_id)
+        .map_err(internal_api_err)?;
+    let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
+    Ok(Json(ArchiveMutationResponse { archive, ui_state }))
+}
+
+async fn api_empty_archive(
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<CurrentProjectRequest>,
+) -> ApiResult<ArchiveMutationResponse> {
+    state
+        .service
+        .empty_archive()
+        .map_err(map_service_err_json)?;
+
+    let ui_state = build_ui_state_payload(&state.service, request.current_project_id)
+        .map_err(internal_api_err)?;
+    let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
+    Ok(Json(ArchiveMutationResponse { archive, ui_state }))
 }
 
 async fn api_project_workspace(
@@ -476,6 +595,42 @@ async fn api_resolve_task_sync_local(
     let selected = request.current_project_id.or_else(|| Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
+}
+
+async fn api_project_linkable_note_files(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> ApiResult<Vec<LinkableNoteFilePayload>> {
+    let files = state
+        .service
+        .list_linkable_note_files(&id)
+        .map_err(map_service_err_json)?;
+    Ok(Json(
+        files
+            .into_iter()
+            .map(map_linkable_note_file_payload)
+            .collect(),
+    ))
+}
+
+async fn api_link_note_file(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<LinkNoteFileRequest>,
+) -> ApiResult<NoteMutationResponse> {
+    let linked = state
+        .service
+        .link_note_to_repo_file(&id, &request.relative_path, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(NoteMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_note_id: Some(linked.id),
+    }))
 }
 
 async fn api_create_task(
@@ -696,6 +851,56 @@ async fn api_update_note(
     }))
 }
 
+async fn api_resolve_note_sync_file(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(_request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<NoteMutationResponse> {
+    let updated = state
+        .service
+        .resolve_note_sync_from_file(&id)
+        .map_err(map_service_err_json)?;
+    let project_id = updated
+        .frontmatter
+        .project_id()
+        .map(ToString::to_string)
+        .ok_or_else(|| bad_request_json("updated note was missing project_id"))?;
+    let workspace = state
+        .service
+        .load_project_workspace(&project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(NoteMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_note_id: Some(id),
+    }))
+}
+
+async fn api_resolve_note_sync_local(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Json(_request): Json<ExpectedRevisionRequest>,
+) -> ApiResult<NoteMutationResponse> {
+    let updated = state
+        .service
+        .resolve_note_sync_from_local(&id)
+        .map_err(map_service_err_json)?;
+    let project_id = updated
+        .frontmatter
+        .project_id()
+        .map(ToString::to_string)
+        .ok_or_else(|| bad_request_json("updated note was missing project_id"))?;
+    let workspace = state
+        .service
+        .load_project_workspace(&project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(NoteMutationResponse {
+        workspace: map_workspace_payload(workspace),
+        created_note_id: Some(id),
+    }))
+}
+
 async fn api_archive_note(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
@@ -830,6 +1035,137 @@ fn resolve_selected_project(
         .or_else(|| projects.first().cloned())
 }
 
+fn build_archive_payload(service: &AppService) -> Result<ArchiveContentsPayload, anyhow::Error> {
+    let projects = service.list_projects(5_000, true)?;
+    let tasks = service.list_tasks(&TaskFilters {
+        status: None,
+        priority: None,
+        project_id: None,
+        assignee: None,
+        include_archived: true,
+        limit: Some(10_000),
+    })?;
+    let notes = service.list_notes(10_000, true)?;
+
+    let archived_projects = projects
+        .iter()
+        .filter(|project| project.archived)
+        .cloned()
+        .collect::<Vec<_>>();
+    let archived_project_ids = archived_projects
+        .iter()
+        .map(|project| project.id.clone())
+        .collect::<HashSet<_>>();
+    let active_project_titles = projects
+        .iter()
+        .filter(|project| !project.archived)
+        .map(|project| (project.id.clone(), project.title.clone()))
+        .collect::<HashMap<_, _>>();
+
+    let archived_tasks = tasks
+        .into_iter()
+        .filter(|task| task.archived)
+        .collect::<Vec<_>>();
+    let archived_notes = notes
+        .into_iter()
+        .filter(|note| note.archived)
+        .collect::<Vec<_>>();
+
+    let mut archived_task_counts = HashMap::<String, usize>::new();
+    for task in &archived_tasks {
+        *archived_task_counts
+            .entry(task.project_id.clone())
+            .or_default() += 1;
+    }
+
+    let mut archived_note_counts = HashMap::<String, usize>::new();
+    for note in &archived_notes {
+        if let Some(project_id) = note.project_id.as_ref() {
+            *archived_note_counts.entry(project_id.clone()).or_default() += 1;
+        }
+    }
+
+    let total_count = archived_projects.len() + archived_tasks.len() + archived_notes.len();
+    let mut items = Vec::new();
+
+    for project in archived_projects {
+        let task_count = archived_task_counts.get(&project.id).copied().unwrap_or(0);
+        let note_count = archived_note_counts.get(&project.id).copied().unwrap_or(0);
+        items.push(ArchivedEntityPayload {
+            id: project.id,
+            entity_type: "project".to_string(),
+            title: project.title,
+            revision: project.revision,
+            context_label: "project".to_string(),
+            detail_label: format_archive_children_label(task_count, note_count),
+        });
+    }
+
+    for task in archived_tasks {
+        if archived_project_ids.contains(&task.project_id) {
+            continue;
+        }
+
+        let context_label = active_project_titles
+            .get(&task.project_id)
+            .map(|title| format!("task in {title}"))
+            .unwrap_or_else(|| "task".to_string());
+        items.push(ArchivedEntityPayload {
+            id: task.id,
+            entity_type: "task".to_string(),
+            title: task.title,
+            revision: task.revision,
+            context_label,
+            detail_label: None,
+        });
+    }
+
+    for note in archived_notes {
+        if note
+            .project_id
+            .as_ref()
+            .is_some_and(|project_id| archived_project_ids.contains(project_id))
+        {
+            continue;
+        }
+
+        let context_label = note
+            .project_id
+            .as_ref()
+            .and_then(|project_id| active_project_titles.get(project_id))
+            .map(|title| format!("note in {title}"))
+            .unwrap_or_else(|| "note".to_string());
+        items.push(ArchivedEntityPayload {
+            id: note.id,
+            entity_type: "note".to_string(),
+            title: note.title,
+            revision: note.revision,
+            context_label,
+            detail_label: None,
+        });
+    }
+
+    Ok(ArchiveContentsPayload { total_count, items })
+}
+
+fn format_archive_children_label(task_count: usize, note_count: usize) -> Option<String> {
+    let mut parts = Vec::new();
+    if task_count > 0 {
+        let label = if task_count == 1 { "task" } else { "tasks" };
+        parts.push(format!("{task_count} {label}"));
+    }
+    if note_count > 0 {
+        let label = if note_count == 1 { "note" } else { "notes" };
+        parts.push(format!("{note_count} {label}"));
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" | "))
+    }
+}
+
 fn map_workspace_payload(workspace: ProjectWorkspace) -> WorkspacePayload {
     WorkspacePayload {
         project: map_project_summary(workspace.project),
@@ -860,7 +1196,9 @@ fn map_project_summary(project: ProjectItem) -> ProjectSummary {
         task_sync_mode: project.task_sync_mode.map(|mode| mode.as_str().to_string()),
         task_sync_file: project.task_sync_file,
         task_sync_enabled: project.task_sync_enabled,
-        task_sync_status: project.task_sync_status.map(|status| status.as_str().to_string()),
+        task_sync_status: project
+            .task_sync_status
+            .map(|status| status.as_str().to_string()),
         task_sync_last_inbound_at_label: project.task_sync_last_inbound_at.map(format_timestamp),
         task_sync_last_outbound_at_label: project.task_sync_last_outbound_at.map(format_timestamp),
         task_sync_conflict_summary: project.task_sync_conflict_summary,
@@ -906,12 +1244,37 @@ fn map_task_payload(task: crate::types::TaskItem) -> TaskPayload {
     }
 }
 
+fn map_linkable_note_file_payload(
+    item: crate::repo_sync::RepoMarkdownDocCandidate,
+) -> LinkableNoteFilePayload {
+    LinkableNoteFilePayload {
+        relative_path: item.relative_path,
+        display_name: item.display_name,
+        display_subpath: item.display_subpath,
+    }
+}
+
 fn map_note_payload(note: crate::types::NoteDetail) -> NotePayload {
     NotePayload {
         id: note.id,
         title: note.title,
         body: note.body.clone(),
         rendered_html: render_markdown_html(&note.body),
+        sync_kind: note.sync_kind.map(|kind| kind.as_str().to_string()),
+        sync_path: note.sync_path,
+        sync_status: note.sync_status.map(|status| status.as_str().to_string()),
+        sync_last_inbound_at_iso: note
+            .sync_last_inbound_at
+            .as_ref()
+            .map(chrono::DateTime::to_rfc3339),
+        sync_last_inbound_at_label: note.sync_last_inbound_at.map(format_timestamp),
+        sync_last_outbound_at_iso: note
+            .sync_last_outbound_at
+            .as_ref()
+            .map(chrono::DateTime::to_rfc3339),
+        sync_last_outbound_at_label: note.sync_last_outbound_at.map(format_timestamp),
+        sync_conflict_summary: note.sync_conflict_summary,
+        sync_conflict_at_label: note.sync_conflict_at.map(format_timestamp),
         revision: note.revision,
         updated_at_iso: note.updated_at.to_rfc3339(),
         updated_at_label: format_timestamp(note.updated_at),

@@ -14,8 +14,7 @@ pub const LEGACY_MANAGED_TASK_SYNC_FILE: &str = "to-do.md";
 pub const OUTBOUND_DEBOUNCE_MS: u64 = 400;
 pub const WATCHER_DEBOUNCE_MS: u64 = 250;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ManagedTodoEntryKind {
     Section,
     Task { completed: bool },
@@ -171,8 +170,8 @@ pub fn render_managed_todo_sidecar(entries: &[ManagedTodoRenderEntry]) -> Result
         version: managed_todo_sidecar_version(),
         entries: entries.to_vec(),
     };
-    let mut rendered =
-        serde_json::to_string_pretty(&sidecar).context("failed rendering managed task sync sidecar")?;
+    let mut rendered = serde_json::to_string_pretty(&sidecar)
+        .context("failed rendering managed task sync sidecar")?;
     rendered.push('\n');
     Ok(rendered)
 }
@@ -188,8 +187,8 @@ pub fn compute_file_hash_from_path(path: &Path) -> Result<Option<String>> {
     if !path.exists() {
         return Ok(None);
     }
-    let content =
-        std::fs::read_to_string(path).with_context(|| format!("failed reading {}", path.display()))?;
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed reading {}", path.display()))?;
     Ok(Some(compute_file_hash(&content)))
 }
 
@@ -211,7 +210,10 @@ pub fn resolve_managed_file_path(source_root: &str, relative_path: &str) -> Resu
         anyhow::bail!("managed task sync file must be relative to the linked source folder");
     }
     for component in relative.components() {
-        if matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_)) {
+        if matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
             anyhow::bail!("managed task sync file must stay inside the linked source folder");
         }
     }
@@ -271,7 +273,11 @@ pub fn render_entry_from_task(task: &TaskItem) -> Option<ManagedTodoRenderEntry>
 }
 
 pub fn ensure_sync_key_for_title(existing: Option<&str>, title: &str) -> String {
-    let desired_prefix = if is_heading_title(title) { "sec_" } else { "tsk_" };
+    let desired_prefix = if is_heading_title(title) {
+        "sec_"
+    } else {
+        "tsk_"
+    };
     match existing {
         Some(value) if value.starts_with(desired_prefix) => value.to_string(),
         _ => format!("{desired_prefix}{}", Ulid::new()),
@@ -305,10 +311,7 @@ fn split_visible_title_and_id(value: &str) -> (&str, Option<String>) {
     if let Some(captures) = re.captures(value) {
         let matched = captures.get(0).map(|m| m.as_str()).unwrap_or("");
         let id = captures.get(1).map(|m| m.as_str().to_string());
-        let visible = value
-            .strip_suffix(matched)
-            .unwrap_or(value)
-            .trim_end();
+        let visible = value.strip_suffix(matched).unwrap_or(value).trim_end();
         return (visible, id);
     }
     (value, None)
@@ -340,8 +343,10 @@ fn match_sidecar_sync_key(
         return Some(candidate.sync_key);
     }
 
-    take_matching_sidecar_entry(available, |candidate| same_entry_kind(&candidate.kind, &raw.kind))
-        .map(|entry| entry.sync_key)
+    take_matching_sidecar_entry(available, |candidate| {
+        same_entry_kind(&candidate.kind, &raw.kind)
+    })
+    .map(|entry| entry.sync_key)
 }
 
 fn take_matching_sidecar_entry(
@@ -361,7 +366,10 @@ fn same_entry_kind(left: &ManagedTodoEntryKind, right: &ManagedTodoEntryKind) ->
     matches!(
         (left, right),
         (ManagedTodoEntryKind::Section, ManagedTodoEntryKind::Section)
-            | (ManagedTodoEntryKind::Task { .. }, ManagedTodoEntryKind::Task { .. })
+            | (
+                ManagedTodoEntryKind::Task { .. },
+                ManagedTodoEntryKind::Task { .. }
+            )
     )
 }
 
@@ -390,8 +398,9 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        ManagedTodoEntryKind, ManagedTodoRenderEntry, managed_todo_sidecar_path, parse_managed_todo,
-        parse_managed_todo_sidecar, render_managed_todo, render_managed_todo_sidecar,
+        ManagedTodoEntryKind, ManagedTodoRenderEntry, managed_todo_sidecar_path,
+        parse_managed_todo, parse_managed_todo_sidecar, render_managed_todo,
+        render_managed_todo_sidecar,
     };
 
     #[test]
@@ -427,10 +436,7 @@ mod tests {
             },
         ]);
 
-        assert_eq!(
-            content,
-            "## Planning\n- [ ] Draft copy\n"
-        );
+        assert_eq!(content, "## Planning\n- [ ] Draft copy\n");
     }
 
     #[test]

@@ -1,25 +1,27 @@
 # MCP Compatibility Matrix
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Current Validation Levels
 
 - `Automated profile simulation`: done
-- `Real client smoke test (Codex)`: done
+- `Real client smoke test (Codex)`: protocol-only
 - `Real client smoke test (Claude Code)`: pending
-- `Stable response contract`: frozen
+- `Stable response contract`: reduced
 
 ## Automated Profiles (Implemented)
 
-Integration tests in `tests/mcp_compat_integration.rs` validate two request styles:
+Integration tests in `tests/mcp_compat_integration.rs` validate:
 
-1. Codex-style direct tool methods
-- direct method calls like `create_project`, `create_task`, `update_task`, `search_context`
-- optimistic-lock conflict behavior (`-32010`) validated
+1. Line-delimited JSON requests
+- `initialize`
+- empty `tools/list`
+- empty `resources/list` and `resources/templates/list`
 
-2. Claude-style `tools/call`
-- `tools/list` discovery
-- `tools/call` execution for `create_project`, `create_note`, `read_entity`, `list_recent_activity`
+2. Framed MCP requests
+- `initialize`
+- `ping`
+- `tools/call` rejection for non-existent tools
 
 Run:
 
@@ -27,26 +29,6 @@ Run:
 cargo test --test mcp_compat_integration
 ```
 
-## Real Client Matrix (Manual, Pending)
+## Current Product Direction
 
-Current environment note (2026-03-01):
-- live `codex exec` smoke validation succeeded after switching MCP stdout to protocol-only output and keeping tracing on stderr.
-- in `codex exec`, the agent did not get a directly callable raw `tools/list` method; instead the configured server tools were exposed in the session tool registry (`mcp__n10e-smoke__*`), while MCP resource/template discovery remained empty.
-- stale `update_task` validation returned the expected structured conflict path in the real Codex client: code `-32010`, message `revision conflict`, with `expected_revision` and `current_revision` included.
-- no `claude` / `claude-code` CLI binary was available locally for direct runtime smoke execution.
-
-### Codex
-
-- [x] configure Codex MCP to launch `n10e --workspace <path> mcp`
-- [x] validate real client startup / initialize handshake
-- [x] create project via configured MCP tool (`create_project`)
-- [x] verify project visibility via configured MCP tool (`list_projects`)
-- [x] verify workspace read via configured MCP tool (`get_project_workspace`)
-- [x] verify conflict payload handling
-
-### Claude Code
-
-- [ ] configure Claude Code MCP to launch `n10e --workspace <path> mcp`
-- [ ] run `tools/list` and `tools/call` flow
-- [ ] validate task/note create+update+activity path
-- [ ] verify conflict payload handling
+The MCP endpoint is intentionally kept as a minimal compatibility surface. It preserves the handshake and discovery protocol shape for clients that expect an MCP server, but it no longer exposes operational read/write tools. Runtime project interaction is expected to happen through synced markdown files.

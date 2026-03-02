@@ -190,6 +190,36 @@ impl TaskSyncStatus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteSyncKind {
+    RepoMarkdown,
+}
+
+impl NoteSyncKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RepoMarkdown => "repo_markdown",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteSyncStatus {
+    Live,
+    Conflict,
+}
+
+impl NoteSyncStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::Conflict => "conflict",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskFrontmatter {
     pub id: String,
@@ -275,6 +305,22 @@ pub struct NoteFrontmatter {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_kind: Option<NoteSyncKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_status: Option<NoteSyncStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_last_seen_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_last_inbound_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_last_outbound_at: Option<DateTime<Utc>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_conflict_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_conflict_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
@@ -532,6 +578,62 @@ impl EntityFrontmatter {
         }
     }
 
+    pub fn note_sync_kind(&self) -> Option<NoteSyncKind> {
+        match self {
+            Self::Note(v) => v.sync_kind.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_path(&self) -> Option<&str> {
+        match self {
+            Self::Note(v) => v.sync_path.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_status(&self) -> Option<NoteSyncStatus> {
+        match self {
+            Self::Note(v) => v.sync_status.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_last_seen_hash(&self) -> Option<&str> {
+        match self {
+            Self::Note(v) => v.sync_last_seen_hash.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_last_inbound_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Note(v) => v.sync_last_inbound_at,
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_last_outbound_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Note(v) => v.sync_last_outbound_at,
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_conflict_summary(&self) -> Option<&str> {
+        match self {
+            Self::Note(v) => v.sync_conflict_summary.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub fn note_sync_conflict_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Note(v) => v.sync_conflict_at,
+            _ => None,
+        }
+    }
+
     pub fn created_at(&self) -> DateTime<Utc> {
         match self {
             Self::Task(v) => v.created_at,
@@ -597,6 +699,14 @@ pub struct IndexedEntity {
     pub task_sync_last_outbound_at: Option<DateTime<Utc>>,
     pub task_sync_conflict_summary: Option<String>,
     pub task_sync_conflict_at: Option<DateTime<Utc>>,
+    pub note_sync_kind: Option<NoteSyncKind>,
+    pub note_sync_path: Option<String>,
+    pub note_sync_status: Option<NoteSyncStatus>,
+    pub note_sync_last_seen_hash: Option<String>,
+    pub note_sync_last_inbound_at: Option<DateTime<Utc>>,
+    pub note_sync_last_outbound_at: Option<DateTime<Utc>>,
+    pub note_sync_conflict_summary: Option<String>,
+    pub note_sync_conflict_at: Option<DateTime<Utc>>,
     pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -681,6 +791,14 @@ pub struct NoteItem {
     pub id: String,
     pub title: String,
     pub project_id: Option<String>,
+    pub sync_kind: Option<NoteSyncKind>,
+    pub sync_path: Option<String>,
+    pub sync_status: Option<NoteSyncStatus>,
+    pub sync_last_seen_hash: Option<String>,
+    pub sync_last_inbound_at: Option<DateTime<Utc>>,
+    pub sync_last_outbound_at: Option<DateTime<Utc>>,
+    pub sync_conflict_summary: Option<String>,
+    pub sync_conflict_at: Option<DateTime<Utc>>,
     pub path: String,
     pub updated_at: DateTime<Utc>,
     pub revision: String,
@@ -693,6 +811,14 @@ pub struct NoteDetail {
     pub title: String,
     pub project_id: Option<String>,
     pub body: String,
+    pub sync_kind: Option<NoteSyncKind>,
+    pub sync_path: Option<String>,
+    pub sync_status: Option<NoteSyncStatus>,
+    pub sync_last_seen_hash: Option<String>,
+    pub sync_last_inbound_at: Option<DateTime<Utc>>,
+    pub sync_last_outbound_at: Option<DateTime<Utc>>,
+    pub sync_conflict_summary: Option<String>,
+    pub sync_conflict_at: Option<DateTime<Utc>>,
     pub path: String,
     pub updated_at: DateTime<Utc>,
     pub revision: String,

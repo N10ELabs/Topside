@@ -32,9 +32,9 @@ Last updated: 2026-02-26
 
 - [x] Build a single Rust binary `n10e`.
 - [x] Deliver integrated minimal core (planning queue + note context + compact activity panel).
-- [x] Expose curated MCP tools with direct writes guarded by optimistic locking.
+- [x] Retain a minimal MCP compatibility endpoint for client handshakes and discovery.
 - [x] Record append-only activity events for all mutations.
-- [ ] Validate MCP behavior against Codex and Claude Code.
+- [ ] Validate minimal MCP compatibility behavior against Codex and Claude Code.
 - [x] Prove p95 read/search latency under 150ms on ~5k-file warm corpus.
 - [ ] Add CI gating for integration and performance acceptance.
 
@@ -43,7 +43,7 @@ Last updated: 2026-02-26
 - [x] Local single-user workflow.
 - [x] Markdown source-of-truth for notes/tasks/projects.
 - [x] Indexed search, backlinks, activity tracking.
-- [x] Lightweight workspace UI, CLI, MCP read/write.
+- [x] Lightweight workspace UI, CLI, and MCP compatibility endpoint.
 - [x] Keep cloud sync/auth/collab/mobile out of V0.
 - [x] Keep binary file handling as link-only in V0.
 - [x] Keep orchestration-dashboard competition out of scope; optimize for durable context instead.
@@ -96,26 +96,15 @@ Last updated: 2026-02-26
 - [x] Support `[[task:...]]`, `[[project:...]]`, `[[note:...]]`.
 - [x] Index reverse links in `entity_links`.
 
-### MCP Tool Surface
+### MCP Compatibility Surface
 
-- [x] `search_context(query, filters, limit)`
-- [x] `read_entity(id_or_path)`
-- [x] `list_tasks(filters)`
-- [x] `list_projects(limit, include_archived)`
-- [x] `get_project_workspace(project_id)`
-- [x] `create_project(payload)`
-- [x] `update_project(id, patch, expected_revision)`
-- [x] `create_task(payload)`
-- [x] `update_task(id, patch, expected_revision)`
-- [x] `reorder_project_tasks(project_id, ordered_active_task_ids)`
-- [x] `create_note(payload)`
-- [x] `update_note(id, patch, expected_revision)`
-- [x] `archive_entity(id, expected_revision)`
-- [x] `list_recent_activity(since, limit)`
-- [x] Require `expected_revision` for mutable operations.
-- [x] Return structured conflict with expected/current revision.
-- [ ] Return concise diff context in conflict payload.
-- [x] Emit immutable mutation activity events.
+- [x] `initialize`
+- [x] `ping`
+- [x] `resources/list`
+- [x] `resources/templates/list`
+- [x] `tools/list` returns an empty tool array
+- [x] `tools/call` returns `unknown tool name`
+- [x] Direct tool methods return `method not found`
 
 ### HTTP/UI Surface
 

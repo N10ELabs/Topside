@@ -33,7 +33,7 @@
       --pane-head-height: 62px;
       --pane-head-pad-y: 10px;
       --pane-control-size: 34px;
-      --pane-title-leading-offset: 24px;
+      --disclosure-slot: 18px;
       --task-row-min-height: 44px;
       --changelog-list-height: min(38vh, 340px);
       --changelog-pane-height: min(calc(38vh + var(--pane-head-height) + 25px), 427px);
@@ -164,6 +164,8 @@
     }
 
     html[data-n10e-desktop="true"] .pane-projects {
+      align-self: stretch;
+      grid-template-rows: auto 1fr;
       border: none;
       background: transparent;
       box-shadow: none;
@@ -183,6 +185,7 @@
 
     html[data-n10e-desktop="true"] .pane-projects .pane-body {
       padding-top: 6px;
+      min-height: 0;
     }
 
     button,
@@ -328,7 +331,13 @@
     }
 
     .pane-projects .pane-head {
+      padding-left: 12px;
+      padding-right: 12px;
       border-bottom: none;
+    }
+
+    .pane-projects .pane-title {
+      padding-left: 0;
     }
 
     .pane-title {
@@ -339,34 +348,34 @@
       display: inline-flex;
       align-items: center;
       min-height: var(--pane-control-size);
-    }
-
-    .pane-head > .pane-title:not(.pane-title-collapsible) {
-      padding-left: var(--pane-title-leading-offset);
+      padding-left: var(--disclosure-slot);
     }
 
     .pane-title-collapsible {
-      gap: 6px;
+      position: relative;
     }
 
     .pane-title-toggle {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border: none;
-      border-radius: 8px;
+      border-radius: 999px;
       background: transparent;
       color: var(--muted);
       display: inline-grid;
       place-items: center;
       padding: 0;
-      opacity: 0;
-      transform: translateX(-4px);
+      position: absolute;
+      top: 50%;
+      left: 0;
+      opacity: 0.42;
+      transform: translateY(-50%) scale(0.92);
       transition: opacity 160ms ease, transform 180ms ease, color 160ms ease, background-color 160ms ease;
     }
 
     .pane-title-toggle svg {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       stroke: currentColor;
       fill: none;
       stroke-width: 2;
@@ -384,8 +393,8 @@
 
     .pane-changelog .pane-head:hover .pane-title-toggle,
     .pane-changelog .pane-head:focus-within .pane-title-toggle {
-      opacity: 1;
-      transform: translateX(0);
+      opacity: 0.96;
+      transform: translateY(-50%) scale(1);
     }
 
     .pane-changelog.collapsed .pane-title-toggle svg {
@@ -418,6 +427,9 @@
 
     .pane-projects .pane-body {
       padding: 0 12px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       overflow: auto;
     }
 
@@ -593,10 +605,6 @@
       color: #86efac;
     }
 
-    .project-chooser-btn[data-project-chooser="github"] {
-      color: #d4dde7;
-    }
-
     .project-chooser-btn:hover,
     .project-chooser-btn:focus-visible {
       color: var(--text);
@@ -758,6 +766,202 @@
       stroke-linecap: round;
     }
 
+    .project-pane-footer {
+      margin-top: auto;
+      padding-top: 0;
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+      background: transparent;
+    }
+
+    .archive-menu {
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      max-width: 100%;
+    }
+
+    .archive-launch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--pane-control-size);
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: #f8fbff;
+      font-size: 15px;
+      line-height: 1;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+    }
+
+    .archive-launch-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
+    }
+
+    .archive-launch-btn.active {
+      border: none;
+      background: transparent;
+      color: #f8fbff;
+    }
+
+    .archive-launch-btn:hover,
+    .archive-launch-btn:focus-visible {
+      background: transparent;
+      color: #ffffff;
+      outline: none;
+    }
+
+    .archive-menu-panel {
+      position: absolute;
+      left: 0;
+      bottom: calc(100% + 10px);
+      width: min(420px, calc(100vw - 56px));
+      max-height: min(70vh, 520px);
+      overflow: auto;
+      display: none;
+      padding: 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: rgba(8, 15, 21, 0.97);
+      box-shadow: 0 24px 48px rgba(2, 8, 14, 0.45);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(125, 211, 252, 0.28) transparent;
+    }
+
+    .archive-menu.open .archive-menu-panel {
+      display: grid;
+      gap: 10px;
+    }
+
+    .archive-menu-panel::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+    .archive-menu-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .archive-menu-panel::-webkit-scrollbar-thumb {
+      background: rgba(125, 211, 252, 0.24);
+      border: 1px solid rgba(56, 189, 248, 0.12);
+      border-radius: 999px;
+      box-shadow: none;
+    }
+
+    .archive-menu-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(125, 211, 252, 0.36);
+    }
+
+    .archive-menu-shell {
+      display: grid;
+      gap: 10px;
+    }
+
+    .archive-menu-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .archive-menu-title {
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+      color: var(--muted);
+    }
+
+    .archive-menu-count {
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      color: var(--muted);
+    }
+
+    .archive-menu-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .archive-menu-section-label {
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 0 2px;
+    }
+
+    .archive-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(10, 18, 25, 0.72);
+    }
+
+    .archive-item-meta {
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .archive-item-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .archive-item-detail {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .archive-item .text-btn {
+      padding: 7px 10px;
+      font-size: 11px;
+      text-transform: lowercase;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .archive-menu-actions,
+    .archive-empty-confirm {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .archive-empty-confirm {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+    }
+
     .section-title,
     .small-label {
       color: var(--muted);
@@ -848,6 +1052,7 @@
       background: transparent;
       border-radius: 0;
       min-height: var(--task-row-floor);
+      padding-left: calc(var(--disclosure-slot) + 4px);
       padding-top: 8px;
       padding-bottom: 8px;
       margin-bottom: 6px;
@@ -855,11 +1060,11 @@
     }
 
     .task-row.is-heading {
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto auto auto;
     }
 
     .task-draft.is-heading {
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
     }
 
     .task-check,
@@ -933,8 +1138,15 @@
 
     .task-section-toggle,
     .task-section-toggle-spacer {
-      width: 20px;
-      height: 20px;
+      width: 16px;
+      height: 16px;
+      display: block;
+      flex-shrink: 0;
+    }
+
+    .task-heading-complete-btn {
+      width: 18px;
+      height: 18px;
       display: block;
       flex-shrink: 0;
     }
@@ -948,21 +1160,21 @@
       place-items: center;
       padding: 0;
       position: relative;
-      opacity: 1;
+      opacity: 0.42;
       pointer-events: auto;
-      transform: translateX(0);
+      transform: translateX(0) scale(0.92);
       transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, background-color 120ms ease;
     }
 
     .task-section-toggle::before {
       content: "";
       position: absolute;
-      inset: -7px;
+      inset: -5px -2px -5px -6px;
     }
 
     .task-section-toggle svg {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       stroke: currentColor;
       fill: none;
       stroke-width: 1.8;
@@ -982,11 +1194,68 @@
       outline: none;
     }
 
+    .task-row.is-heading .task-section-toggle,
+    .done-section-heading .task-section-toggle {
+      position: absolute;
+      top: 50%;
+      left: 4px;
+      z-index: 1;
+      transform: translateY(-50%) scale(0.92);
+    }
+
+    .task-row.is-heading:hover .task-section-toggle,
+    .task-row.is-heading:focus-within .task-section-toggle,
+    .done-section-heading:hover .task-section-toggle,
+    .done-section-heading:focus-within .task-section-toggle {
+      opacity: 0.96;
+      transform: translateY(-50%) scale(1);
+    }
+
+    .task-heading-complete-btn {
+      border: 1px solid rgba(52, 211, 153, 0.4);
+      border-radius: 999px;
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--success);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+    }
+
+    .task-heading-complete-btn svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.1;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .task-heading-complete-btn:hover,
+    .task-heading-complete-btn:focus-visible {
+      color: #d7fff0;
+      border-color: rgba(167, 243, 208, 0.72);
+      background: rgba(52, 211, 153, 0.22);
+      outline: none;
+    }
+
     @media (hover: none), (pointer: coarse) {
+      .pane-title-toggle {
+        opacity: 0.96;
+        transform: translateY(-50%) scale(1);
+      }
+
       .task-row.is-heading .task-section-toggle {
-        opacity: 1;
+        opacity: 0.96;
         pointer-events: auto;
-        transform: translateX(0);
+        transform: translateY(-50%) scale(1);
+      }
+
+      .done-section-heading .task-section-toggle {
+        opacity: 0.96;
+        pointer-events: auto;
+        transform: translateY(-50%) scale(1);
       }
 
       .task-row.is-heading .task-copy-btn {
@@ -1104,12 +1373,13 @@
       --task-row-floor: 36px;
       --task-row-vertical-chrome: 16px;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       align-items: start;
       column-gap: 10px;
       min-height: var(--task-row-floor);
-      padding: 8px 12px;
+      padding: 8px 12px 8px calc(var(--disclosure-slot) + 4px);
       margin-bottom: 6px;
+      position: relative;
     }
 
     .done-section-title {
@@ -1238,6 +1508,97 @@
       flex: 0 0 auto;
     }
 
+    .note-picker {
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .note-picker-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(360px, 72vw);
+      max-height: 392px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      display: none;
+      padding: 7px 6px 7px 7px;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: rgba(8, 15, 21, 0.96);
+      box-shadow: 0 20px 40px rgba(2, 8, 14, 0.45);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(125, 211, 252, 0.28) transparent;
+      z-index: 9;
+    }
+
+    .note-picker-panel::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+    .note-picker-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .note-picker-panel::-webkit-scrollbar-thumb {
+      background: rgba(125, 211, 252, 0.24);
+      border: 1px solid rgba(56, 189, 248, 0.12);
+      border-radius: 999px;
+      box-shadow: none;
+    }
+
+    .note-picker-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(125, 211, 252, 0.36);
+    }
+
+    .note-picker.open .note-picker-panel {
+      display: grid;
+      gap: 5px;
+    }
+
+    .note-picker-empty,
+    .note-picker-item {
+      border-radius: 10px;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .note-picker-empty {
+      padding: 10px;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+    }
+
+    .note-picker-item {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(12, 23, 32, 0.9);
+      color: var(--text);
+      padding: 8px 10px;
+      text-align: left;
+      display: grid;
+      gap: 3px;
+    }
+
+    .note-picker-item:hover,
+    .note-picker-item:focus-visible {
+      border-color: var(--line-strong);
+      background: rgba(16, 33, 46, 0.92);
+      outline: none;
+    }
+
+    .note-picker-item strong {
+      font-size: 12px;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .note-picker-item .muted {
+      font-size: 11px;
+    }
+
     .note-head-actions .task-delete-btn {
       opacity: 1;
       pointer-events: auto;
@@ -1273,6 +1634,72 @@
     .note-title-inline:focus {
       outline: none;
       box-shadow: inset 0 -1px 0 rgba(56, 189, 248, 0.55);
+    }
+
+    .note-title-readonly {
+      flex: 1;
+      min-width: 0;
+      font-size: 20px;
+      line-height: 1.3;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .note-path-inline {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-sync-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .note-sync-pill {
+      border: 1px solid rgba(56, 189, 248, 0.34);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: #bae6fd;
+      background: rgba(14, 116, 144, 0.16);
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+      flex: 0 0 auto;
+    }
+
+    .note-sync-pill.conflict {
+      border-color: rgba(248, 113, 113, 0.32);
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.18);
+    }
+
+    .note-sync-banner {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 6px;
+      padding: 10px;
+      border: 1px solid rgba(248, 113, 113, 0.32);
+      border-radius: 12px;
+      background: rgba(127, 29, 29, 0.14);
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+      color: #fecaca;
+    }
+
+    .note-sync-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .note-toggle-caret,
@@ -1702,7 +2129,7 @@
     }
 
     html[data-layout-mode="one"] .pane-projects .pane-head {
-      padding: var(--pane-head-pad-y) 16px;
+      padding: var(--pane-head-pad-y) 12px;
     }
 
     html[data-layout-mode="one"] .pane-projects .pane-body {
@@ -1724,6 +2151,20 @@
         <div class="pane-body">
           <div id="project-tray"></div>
           <div id="project-list" class="project-list"></div>
+          <div class="project-pane-footer">
+            <div class="archive-menu" id="archive-menu-wrap">
+              <button class="text-btn archive-launch-btn" id="archive-menu-toggle" type="button" aria-label="Open archive" title="Open archive">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 8h16"></path>
+                  <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
+                  <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
+                  <path d="M10 12h4"></path>
+                </svg>
+                <span>archive</span>
+              </button>
+              <div class="archive-menu-panel" id="archive-menu-panel"></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1810,6 +2251,16 @@
                 </svg>
               </button>
             </div>
+            <div class="note-picker" id="note-link-picker-wrap">
+              <button class="icon-btn" id="notes-link" type="button" aria-label="Link markdown file" title="Link markdown file">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4v10"></path>
+                  <path d="m8 10 4 4 4-4"></path>
+                  <path d="M5 18h14"></path>
+                </svg>
+              </button>
+              <div class="note-picker-panel" id="note-link-picker"></div>
+            </div>
             <button class="icon-btn" id="notes-add" type="button">+</button>
           </div>
         </div>
@@ -1822,6 +2273,7 @@
   </div>
 
   <div id="project-settings-overlay"></div>
+  <div id="project-archive-overlay"></div>
   <div id="note-archive-overlay"></div>
   <div class="task-input-measure" id="task-input-measure" aria-hidden="true"></div>
 
@@ -1858,6 +2310,7 @@
     const changelogCollapseKey = "n10e-changelog-collapsed";
     const taskSectionCollapseKey = "n10e-task-sections-collapsed";
     const doneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
+    const isDesktopShell = document.documentElement.dataset.n10eDesktop === "true";
     const layoutModeBreakpoints = Object.freeze({
       oneColumn: 960,
       twoColumn: 1360,
@@ -1881,9 +2334,14 @@
       noteMessage: "",
       taskDrafts: [],
       taskEdits: {},
+      noteFilePickerOpen: false,
+      noteLinkableFiles: [],
+      noteLinkableFilesLoaded: false,
+      noteFilePickerLoading: false,
       noteTitleEdits: {},
       noteBodyEdits: {},
       noteHtmlEdits: {},
+      noteRevisionConflict: null,
       selectedTaskId: null,
       taskTimers: {},
       noteTimers: {},
@@ -1899,6 +2357,12 @@
       projectSettingsSourceInput: "",
       projectSettingsMessage: "",
       projectSettingsPickerFallback: false,
+      archiveMenuOpen: false,
+      archiveMenuLoading: false,
+      archiveItems: [],
+      archiveTotalCount: 0,
+      archiveEmptyConfirm: false,
+      projectArchiveConfirmId: null,
       noteArchiveConfirmId: null,
       emptyAppAction: "local",
       uiRefreshTimer: null,
@@ -1908,6 +2372,9 @@
 
     const projectTray = document.getElementById("project-tray");
     const projectList = document.getElementById("project-list");
+    const archiveMenuWrap = document.getElementById("archive-menu-wrap");
+    const archiveMenuToggle = document.getElementById("archive-menu-toggle");
+    const archiveMenuPanel = document.getElementById("archive-menu-panel");
     const taskMessage = document.getElementById("task-message");
     const noteMessage = document.getElementById("note-message");
     const activeTaskList = document.getElementById("active-task-list");
@@ -1916,6 +2383,9 @@
     const todoStatus = document.getElementById("todo-status");
     const changelogStatus = document.getElementById("changelog-status");
     const noteStatus = document.getElementById("note-status");
+    const notesLinkButton = document.getElementById("notes-link");
+    const noteLinkPickerWrap = document.getElementById("note-link-picker-wrap");
+    const noteLinkPicker = document.getElementById("note-link-picker");
     const todoHeaderToggleButton = document.getElementById("todo-toggle-header");
     const todoCopySelectedButton = document.getElementById("todo-copy-selected");
     const changelogPane = document.getElementById("changelog-pane");
@@ -1925,6 +2395,7 @@
     const layout = document.querySelector(".layout");
     const taskInputMeasure = document.getElementById("task-input-measure");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
+    const projectArchiveOverlay = document.getElementById("project-archive-overlay");
     const noteArchiveOverlay = document.getElementById("note-archive-overlay");
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
     const changelogBody = document.getElementById("changelog-body");
@@ -1953,6 +2424,12 @@
         hour: "numeric",
         minute: "2-digit",
         timeZoneName: "short"
+      })
+      : null;
+    const shortTimeFormatter = typeof Intl !== "undefined"
+      ? new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit"
       })
       : null;
     const scrollRevealTimers = new WeakMap();
@@ -2012,6 +2489,33 @@
       render();
     });
 
+    notesLinkButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (notesLinkButton.disabled) return;
+      if (state.noteFilePickerOpen) {
+        closeNoteFilePicker();
+        return;
+      }
+      state.noteFilePickerOpen = true;
+      renderNoteFilePicker();
+      if (!state.noteLinkableFilesLoaded && !state.noteFilePickerLoading) {
+        await loadLinkableNoteFiles();
+      }
+      renderNoteFilePicker();
+    });
+
+    archiveMenuToggle.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (state.archiveMenuOpen) {
+        closeArchiveMenu();
+        return;
+      }
+      state.archiveMenuOpen = true;
+      state.archiveEmptyConfirm = false;
+      renderArchiveMenu();
+      await loadArchiveMenu();
+    });
+
     document.querySelectorAll("[data-note-mode]").forEach((button) => {
       button.addEventListener("click", async () => {
         const nextMode = button.dataset.noteMode;
@@ -2036,6 +2540,14 @@
     });
 
     document.addEventListener("click", async (event) => {
+      if (state.archiveMenuOpen && !event.target.closest("#archive-menu-wrap")) {
+        closeArchiveMenu();
+      }
+
+      if (state.noteFilePickerOpen && !event.target.closest("#note-link-picker-wrap")) {
+        closeNoteFilePicker();
+      }
+
       const emptyAction = event.target.closest("[data-empty-action]");
       if (emptyAction) {
         const action = emptyAction.dataset.emptyAction;
@@ -2059,11 +2571,6 @@
           return;
         }
 
-        if (action === "github") {
-          state.projectTrayMode = "github";
-          render();
-          return;
-        }
       }
 
       const chooserBtn = event.target.closest("[data-project-chooser]");
@@ -2104,6 +2611,7 @@
       if (projectAddButton) {
         event.preventDefault();
         event.stopPropagation();
+        closeArchiveMenu();
         state.projectMessage = "";
         state.projectTrayMode = state.projectTrayMode ? null : "chooser";
         render();
@@ -2113,6 +2621,7 @@
       const projectButton = event.target.closest("[data-project-select-id]");
       if (projectButton) {
         const projectId = projectButton.dataset.projectSelectId;
+        closeArchiveMenu();
         await selectProject(projectId);
         return;
       }
@@ -2134,6 +2643,14 @@
           doneCheck.dispatchEvent(new Event("change", { bubbles: true }));
           return;
         }
+      }
+
+      const taskGroupCompleteButton = event.target.closest("[data-task-group-complete-id]");
+      if (taskGroupCompleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await toggleTask(taskGroupCompleteButton.dataset.taskGroupCompleteId, "done");
+        return;
       }
 
       const taskDeleteButton = event.target.closest("[data-task-delete-id]");
@@ -2203,14 +2720,6 @@
           return;
         }
 
-        if (action === "link-github") {
-          state.projectSettingsSourceMode = "github";
-          state.projectSettingsSourceInput = currentProjectSourceLocator();
-          state.projectSettingsPickerFallback = false;
-          renderProjectSettings();
-          return;
-        }
-
         if (action === "cancel-link") {
           state.projectSettingsSourceMode = null;
           state.projectSettingsSourceInput = "";
@@ -2230,9 +2739,82 @@
         }
 
         if (action === "archive-project") {
-          await archiveProjectFromSettings();
+          openProjectArchiveConfirm();
           return;
         }
+      }
+
+      const projectArchiveClose = event.target.closest("[data-project-archive-close]");
+      const projectArchiveBackdrop = event.target instanceof HTMLElement
+        ? event.target.dataset.projectArchiveBackdrop === "true"
+        : false;
+      if (projectArchiveClose || projectArchiveBackdrop) {
+        closeProjectArchiveConfirm();
+        return;
+      }
+
+      const projectArchiveConfirm = event.target.closest("[data-project-archive-confirm]");
+      if (projectArchiveConfirm) {
+        event.preventDefault();
+        event.stopPropagation();
+        await confirmProjectArchive();
+        return;
+      }
+
+      const archiveRestoreButton = event.target.closest("[data-archive-restore-id]");
+      if (archiveRestoreButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await restoreArchivedEntity(
+          archiveRestoreButton.dataset.archiveRestoreId,
+          archiveRestoreButton.dataset.archiveRestoreRevision
+        );
+        return;
+      }
+
+      const archiveEmptyTrigger = event.target.closest("[data-archive-empty-trigger]");
+      if (archiveEmptyTrigger) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.archiveEmptyConfirm = true;
+        renderArchiveMenu();
+        return;
+      }
+
+      const archiveEmptyCancel = event.target.closest("[data-archive-empty-cancel]");
+      if (archiveEmptyCancel) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.archiveEmptyConfirm = false;
+        renderArchiveMenu();
+        return;
+      }
+
+      const archiveEmptyConfirm = event.target.closest("[data-archive-empty-confirm]");
+      if (archiveEmptyConfirm) {
+        event.preventDefault();
+        event.stopPropagation();
+        await emptyArchive();
+        return;
+      }
+
+      const noteLinkSelection = event.target.closest("[data-note-link-select]");
+      if (noteLinkSelection) {
+        event.preventDefault();
+        event.stopPropagation();
+        await linkSelectedNoteFile(noteLinkSelection.dataset.noteLinkSelect);
+        return;
+      }
+
+      const noteRevisionAction = event.target.closest("[data-note-revision-action]");
+      if (noteRevisionAction) {
+        event.preventDefault();
+        event.stopPropagation();
+        await resolveNoteRevisionConflict(
+          noteRevisionAction.dataset.noteRevisionId,
+          noteRevisionAction.dataset.noteRevisionAction
+        );
+        return;
       }
 
       const noteArchiveClose = event.target.closest("[data-note-archive-close]");
@@ -2261,6 +2843,18 @@
         }
         if (action === "archive") {
           openNoteArchiveConfirm(noteAction.dataset.noteActionId);
+          return;
+        }
+        if (action === "resolve-file") {
+          event.preventDefault();
+          event.stopPropagation();
+          await resolveNoteSync(noteAction.dataset.noteActionId, "file");
+          return;
+        }
+        if (action === "resolve-local") {
+          event.preventDefault();
+          event.stopPropagation();
+          await resolveNoteSync(noteAction.dataset.noteActionId, "local");
           return;
         }
       }
@@ -2380,6 +2974,18 @@
     });
 
     document.addEventListener("keydown", async (event) => {
+      if (state.archiveMenuOpen && event.key === "Escape") {
+        event.preventDefault();
+        closeArchiveMenu();
+        return;
+      }
+
+      if (state.projectArchiveConfirmId && event.key === "Escape") {
+        event.preventDefault();
+        closeProjectArchiveConfirm();
+        return;
+      }
+
       if (state.noteArchiveConfirmId && event.key === "Escape") {
         event.preventDefault();
         closeNoteArchiveConfirm();
@@ -2431,8 +3037,6 @@
         event.preventDefault();
         if (state.projectTrayMode === "new") {
           await submitProjectCreate("new", state.projectInput, null);
-        } else if (state.projectTrayMode === "github") {
-          await submitProjectCreate("github", state.projectInput, state.projectSourceInput);
         } else if (state.projectTrayMode === "local" && state.projectPickerFallback) {
           await submitProjectCreate("local", state.projectInput, state.projectSourceInput);
         }
@@ -2507,7 +3111,7 @@
     document.addEventListener("dragstart", (event) => {
       const dragOrigin = event.target instanceof Element ? event.target : null;
       if (!dragOrigin) return;
-      const dragHandle = dragOrigin.closest(".task-input, .task-check, .task-delete-btn, .task-copy-btn, .task-section-toggle");
+      const dragHandle = dragOrigin.closest(".task-input, .task-check, .task-delete-btn, .task-copy-btn, .task-section-toggle, .task-heading-complete-btn");
       if (dragHandle) {
         event.preventDefault();
         return;
@@ -2586,6 +3190,11 @@
       await saveOpenNote();
       const workspace = await fetchJson(`/api/projects/${projectId}/workspace`, {}, "project");
       if (!workspace) return;
+      closeArchiveMenu();
+      state.noteLinkableFiles = [];
+      state.noteLinkableFilesLoaded = false;
+      state.noteFilePickerLoading = false;
+      state.noteFilePickerOpen = false;
       state.selectedProjectId = projectId;
       applyWorkspace(workspace);
       state.taskDrafts = [];
@@ -2610,6 +3219,154 @@
       state.projectSourceInput = "";
       state.projectPickerFallback = false;
       render();
+    }
+
+    function closeArchiveMenu() {
+      if (!state.archiveMenuOpen && !state.archiveEmptyConfirm) return;
+      state.archiveMenuOpen = false;
+      state.archiveEmptyConfirm = false;
+      renderArchiveMenu();
+    }
+
+    async function loadArchiveMenu() {
+      state.archiveMenuLoading = true;
+      renderArchiveMenu();
+      const response = await fetchJson("/api/archive", {}, "project");
+      state.archiveMenuLoading = false;
+      if (!response) {
+        renderArchiveMenu();
+        return;
+      }
+
+      state.archiveItems = Array.isArray(response.items) ? response.items : [];
+      state.archiveTotalCount = Number.isFinite(response.total_count) ? response.total_count : 0;
+      renderArchiveMenu();
+    }
+
+    function applyArchiveMutation(response) {
+      if (!response) return false;
+      state.archiveItems = Array.isArray(response.archive?.items) ? response.archive.items : [];
+      state.archiveTotalCount = Number.isFinite(response.archive?.total_count)
+        ? response.archive.total_count
+        : 0;
+      state.archiveEmptyConfirm = false;
+      if (response.ui_state) {
+        applyUiState(response.ui_state);
+      }
+      return true;
+    }
+
+    async function restoreArchivedEntity(entityId, expectedRevision) {
+      if (!entityId || !expectedRevision) return;
+      const response = await fetchJson(`/api/archive/${entityId}/restore`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          current_project_id: state.selectedProjectId
+        })
+      }, "project");
+      if (!applyArchiveMutation(response)) return;
+      render();
+    }
+
+    async function emptyArchive() {
+      const response = await fetchJson("/api/archive/empty", {
+        method: "POST",
+        body: JSON.stringify({
+          current_project_id: state.selectedProjectId
+        })
+      }, "project");
+      if (!applyArchiveMutation(response)) return;
+      render();
+    }
+
+    function renderArchiveMenu() {
+      archiveMenuWrap.classList.toggle("open", state.archiveMenuOpen);
+      archiveMenuToggle.classList.toggle("active", state.archiveMenuOpen);
+
+      if (!state.archiveMenuOpen) {
+        archiveMenuPanel.innerHTML = "";
+        return;
+      }
+
+      if (state.archiveMenuLoading) {
+        archiveMenuPanel.innerHTML = `
+          <div class="archive-menu-shell">
+            <div class="archive-menu-head">
+              <span class="archive-menu-title">archive</span>
+              <span class="archive-menu-count">loading…</span>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      let previousType = null;
+      const itemsMarkup = state.archiveItems.map((item) => {
+        const showSection = item.entity_type !== previousType;
+        previousType = item.entity_type;
+        const sectionLabel = item.entity_type === "project"
+          ? "projects"
+          : item.entity_type === "task"
+            ? "tasks"
+            : "notes";
+        const detailParts = [item.context_label, item.detail_label].filter(Boolean);
+
+        return `
+          ${showSection ? `<div class="archive-menu-section-label">${escapeHtml(sectionLabel)}</div>` : ""}
+          <div class="archive-item">
+            <div class="archive-item-meta">
+              <div class="archive-item-title">${escapeHtml(item.title || "Untitled")}</div>
+              <div class="archive-item-detail">${escapeHtml(detailParts.join(" | "))}</div>
+            </div>
+            <button
+              class="text-btn"
+              type="button"
+              data-archive-restore-id="${escapeAttribute(item.id)}"
+              data-archive-restore-revision="${escapeAttribute(item.revision)}"
+            >
+              restore
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      const totalLabel = state.archiveTotalCount === 1
+        ? "1 item"
+        : `${state.archiveTotalCount} items`;
+      const emptyStateMarkup = state.archiveItems.length
+        ? ""
+        : `<div class="empty-state">Archive is empty.</div>`;
+      const actionsMarkup = state.archiveTotalCount === 0
+        ? ""
+        : (state.archiveEmptyConfirm
+          ? `
+            <div class="archive-empty-confirm">
+              <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
+              <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
+              <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
+            </div>
+          `
+          : `
+            <div class="archive-menu-actions">
+              <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
+            </div>
+          `);
+
+      archiveMenuPanel.innerHTML = `
+        <div class="archive-menu-shell">
+          <div class="archive-menu-head">
+            <span class="archive-menu-title">archive</span>
+            <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
+          </div>
+          ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
+          <div class="archive-menu-list">
+            ${itemsMarkup}
+          </div>
+          ${emptyStateMarkup}
+          ${actionsMarkup}
+        </div>
+      `;
     }
 
     async function pickLocalDirectory() {
@@ -2693,6 +3450,65 @@
       await saveNote(state.openNoteId);
     }
 
+    function closeNoteFilePicker() {
+      if (!state.noteFilePickerOpen) return;
+      state.noteFilePickerOpen = false;
+      renderNoteFilePicker();
+    }
+
+    async function loadLinkableNoteFiles() {
+      if (!state.selectedProjectId) return;
+      const projectId = state.selectedProjectId;
+      state.noteFilePickerLoading = true;
+      renderNoteFilePicker();
+      const response = await fetchJson(`/api/projects/${projectId}/notes/linkable-files`, {}, "note");
+      state.noteFilePickerLoading = false;
+      if (!response) {
+        renderNoteFilePicker();
+        return;
+      }
+      if (state.selectedProjectId !== projectId) {
+        renderNoteFilePicker();
+        return;
+      }
+      state.noteLinkableFiles = Array.isArray(response) ? response : [];
+      state.noteLinkableFilesLoaded = true;
+      renderNoteFilePicker();
+    }
+
+    async function linkSelectedNoteFile(relativePath) {
+      if (!state.selectedProjectId || !relativePath) return;
+      const response = await fetchJson(`/api/projects/${state.selectedProjectId}/notes/link-file`, {
+        method: "POST",
+        body: JSON.stringify({
+          relative_path: relativePath
+        })
+      }, "note");
+      if (!response) return;
+      applyWorkspace(response.workspace, response.created_note_id);
+      state.focusNoteId = response.created_note_id;
+      closeNoteFilePicker();
+      render();
+    }
+
+    async function resolveNoteSync(noteId, source) {
+      if (!state.workspace) return;
+      const saved = await saveNote(noteId);
+      if (!saved || !state.workspace) return;
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return;
+      const endpoint = source === "file" ? "resolve-file" : "resolve-local";
+      const response = await fetchJson(`/api/notes/${noteId}/sync/${endpoint}`, {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: note.revision
+        })
+      }, "note");
+      if (!response) return;
+      applyWorkspace(response.workspace, response.created_note_id || noteId);
+      render();
+    }
+
     async function deleteTask(taskId) {
       const task = findTask(taskId);
       if (!task) return;
@@ -2761,42 +3577,143 @@
       await archiveNote(noteId);
     }
 
-    async function saveNote(noteId) {
-      if (!state.workspace) return false;
-      const note = state.workspace.notes.find((item) => item.id === noteId);
-      if (!note) return false;
+    async function patchNoteRequest(noteId, expectedRevision, title, body) {
+      try {
+        const response = await fetch(`/api/notes/${noteId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            expected_revision: expectedRevision,
+            title,
+            body
+          })
+        });
+        const payload = response.status === 204
+          ? null
+          : await response.json().catch(() => null);
+        return {
+          ok: response.ok,
+          status: response.status,
+          payload,
+          error: null
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          status: 0,
+          payload: null,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
 
-      const title = Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
+    function getDraftNoteTitle(noteId, note) {
+      if (note.sync_kind) return note.title;
+      return Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
         ? state.noteTitleEdits[noteId]
         : note.title;
-      const body = state.noteMode === "clean"
+    }
+
+    function getDraftNoteBody(noteId, note) {
+      return state.noteMode === "clean"
         ? cleanHtmlToMarkdown(state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
         : (Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)
           ? state.noteBodyEdits[noteId]
           : note.body);
+    }
 
-      if (title === note.title && body === note.body) {
-        delete state.noteTitleEdits[noteId];
-        delete state.noteBodyEdits[noteId];
-        delete state.noteHtmlEdits[noteId];
-        return true;
-      }
-
-      const response = await fetchJson(`/api/notes/${noteId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          expected_revision: note.revision,
-          title,
-          body
-        })
-      }, "note");
-      if (!response) return false;
+    function clearNoteDraftEdits(noteId) {
       delete state.noteTitleEdits[noteId];
       delete state.noteBodyEdits[noteId];
       delete state.noteHtmlEdits[noteId];
-      state.workspace = mergeWorkspacePreservingNoteOrder(state.workspace, response.workspace);
+    }
+
+    async function saveNote(noteId, conflictMode = "prompt") {
+      if (!state.workspace) return false;
+      const note = state.workspace.notes.find((item) => item.id === noteId);
+      if (!note) return false;
+
+      const title = getDraftNoteTitle(noteId, note);
+      const body = getDraftNoteBody(noteId, note);
+
+      if (title === note.title && body === note.body) {
+        clearNoteDraftEdits(noteId);
+        if (state.noteRevisionConflict?.noteId === noteId) {
+          state.noteRevisionConflict = null;
+          state.noteMessage = "";
+        }
+        return true;
+      }
+
+      const baseTitle = note.title;
+      const baseBody = note.body;
+      let request = await patchNoteRequest(noteId, note.revision, title, body);
+
+      if (!request.ok && request.status === 409 && state.selectedProjectId) {
+        const latestWorkspace = await fetchJson(
+          `/api/projects/${state.selectedProjectId}/workspace`,
+          {},
+          "note",
+          true
+        );
+
+        if (latestWorkspace) {
+          state.workspace = mergeWorkspacePreservingNoteOrder(state.workspace, latestWorkspace);
+          const latestNote = state.workspace?.notes?.find((item) => item.id === noteId) || null;
+          if (!latestNote) {
+            state.noteRevisionConflict = null;
+            state.noteMessage = "note changed in the background and is no longer available";
+            render();
+            return false;
+          }
+          const metadataOnlyConflict = latestNote.title === baseTitle
+            && latestNote.body === baseBody;
+
+          if (metadataOnlyConflict || conflictMode === "overwrite") {
+            request = await patchNoteRequest(noteId, latestNote.revision, title, body);
+          } else {
+            state.noteRevisionConflict = { noteId };
+            state.noteMessage = "";
+            render();
+            return false;
+          }
+        }
+      }
+
+      if (!request.ok) {
+        state.noteMessage = request.error
+          || request.payload?.error
+          || `Request failed (${request.status || "network"})`;
+        render();
+        return false;
+      }
+
+      clearNoteDraftEdits(noteId);
+      state.workspace = mergeWorkspacePreservingNoteOrder(state.workspace, request.payload.workspace);
+      state.noteRevisionConflict = null;
+      state.noteMessage = "";
       noteMessage.innerHTML = "";
       return true;
+    }
+
+    async function resolveNoteRevisionConflict(noteId, source) {
+      if (!noteId) return;
+
+      if (source === "latest") {
+        clearNoteDraftEdits(noteId);
+        if (state.noteRevisionConflict?.noteId === noteId) {
+          state.noteRevisionConflict = null;
+        }
+        state.noteMessage = "";
+        render();
+        return;
+      }
+
+      if (source !== "local") return;
+      await saveNote(noteId, "overwrite");
+      render();
     }
 
     function debounceTaskSave(taskId) {
@@ -2954,7 +3871,13 @@
         return;
       }
 
-      if (!state.selectedProjectId || !state.workspace?.project?.task_sync_enabled) {
+      if (
+        !state.selectedProjectId
+        || (
+          !state.workspace?.project?.task_sync_enabled
+          && !workspaceHasBackgroundNoteSync(state.workspace)
+        )
+      ) {
         scheduleUiRefresh();
         return;
       }
@@ -3024,12 +3947,20 @@
       });
     }
 
+    function workspaceHasBackgroundNoteSync(workspace) {
+      const notes = Array.isArray(workspace?.notes) ? workspace.notes : [];
+      return notes.some((note) => note.sync_kind && (
+        note.sync_status === "live" || note.sync_status === "conflict"
+      ));
+    }
+
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
       state.workspace = workspace;
       if (!workspace) {
         setSelectedTaskId(null);
         state.openNoteId = null;
         state.taskDrafts = [];
+        state.noteRevisionConflict = null;
         state.pendingRemoteUiState = null;
         syncLocation();
         scheduleUiRefresh();
@@ -3045,14 +3976,28 @@
           state.openNoteId = state.workspace.suggested_open_note_id || null;
         }
       }
+      if (
+        state.noteRevisionConflict
+        && !workspace.notes.some((note) => note.id === state.noteRevisionConflict.noteId)
+      ) {
+        state.noteRevisionConflict = null;
+      }
       ensureDraftRow();
       syncLocation();
       scheduleUiRefresh();
     }
 
     function applyUiState(payload) {
+      const previousProjectId = state.selectedProjectId;
       state.projects = payload.projects || [];
       state.selectedProjectId = payload.selected_project_id || null;
+      if (state.selectedProjectId !== previousProjectId) {
+        state.noteRevisionConflict = null;
+        state.noteLinkableFiles = [];
+        state.noteLinkableFilesLoaded = false;
+        state.noteFilePickerLoading = false;
+        state.noteFilePickerOpen = false;
+      }
       applyWorkspace(payload.workspace || null, payload.workspace?.suggested_open_note_id || null);
     }
 
@@ -3442,12 +4387,14 @@
       syncTaskRowFromInput(input);
     }
 
-    function buildActiveTaskSectionState(activeTasks, draftsByAfter) {
+    function buildActiveTaskSectionState(workspace, draftsByAfter) {
       const sections = new Map();
       const hiddenTaskIds = new Set();
+      if (!workspace) return { sections, hiddenTaskIds };
+      const sectionRanges = [];
       let currentSectionTaskId = null;
 
-      activeTasks.forEach((task) => {
+      workspace.active_tasks.forEach((task) => {
         const title = state.taskEdits[task.id] ?? task.title;
         const headingLabel = getTaskHeadingLabel(title);
 
@@ -3456,7 +4403,12 @@
           if (currentSectionTaskId) {
             sections.set(task.id, {
               collapsed: isTaskSectionCollapsed(task.id),
-              itemCount: draftsByAfter.get(task.id)?.length || 0
+              itemCount: draftsByAfter.get(task.id)?.length || 0,
+              completedItemCount: 0
+            });
+            sectionRanges.push({
+              id: task.id,
+              startSortOrder: task.sort_order
             });
           }
           return;
@@ -3471,6 +4423,27 @@
         section.itemCount += draftsByAfter.get(task.id)?.length || 0;
         if (section.collapsed) {
           hiddenTaskIds.add(task.id);
+        }
+      });
+
+      if (!sectionRanges.length) {
+        return { sections, hiddenTaskIds };
+      }
+
+      workspace.done_tasks.forEach((task) => {
+        if (isMarkdownTaskHeading(task.title)) return;
+
+        for (let index = 0; index < sectionRanges.length; index += 1) {
+          const sectionRange = sectionRanges[index];
+          const nextSectionRange = sectionRanges[index + 1] || null;
+          if (task.sort_order <= sectionRange.startSortOrder) continue;
+          if (nextSectionRange && task.sort_order >= nextSectionRange.startSortOrder) continue;
+
+          const section = sections.get(sectionRange.id);
+          if (section) {
+            section.completedItemCount += 1;
+          }
+          return;
         }
       });
 
@@ -3582,6 +4555,8 @@
       let lastSectionTaskId = null;
 
       doneTasks.forEach((task) => {
+        if (isMarkdownTaskHeading(task.title)) return;
+
         const sectionMeta = doneSectionState.taskToSection.get(task.id) || null;
         const sectionTaskId = sectionMeta?.id || null;
         const section = sectionTaskId ? doneSectionState.sections.get(sectionTaskId) || null : null;
@@ -3628,7 +4603,26 @@
       const isHeading = isMarkdownTaskHeading(title);
       const visibleTitle = getVisibleTaskTitle(title);
       const canCollapse = isHeading && sectionState?.itemCount > 0;
+      const canCompleteSection = isHeading
+        && sectionState?.itemCount === 0
+        && sectionState?.completedItemCount > 0;
       const isCollapsed = canCollapse && sectionState.collapsed;
+      const completeControl = canCompleteSection
+        ? `
+          <button
+            class="task-heading-complete-btn"
+            type="button"
+            draggable="false"
+            data-task-group-complete-id="${task.id}"
+            aria-label="Complete section"
+            title="Complete section"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 12.5 10 16.5 18 8.5"></path>
+            </svg>
+          </button>
+        `
+        : "";
       const copyControl = isHeading
         ? `
           <button class="task-copy-btn" type="button" draggable="false" data-task-section-copy-id="${task.id}" aria-label="Copy section" title="Copy section">
@@ -3656,7 +4650,7 @@
               </svg>
             </button>
           `
-          : '<span class="task-section-toggle-spacer" aria-hidden="true"></span>')
+          : "")
         : `<input class="task-check" type="checkbox" data-task-check-id="${task.id}">`;
 
       return `
@@ -3674,6 +4668,7 @@
             placeholder="new task or ## section"
             data-task-id="${task.id}"
           >${escapeHtml(visibleTitle)}</textarea>
+          ${completeControl}
           ${copyControl}
           <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
         </div>
@@ -3703,6 +4698,37 @@
         }
       }
       return parsed.toLocaleString();
+    }
+
+    function formatLocalShortTime(isoValue, fallbackLabel = "") {
+      if (!isoValue) return fallbackLabel;
+      const parsed = new Date(isoValue);
+      if (Number.isNaN(parsed.getTime())) return fallbackLabel;
+      if (shortTimeFormatter) {
+        try {
+          return shortTimeFormatter.format(parsed);
+        } catch (_error) {
+          // Fall through to the browser default formatter.
+        }
+      }
+      return parsed.toLocaleTimeString();
+    }
+
+    function formatNoteLastSynced(note) {
+      const inboundIso = note?.sync_last_inbound_at_iso || "";
+      const outboundIso = note?.sync_last_outbound_at_iso || "";
+      const inboundMs = inboundIso ? new Date(inboundIso).getTime() : Number.NaN;
+      const outboundMs = outboundIso ? new Date(outboundIso).getTime() : Number.NaN;
+
+      if (!Number.isNaN(inboundMs) && (Number.isNaN(outboundMs) || inboundMs >= outboundMs)) {
+        return `last synced ${formatLocalShortTime(inboundIso, note.sync_last_inbound_at_label || "")}`;
+      }
+
+      if (!Number.isNaN(outboundMs)) {
+        return `last synced ${formatLocalShortTime(outboundIso, note.sync_last_outbound_at_label || "")}`;
+      }
+
+      return "";
     }
 
     function resetTodoStatusLabel() {
@@ -3756,6 +4782,7 @@
 
       const sectionMap = buildTaskSectionMap(state.workspace);
       const exportStamp = formatLocalTimestamp(new Date().toISOString(), new Date().toLocaleString());
+      let hasVisibleTasks = false;
       const lines = [
         `# ${state.workspace.project.title} changelog`,
         `Exported ${exportStamp}`,
@@ -3764,6 +4791,8 @@
 
       let lastSection = null;
       state.workspace.done_tasks.forEach((task) => {
+        if (isMarkdownTaskHeading(task.title)) return;
+
         const sectionLabel = sectionMap.get(task.id) || null;
         if (sectionLabel !== lastSection) {
           if (lines[lines.length - 1] !== "") {
@@ -3775,9 +4804,11 @@
           lastSection = sectionLabel;
         }
 
+        hasVisibleTasks = true;
         lines.push(`- [x] ${getVisibleTaskTitle(task.title || "Untitled task")}`);
       });
 
+      if (!hasVisibleTasks) return "";
       return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
@@ -3918,10 +4949,13 @@
       layout.classList.toggle("project-starter", state.projectTrayMode === "chooser");
       renderProjectTray();
       renderProjects();
+      renderArchiveMenu();
       renderTasks();
       renderChangelogPane();
       renderNotes();
+      renderNoteFilePicker();
       renderProjectSettings();
+      renderProjectArchiveConfirm();
       renderNoteArchiveConfirm();
       refreshScrollRevealBindings();
       updateStarterButtons();
@@ -4051,6 +5085,13 @@
     }
 
     function applyResponsiveLayoutMode() {
+      if (isDesktopShell) {
+        if (document.documentElement.dataset.layoutMode !== "three") {
+          document.documentElement.dataset.layoutMode = "three";
+        }
+        return;
+      }
+
       const width = getResponsiveLayoutWidth();
       let nextMode = "three";
       if (width <= layoutModeBreakpoints.oneColumn) {
@@ -4102,23 +5143,6 @@
         `;
         projectTray.querySelector("[data-project-submit]").addEventListener("click", () => {
           submitProjectCreate("new", state.projectInput, null);
-        });
-        return;
-      }
-
-      if (state.projectTrayMode === "github") {
-        projectTray.innerHTML = `
-          <div class="inline-shell">
-            <input class="text-input" type="text" placeholder="optional title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
-            <input class="path-input" type="text" placeholder="https://github.com/org/repo" value="${escapeAttribute(state.projectSourceInput)}" data-project-source-input>
-            <div class="inline-row">
-              <button class="text-btn" type="button" data-project-submit="github">connect</button>
-              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
-            </div>
-          </div>
-        `;
-        projectTray.querySelector("[data-project-submit]").addEventListener("click", () => {
-          submitProjectCreate("github", state.projectInput, state.projectSourceInput);
         });
         return;
       }
@@ -4330,8 +5354,8 @@
       const sourceLocator = currentProjectSourceLocator();
       const sourceLabel = sourceKind === "local"
         ? "Linked folder"
-        : sourceKind === "github"
-          ? "Connected repository"
+        : sourceLocator
+          ? "Linked source"
           : "No source linked";
 
       projectSettingsOverlay.innerHTML = `
@@ -4363,20 +5387,12 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">repo import</div>
-              </div>
-              <div class="overlay-value">${escapeHtml(project.last_synced_at_label || "Never imported")}</div>
-              <div class="overlay-muted">${escapeHtml(project.last_sync_summary || syncSummaryFallback(sourceKind))}</div>
-              ${renderProjectSyncControls(sourceKind)}
-            </section>
-            <section class="overlay-section">
-              <div class="overlay-section-head">
                 <div class="small-label">danger</div>
               </div>
               <div class="settings-action-list">
                 ${renderProjectSettingsActionButton("archive-project", "Archive Project", "archive", "danger-btn")}
               </div>
-              <div class="disabled-note">Permanent delete stays out of the UI for now.</div>
+              <div class="disabled-note">Archiving also moves this project's tasks and notes into the archive. Permanent delete stays out of the UI for now.</div>
             </section>
           </section>
         </div>
@@ -4385,6 +5401,48 @@
       const closeButton = projectSettingsOverlay.querySelector("[data-project-settings-close]");
       if (closeButton) {
         closeButton.textContent = "×";
+      }
+    }
+
+    function renderProjectArchiveConfirm() {
+      const projectId = state.projectArchiveConfirmId;
+      if (!projectId) {
+        projectArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      const project = getProjectById(projectId);
+      if (!project) {
+        state.projectArchiveConfirmId = null;
+        projectArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      projectArchiveOverlay.innerHTML = `
+        <div class="overlay-shell open" data-project-archive-backdrop="true">
+          <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive project">
+            <div class="overlay-head">
+              <div class="overlay-title">
+                <div class="small-label">archive project</div>
+                <h2>${escapeHtml(project.title)}</h2>
+              </div>
+              <button class="icon-btn" type="button" data-project-archive-close aria-label="Close archive confirmation">×</button>
+            </div>
+            <section class="overlay-section">
+              <div class="overlay-value">Move this project, its tasks, and its notes into the archive?</div>
+              <div class="overlay-muted">The markdown files stay in your workspace under archive/project/, archive/task/, and archive/note/.</div>
+              <div class="overlay-inline-actions">
+                <button class="text-btn" type="button" data-project-archive-close>cancel</button>
+                <button class="text-btn danger-btn" type="button" data-project-archive-confirm>archive project</button>
+              </div>
+            </section>
+          </section>
+        </div>
+      `;
+
+      const confirmButton = projectArchiveOverlay.querySelector("[data-project-archive-confirm]");
+      if (confirmButton) {
+        confirmButton.focus();
       }
     }
 
@@ -4453,35 +5511,13 @@
         `;
       }
 
-      if (state.projectSettingsSourceMode === "github") {
-        return `
-          <input
-            class="path-input"
-            type="text"
-            value="${escapeAttribute(state.projectSettingsSourceInput)}"
-            placeholder="https://github.com/org/repo"
-            data-project-settings-source
-          >
-          <div class="settings-action-list">
-            ${renderProjectSettingsActionButton("save-link", "Save Repository", "save")}
-            ${renderProjectSettingsActionButton("cancel-link", "Cancel", "cancel")}
-          </div>
-        `;
-      }
-
-      const openLabel = sourceKind === "local"
-        ? "Open Folder"
-        : sourceKind === "github"
-          ? "Open Repository"
-          : null;
+      const openLabel = sourceKind === "local" ? "Open Folder" : null;
       const relinkLocalLabel = sourceKind === "local" ? "Change Source" : "Link Folder";
-      const relinkGithubLabel = sourceKind === "github" ? "Relink Repository" : "Connect Repository";
 
       return `
         <div class="settings-action-list">
           ${openLabel && sourceLocator ? renderProjectSettingsActionButton("open-source", openLabel, "open") : ""}
           ${renderProjectSettingsActionButton("link-local", relinkLocalLabel, "folder")}
-          ${renderProjectSettingsActionButton("link-github", relinkGithubLabel, "repo")}
         </div>
       `;
     }
@@ -4572,34 +5608,18 @@
       `;
     }
 
-    function renderProjectSyncControls(sourceKind) {
-      if (sourceKind === "local") {
-        return `
-          <div class="settings-action-list">
-            ${renderProjectSettingsActionButton("sync-project", "Import Repo Tasks", "sync")}
-          </div>
-        `;
-      }
-
-      return `<div class="disabled-note">${escapeHtml(syncSummaryFallback(sourceKind))}</div>`;
-    }
-
-    function syncSummaryFallback(sourceKind) {
-      if (sourceKind === "github") {
-        return "Phase 1 sync works with linked local folders. Connect a local project path to scan repo markdown files.";
-      }
-      return "Link a local project folder to enable manual sync from repo markdown files.";
-    }
-
     function openProjectSettings(projectId) {
       const project = getProjectById(projectId);
       if (!project) return;
+      closeArchiveMenu();
       state.projectSettingsId = projectId;
       state.projectSettingsSourceMode = null;
       state.projectSettingsSourceInput = "";
       state.projectSettingsMessage = "";
       state.projectSettingsPickerFallback = false;
+      state.projectArchiveConfirmId = null;
       renderProjectSettings();
+      renderProjectArchiveConfirm();
     }
 
     function closeProjectSettings() {
@@ -4608,7 +5628,9 @@
       state.projectSettingsSourceInput = "";
       state.projectSettingsMessage = "";
       state.projectSettingsPickerFallback = false;
+      state.projectArchiveConfirmId = null;
       renderProjectSettings();
+      renderProjectArchiveConfirm();
     }
 
     function getProjectById(projectId) {
@@ -4632,19 +5654,6 @@
       if (sourceKind === "local") {
         const parts = locator.split(/[\\/]/).filter(Boolean);
         return parts[parts.length - 1] || fallbackTitle;
-      }
-
-      if (sourceKind === "github") {
-        try {
-          const url = new URL(locator);
-          const parts = url.pathname.split("/").filter(Boolean);
-          const repoName = parts[parts.length - 1]?.replace(/\.git$/i, "") || "";
-          return repoName || fallbackTitle;
-        } catch (_error) {
-          const parts = locator.split("/").filter(Boolean);
-          const repoName = parts[parts.length - 1]?.replace(/\.git$/i, "") || "";
-          return repoName || fallbackTitle;
-        }
       }
 
       return fallbackTitle;
@@ -4707,11 +5716,6 @@
       const project = getProjectById(state.projectSettingsId);
       if (!project || !project.source_locator) return;
 
-      if (project.source_kind === "github") {
-        window.open(project.source_locator, "_blank", "noopener,noreferrer");
-        return;
-      }
-
       if (project.source_kind === "local") {
         await fetchJson("/api/system/open-path", {
           method: "POST",
@@ -4720,10 +5724,28 @@
       }
     }
 
+    function openProjectArchiveConfirm() {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+      state.projectArchiveConfirmId = project.id;
+      renderProjectArchiveConfirm();
+    }
+
+    function closeProjectArchiveConfirm() {
+      if (!state.projectArchiveConfirmId) return;
+      state.projectArchiveConfirmId = null;
+      renderProjectArchiveConfirm();
+    }
+
+    async function confirmProjectArchive() {
+      if (!state.projectArchiveConfirmId) return;
+      closeProjectArchiveConfirm();
+      await archiveProjectFromSettings();
+    }
+
     async function archiveProjectFromSettings() {
       const project = getProjectById(state.projectSettingsId);
       if (!project) return;
-      if (!window.confirm(`Archive ${project.title}?`)) return;
 
       const response = await fetchJson(`/api/projects/${project.id}/archive`, {
         method: "POST",
@@ -4736,23 +5758,6 @@
 
       applyUiState(response);
       closeProjectSettings();
-      render();
-    }
-
-    async function syncProjectFromSettings() {
-      const project = getProjectById(state.projectSettingsId);
-      if (!project) return;
-
-      const response = await fetchJson(`/api/projects/${project.id}/sync`, {
-        method: "POST",
-        body: JSON.stringify({
-          current_project_id: state.selectedProjectId
-        })
-      }, "project");
-      if (!response) return;
-
-      applyUiState(response);
-      state.projectSettingsMessage = "";
       render();
     }
 
@@ -4836,7 +5841,7 @@
         draftsByAfter.get("__top__").forEach((draft) => activeRows.push(renderDraftRow(draft)));
       }
 
-      const taskSectionState = buildActiveTaskSectionState(state.workspace.active_tasks, draftsByAfter);
+      const taskSectionState = buildActiveTaskSectionState(state.workspace, draftsByAfter);
       state.workspace.active_tasks.forEach((task) => {
         if (taskSectionState.hiddenTaskIds.has(task.id)) return;
 
@@ -4878,7 +5883,8 @@
         return;
       }
 
-      if (!state.workspace.done_tasks.length) {
+      const visibleDoneTaskCount = state.workspace.done_tasks.filter((task) => !isMarkdownTaskHeading(task.title)).length;
+      if (visibleDoneTaskCount === 0) {
         doneTaskList.innerHTML = `<div class="empty-state">Completed tasks will land here as a running changelog.</div>`;
       } else {
         const doneTaskSectionState = buildDoneTaskSectionState(state.workspace);
@@ -4886,7 +5892,7 @@
       }
 
       changelogArchiveButton.disabled = state.workspace.done_tasks.length === 0;
-      changelogExportButton.disabled = state.workspace.done_tasks.length === 0;
+      changelogExportButton.disabled = visibleDoneTaskCount === 0;
     }
 
     function renderEmptyAppState() {
@@ -4909,14 +5915,6 @@
                 </svg>
                 <span>Create New Project</span>
               </button>
-              <button class="starter-btn ${state.emptyAppAction === "github" ? "active" : ""}" type="button" data-empty-action="github">
-                <svg class="starter-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 19V5h8l4 4v10z"></path>
-                  <path d="M14 5v4h4"></path>
-                  <path d="M9 13h6"></path>
-                </svg>
-                <span>Connect Repository</span>
-              </button>
             </div>
           </section>
         </div>
@@ -4933,7 +5931,7 @@
       const isHeading = isMarkdownTaskHeading(draft.title);
       const visibleTitle = getVisibleTaskTitle(draft.title);
       const leadingControl = isHeading
-        ? '<span class="task-section-toggle-spacer" aria-hidden="true"></span>'
+        ? ""
         : '<span class="task-heading-marker empty" aria-hidden="true"></span>';
 
       return `
@@ -4974,6 +5972,10 @@
       notesList.innerHTML = state.workspace.notes.map((note) => {
         const isOpen = state.openNoteId === note.id;
         const title = state.noteTitleEdits[note.id] ?? note.title;
+        const isSynced = Boolean(note.sync_kind);
+        const syncPill = isSynced
+          ? `<span class="note-sync-pill ${note.sync_status === "conflict" ? "conflict" : ""}">${escapeHtml(note.sync_status === "conflict" ? "conflict" : "linked")}</span>`
+          : "";
         return `
           <section class="note-card ${isOpen ? "open" : ""}">
             ${isOpen ? `
@@ -4983,7 +5985,17 @@
                     <path d="m7 10 5 5 5-5"></path>
                   </svg>
                 </button>
-                <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
+                ${isSynced ? `
+                  <div class="note-sync-meta">
+                    <div style="min-width:0; flex:1;">
+                      <div class="note-title-readonly">${escapeHtml(title)}</div>
+                      <div class="note-path-inline">${escapeHtml(note.sync_path || "")}</div>
+                    </div>
+                    ${syncPill}
+                  </div>
+                ` : `
+                  <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
+                `}
                 <div class="note-head-actions">
                   <button class="icon-btn subtle" type="button" data-note-action="copy" data-note-action-id="${note.id}" aria-label="Copy note" title="Copy note">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -5003,6 +6015,7 @@
                     </svg>
                   </span>
                   <span class="note-toggle-title">${escapeHtml(title)}</span>
+                  ${syncPill}
                 </span>
                 <span class="muted">${escapeHtml(formatLocalTimestamp(note.updated_at_iso, note.updated_at_label))}</span>
               </button>
@@ -5015,11 +6028,74 @@
       hydrateCleanEditor();
     }
 
+    function renderNoteFilePicker() {
+      const canLink = Boolean(
+        state.selectedProjectId
+        && state.workspace?.project?.source_kind === "local"
+      );
+
+      if (!canLink) {
+        state.noteFilePickerOpen = false;
+      }
+
+      notesLinkButton.disabled = !canLink;
+      notesLinkButton.title = canLink
+        ? "Link markdown file"
+        : "Link a local project folder to import docs";
+      noteLinkPickerWrap.classList.toggle("open", canLink && state.noteFilePickerOpen);
+
+      if (!canLink || !state.noteFilePickerOpen) {
+        noteLinkPicker.innerHTML = "";
+        return;
+      }
+
+      if (state.noteFilePickerLoading) {
+        noteLinkPicker.innerHTML = `<div class="note-picker-empty">Loading markdown files…</div>`;
+        return;
+      }
+
+      if (!state.noteLinkableFiles.length) {
+        noteLinkPicker.innerHTML = `<div class="note-picker-empty">No markdown files found under docs/.</div>`;
+        return;
+      }
+
+      noteLinkPicker.innerHTML = state.noteLinkableFiles.map((file) => `
+        <button class="note-picker-item" type="button" data-note-link-select="${escapeAttribute(file.relative_path)}">
+          <strong>${escapeHtml(file.display_name)}</strong>
+          <span class="muted">${escapeHtml(file.relative_path)}</span>
+        </button>
+      `).join("");
+    }
+
     function renderOpenNote(note) {
+      const revisionConflictBanner = state.noteRevisionConflict?.noteId === note.id ? `
+        <div class="note-sync-banner">
+          <div>Note changed in the background. Choose which version to keep.</div>
+          <div class="note-sync-actions">
+            <button class="text-btn" type="button" data-note-revision-action="latest" data-note-revision-id="${note.id}">Use Latest</button>
+            <button class="text-btn" type="button" data-note-revision-action="local" data-note-revision-id="${note.id}">Use n10e</button>
+          </div>
+        </div>
+      ` : "";
+      const syncDetails = note.sync_kind ? formatNoteLastSynced(note) : "";
+      const syncBanner = note.sync_status === "conflict" ? `
+        <div class="note-sync-banner">
+          <div>${escapeHtml(note.sync_conflict_summary || "Linked note sync is paused until you pick a source of truth.")}</div>
+          <div class="note-sync-actions">
+            <button class="text-btn" type="button" data-note-action="resolve-file" data-note-action-id="${note.id}">Use File</button>
+            <button class="text-btn" type="button" data-note-action="resolve-local" data-note-action-id="${note.id}">Use n10e</button>
+          </div>
+        </div>
+      ` : "";
+      const syncMeta = syncDetails ? `<div class="muted">${escapeHtml(syncDetails)}</div>` : "";
+
       if (state.noteMode === "markdown") {
         const body = state.noteBodyEdits[note.id] ?? note.body;
         return `
           <div class="note-editor">
+            ${revisionConflictBanner}
+            ${syncBanner}
+            ${syncMeta}
             <textarea class="markdown-input note-body-input" data-note-body-id="${note.id}" placeholder="Capture context, decisions, links, or a handoff note...">${escapeHtml(body)}</textarea>
           </div>
         `;
@@ -5027,6 +6103,9 @@
 
       return `
         <div class="note-editor">
+          ${revisionConflictBanner}
+          ${syncBanner}
+          ${syncMeta}
           <div class="toolbar note-toolbar">
             <button type="button" data-rich-command="bold">bold</button>
             <button type="button" data-rich-command="italic">italic</button>

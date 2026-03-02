@@ -2,9 +2,10 @@
 
 ## Runtime
 
-`n10e` is a single Rust binary with subcommands.
+n10e is a single Rust binary with subcommands.
 
-`n10e serve` runs:
+n10e serve runs:
+
 - Axum HTTP server (workspace UI + mutation endpoints)
 - stdio MCP server (JSON-RPC style tools)
 - filesystem watcher for incremental reindexing
@@ -13,16 +14,16 @@
 ## Storage Model
 
 - Source of truth: markdown files on disk.
-- Index/search layer: SQLite (`.n10e/index.sqlite`).
-- Full-text search: SQLite FTS5 (`fts_documents`).
-- Reverse references: `entity_links` from wiki links (`[[task:...]]`, `[[project:...]]`, `[[note:...]]`).
+- Index/search layer: SQLite (.n10e/index.sqlite).
+- Full-text search: SQLite FTS5 (fts_documents).
+- Reverse references: entity_links from wiki links ([[task:...]], [[project:...]], [[note:...]]).
 
 ## Safety
 
 - Writes are restricted to workspace root.
-- Updates require `expected_revision` (optimistic lock).
-- Deletion path is archive-only (`archive_entity` moves file under `archive/`).
-- All app/MCP mutations emit immutable activity events (`activity_events`).
+- Updates require expected_revision (optimistic lock).
+- Deletion path is archive-only (archive_entity moves file under archive/).
+- All app/MCP mutations emit immutable activity events (activity_events).
 
 ## Indexing
 
@@ -34,8 +35,8 @@
 
 - Projects can carry a linked local folder or GitHub repository as source metadata.
 - Phase 1 repo sync is manual and local-folder only.
-- `POST /api/projects/{id}/sync` scans linked folders for `to-do.md`, `todo.md`, and `TODO.md`.
-- Markdown checkboxes are imported into `n10e` as sync-managed tasks without writing back to repo files.
+- POST /api/projects/{id}/sync scans linked folders for to-do.md, todo.md, and TODO.md.
+- Markdown checkboxes are imported into n10e as sync-managed tasks without writing back to repo files.
 - Project metadata stores the last sync time and summary so the UI can surface sync state in Project Settings.
 
 ## UI

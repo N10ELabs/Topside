@@ -240,6 +240,100 @@ async fn note_archive_endpoint_removes_note_from_workspace() -> Result<()> {
 }
 
 #[tokio::test]
+async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    std::fs::create_dir_all(repo_root.path().join("docs"))?;
+    std::fs::write(
+        repo_root.path().join("docs").join("ARCHITECTURE.md"),
+        "# Architecture\n\nHTTP linked doc.\n",
+    )?;
+    std::fs::write(
+        repo_root.path().join("docs").join("to-do.md"),
+        "- [ ] Excluded from note picker\n",
+    )?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "HTTP Linked Docs".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let list_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/projects/{}/notes/linkable-files", project.id))
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let list_body = to_bytes(list_response.into_body(), usize::MAX).await?;
+    let list_json = String::from_utf8(list_body.to_vec())?;
+    assert!(list_json.contains("ARCHITECTURE.md"));
+    assert!(!list_json.contains("to-do.md"));
+
+    let link_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/projects/{}/notes/link-file", project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"relative_path":"docs/ARCHITECTURE.md"}"#.to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(link_response.status(), StatusCode::OK);
+
+    let workspace = service.load_project_workspace(&project.id)?;
+    assert_eq!(workspace.notes.len(), 1);
+    assert_eq!(
+        workspace.notes[0].sync_path.as_deref(),
+        Some("docs/ARCHITECTURE.md")
+    );
+
+    let note = workspace.notes[0].clone();
+    std::fs::write(
+        repo_root.path().join("docs").join("ARCHITECTURE.md"),
+        "# Architecture\n\nResolved via HTTP.\n",
+    )?;
+
+    let resolve_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/notes/{}/sync/resolve-file", note.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\"}}",
+                    note.revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(resolve_response.status(), StatusCode::OK);
+
+    let refreshed = service.load_project_workspace(&project.id)?;
+    assert!(refreshed.notes[0].body.contains("Resolved via HTTP."));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
@@ -450,6 +544,34 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
         Some("local")
     );
 
+    service.create_task(
+        CreateTaskPayload {
+            title: "Settings Task".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    service.create_note(
+        CreateNotePayload {
+            title: "Settings Note".to_string(),
+            project_id: Some(project.id.clone()),
+            tags: None,
+            body: Some("archive alongside the project".to_string()),
+        },
+        Actor::human("tester"),
+    )?;
+
     let archive_response = app
         .oneshot(
             Request::builder()
@@ -466,6 +588,210 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
 
     assert!(service.list_projects(10, false)?.is_empty());
     assert_eq!(service.list_projects(10, true)?.len(), 1);
+    assert!(
+        service
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(project.id.clone()),
+                assignee: None,
+                include_archived: false,
+                limit: Some(10),
+            })?
+            .is_empty()
+    );
+    assert_eq!(
+        service
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(project.id.clone()),
+                assignee: None,
+                include_archived: true,
+                limit: Some(10),
+            })?
+            .len(),
+        1
+    );
+    assert!(service.list_notes(10, false)?.is_empty());
+    assert_eq!(service.list_notes(10, true)?.len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn archive_menu_endpoints_list_restore_and_empty_archive() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Archive Menu Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    service.create_task(
+        CreateTaskPayload {
+            title: "Archive Menu Task".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let note = service.create_note(
+        CreateNotePayload {
+            title: "Archive Menu Note".to_string(),
+            project_id: Some(project.id.clone()),
+            tags: None,
+            body: Some("restore me".to_string()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let archive_project_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/projects/{}/archive", project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\",\"current_project_id\":null}}",
+                    project.revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(archive_project_response.status(), StatusCode::OK);
+
+    let archive_list_response = app
+        .clone()
+        .oneshot(Request::builder().uri("/api/archive").body(Body::empty())?)
+        .await?;
+    assert_eq!(archive_list_response.status(), StatusCode::OK);
+    let archive_list_body = to_bytes(archive_list_response.into_body(), usize::MAX).await?;
+    let archive_list_json: serde_json::Value = serde_json::from_slice(&archive_list_body)?;
+    assert_eq!(archive_list_json["total_count"].as_u64(), Some(3));
+    let listed_items = archive_list_json["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(listed_items.len(), 1);
+    assert_eq!(
+        listed_items[0]["title"].as_str(),
+        Some("Archive Menu Project")
+    );
+    assert_eq!(
+        listed_items[0]["detail_label"].as_str(),
+        Some("1 task | 1 note")
+    );
+
+    let archived_project = service
+        .list_projects(10, true)?
+        .into_iter()
+        .find(|item| item.archived)
+        .expect("archived project");
+    let restore_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/archive/{}/restore", archived_project.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\",\"current_project_id\":null}}",
+                    archived_project.revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(restore_response.status(), StatusCode::OK);
+
+    assert_eq!(service.list_projects(10, false)?.len(), 1);
+    assert_eq!(
+        service
+            .list_tasks(&TaskFilters {
+                status: None,
+                priority: None,
+                project_id: Some(project.id.clone()),
+                assignee: None,
+                include_archived: false,
+                limit: Some(10),
+            })?
+            .len(),
+        1
+    );
+    assert_eq!(service.list_notes(10, false)?.len(), 1);
+
+    let archive_note_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/notes/{}/archive", note.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\"}}",
+                    service.load_project_workspace(&project.id)?.notes[0].revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(archive_note_response.status(), StatusCode::OK);
+
+    let archive_list_response = app
+        .clone()
+        .oneshot(Request::builder().uri("/api/archive").body(Body::empty())?)
+        .await?;
+    assert_eq!(archive_list_response.status(), StatusCode::OK);
+    let archive_list_body = to_bytes(archive_list_response.into_body(), usize::MAX).await?;
+    let archive_list_json: serde_json::Value = serde_json::from_slice(&archive_list_body)?;
+    assert_eq!(archive_list_json["total_count"].as_u64(), Some(1));
+    assert_eq!(
+        archive_list_json["items"][0]["title"].as_str(),
+        Some("Archive Menu Note")
+    );
+
+    let empty_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/archive/empty")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "current_project_id": project.id,
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(empty_response.status(), StatusCode::OK);
+    assert_eq!(
+        service
+            .list_notes(10, true)?
+            .into_iter()
+            .filter(|item| item.archived)
+            .count(),
+        0
+    );
 
     Ok(())
 }
