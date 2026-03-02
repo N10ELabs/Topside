@@ -17,8 +17,7 @@
 - [x] Complete headers should have a mark as complete option that removes them from to-do
 - [x] Correct pane title placement and find alternative for dropdown chevron
 - [x] Ensure scroll position does not change on task highlight
-- [ ] Put headers with borders and indent the tasks as clean no border rows
-- [ ] Remove the lines below pane titles. Cleaner UI
+- [x] Put headers with borders and indent the tasks as clean no border rows
 - [ ] Visual animation when tasks are created or destroyed by agent in todo.md
 ## Phase 7 - Hub as Interactive Codebase
 - [x] Create bidirectional sync as to-do.md

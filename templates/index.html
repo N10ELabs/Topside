@@ -15,6 +15,10 @@
       --text: #e8f0f5;
       --muted: #8fa4b5;
       --accent: #38bdf8;
+      --checkbox-border: rgba(147, 184, 207, 0.26);
+      --checkbox-surface: rgba(16, 27, 36, 0.8);
+      --checkbox-checked: #292f36;
+      --checkbox-checked-border: rgba(92, 104, 116, 0.82);
       --accent-soft: rgba(56, 189, 248, 0.18);
       --scrollbar-size: 8px;
       --scrollbar-clearance: calc(var(--scrollbar-size) + 8px);
@@ -562,10 +566,7 @@
 
     .inline-shell,
     .project-card,
-    .task-row,
-    .task-draft,
     .note-card,
-    .done-row,
     .empty-state,
     .message {
       border: 1px solid var(--line);
@@ -659,6 +660,11 @@
       display: grid;
       gap: 8px;
       align-content: start;
+    }
+
+    .task-list,
+    .done-list {
+      gap: 4px;
     }
 
     .project-row {
@@ -959,7 +965,7 @@
       gap: 10px;
       align-items: start;
       min-height: var(--task-row-floor);
-      padding: 10px 12px;
+      padding: 8px 12px;
       position: relative;
     }
 
@@ -969,7 +975,7 @@
     }
 
     .task-list {
-      --task-list-gap: 8px;
+      --task-list-gap: 4px;
     }
 
     .pane-todo .pane-body > .task-list {
@@ -1024,9 +1030,9 @@
     .task-draft.is-heading {
       --task-row-floor: 36px;
       --task-row-vertical-chrome: 16px;
-      border: none;
-      background: transparent;
-      border-radius: 0;
+      border: 1px solid var(--line);
+      background: rgba(12, 20, 28, 0.55);
+      border-radius: 14px;
       min-height: var(--task-row-floor);
       padding-left: calc(var(--disclosure-slot) + 4px);
       padding-top: 8px;
@@ -1045,10 +1051,44 @@
 
     .task-check,
     .done-check {
+      -webkit-appearance: none;
+      appearance: none;
       width: 20px;
       height: 20px;
       margin: 0;
-      accent-color: var(--accent);
+      border: 1px solid var(--checkbox-border);
+      border-radius: 6px;
+      background-color: var(--checkbox-surface);
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 10px 8px;
+      box-shadow: inset 0 1px 0 rgba(248, 251, 255, 0.04);
+      cursor: pointer;
+      transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .task-check:hover,
+    .done-check:hover {
+      border-color: rgba(147, 184, 207, 0.34);
+    }
+
+    .task-check:checked,
+    .done-check:checked {
+      border-color: var(--checkbox-checked-border);
+      background-color: var(--checkbox-checked);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5l3 3 7-7' fill='none' stroke='%23f4f7fa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      box-shadow: inset 0 1px 0 rgba(248, 251, 255, 0.03);
+    }
+
+    .task-check:focus-visible,
+    .done-check:focus-visible {
+      outline: 2px solid rgba(143, 164, 181, 0.36);
+      outline-offset: 2px;
+    }
+
+    .task-check {
+      align-self: start;
+      margin-top: 2px;
     }
 
     .task-heading-marker {
@@ -1104,7 +1144,7 @@
       font-size: 16px;
       line-height: 1.25;
       letter-spacing: -0.01em;
-      color: #4fc3fa;
+      color: #82b1ff;
     }
 
     .task-row.is-heading .task-heading-input,
@@ -1310,7 +1350,12 @@
       outline: none;
     }
 
-    .task-input:focus,
+    .task-input:focus {
+      outline: none;
+      outline-offset: 0;
+      box-shadow: none;
+    }
+
     .text-input:focus,
     .note-title-input:focus,
     .markdown-input:focus,
@@ -1328,8 +1373,18 @@
       align-items: start;
       column-gap: 10px;
       min-height: var(--task-row-floor);
-      padding: 10px 12px;
+      padding: 8px 12px;
       cursor: pointer;
+    }
+
+    .task-row:not(.is-heading),
+    .task-draft:not(.is-heading),
+    .done-row {
+      margin-left: 12px;
+      padding-left: 10px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
     }
 
     .done-check {
@@ -1353,6 +1408,9 @@
       align-items: start;
       column-gap: 10px;
       min-height: var(--task-row-floor);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(12, 20, 28, 0.55);
       padding: 8px 12px 8px calc(var(--disclosure-slot) + 4px);
       margin-bottom: 6px;
       position: relative;
@@ -1366,7 +1424,7 @@
       font-weight: 700;
       line-height: 1.25;
       letter-spacing: -0.01em;
-      color: #4fc3fa;
+      color: #82b1ff;
       overflow-wrap: break-word;
       word-break: break-word;
     }

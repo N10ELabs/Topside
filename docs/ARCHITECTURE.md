@@ -16,7 +16,7 @@ n10e serve runs:
 - Source of truth: markdown files on disk.
 - Index/search layer: SQLite (.n10e/index.sqlite).
 - Full-text search: SQLite FTS5 (fts_documents).
-- Reverse references: entity_links from wiki links ([[task:...]], [[project:...]], [[note:...]]).
+- Reverse references: entity_links from wiki links ([[task:…]], [[project:…]], [[note:…]]).
 
 ## Safety
 

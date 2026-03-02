@@ -6,12 +6,12 @@ project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 sync_kind: repo_markdown
 sync_path: docs/ARCHITECTURE.md
 sync_status: live
-sync_last_seen_hash: 335fbb707b39bd95d8dd0d10029241fa16761aaf8c24635f106ea4c71001bd3a
+sync_last_seen_hash: 559899fa8a678d1ba31ff1f9d2adc82919b60aa2937054decd603ac0ba88de37
 sync_last_inbound_at: 2026-03-02T01:17:32.876100+00:00
-sync_last_outbound_at: 2026-03-02T01:30:01.021669+00:00
+sync_last_outbound_at: 2026-03-02T03:10:34.822009+00:00
 created_at: 2026-03-02T01:11:41.400615+00:00
-updated_at: 2026-03-02T01:30:01.021670+00:00
-revision: 8cb5ff2cd62c9b91df0d4d3ee7268af74b6ae5ae1afdc185659ca296f52e2493
+updated_at: 2026-03-02T03:10:34.822010+00:00
+revision: 6a16b987fea469f708537e966a95a58d0f1a83ddadf1b0f59974ff1fe69745f0
 ---
 # Architecture
 
@@ -31,7 +31,7 @@ n10e serve runs:
 - Source of truth: markdown files on disk.
 - Index/search layer: SQLite (.n10e/index.sqlite).
 - Full-text search: SQLite FTS5 (fts_documents).
-- Reverse references: entity_links from wiki links ([[task:...]], [[project:...]], [[note:...]]).
+- Reverse references: entity_links from wiki links ([[task:…]], [[project:…]], [[note:…]]).
 
 ## Safety
 
