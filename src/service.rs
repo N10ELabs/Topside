@@ -1419,6 +1419,42 @@ impl AppService {
         Ok(archived)
     }
 
+    pub fn archive_tasks(
+        &self,
+        requests: Vec<ArchiveEntityRequest>,
+        actor: Actor,
+    ) -> Result<Vec<EntitySnapshot>, ServiceError> {
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        for request in &requests {
+            let record = self
+                .db
+                .get_entity_record(&request.id)?
+                .context("task not found")
+                .map_err(ServiceError::Other)?;
+
+            if record.entity_type != EntityType::Task {
+                return Err(anyhow::anyhow!("entity {} is not a task", request.id).into());
+            }
+        }
+
+        let archived = self.archive_entities(requests, actor)?;
+        let mut project_ids = HashSet::new();
+        for entity in &archived {
+            if let Some(project_id) = entity.frontmatter.project_id() {
+                project_ids.insert(project_id.to_string());
+            }
+        }
+
+        for project_id in project_ids {
+            self.queue_managed_task_sync_outbound(&project_id, "archive_tasks");
+        }
+
+        Ok(archived)
+    }
+
     pub fn restore_entity(
         &self,
         id: &str,

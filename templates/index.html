@@ -2324,6 +2324,7 @@
   </div>
 
   <div id="project-settings-overlay"></div>
+  <div id="changelog-archive-overlay"></div>
   <div id="project-archive-overlay"></div>
   <div id="note-archive-overlay"></div>
   <div class="task-input-measure" id="task-input-measure" aria-hidden="true"></div>
@@ -2413,6 +2414,7 @@
       archiveItems: [],
       archiveTotalCount: 0,
       archiveEmptyConfirm: false,
+      changelogArchiveConfirmOpen: false,
       projectArchiveConfirmId: null,
       noteArchiveConfirmId: null,
       emptyAppAction: "local",
@@ -2448,6 +2450,7 @@
     const layout = document.querySelector(".layout");
     const taskInputMeasure = document.getElementById("task-input-measure");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
+    const changelogArchiveOverlay = document.getElementById("changelog-archive-overlay");
     const projectArchiveOverlay = document.getElementById("project-archive-overlay");
     const noteArchiveOverlay = document.getElementById("note-archive-overlay");
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
@@ -2494,7 +2497,7 @@
     });
 
     changelogArchiveButton.addEventListener("click", () => {
-      archiveChangelog();
+      openChangelogArchiveConfirm();
     });
 
     todoHeaderToggleButton.addEventListener("pointerdown", (event) => {
@@ -2795,6 +2798,23 @@
       }
 
       const projectArchiveClose = event.target.closest("[data-project-archive-close]");
+      const changelogArchiveClose = event.target.closest("[data-changelog-archive-close]");
+      const changelogArchiveBackdrop = event.target instanceof HTMLElement
+        ? event.target.dataset.changelogArchiveBackdrop === "true"
+        : false;
+      if (changelogArchiveClose || changelogArchiveBackdrop) {
+        closeChangelogArchiveConfirm();
+        return;
+      }
+
+      const changelogArchiveConfirm = event.target.closest("[data-changelog-archive-confirm]");
+      if (changelogArchiveConfirm) {
+        event.preventDefault();
+        event.stopPropagation();
+        await confirmChangelogArchive();
+        return;
+      }
+
       const projectArchiveBackdrop = event.target instanceof HTMLElement
         ? event.target.dataset.projectArchiveBackdrop === "true"
         : false;
@@ -3033,6 +3053,12 @@
       if (state.projectArchiveConfirmId && event.key === "Escape") {
         event.preventDefault();
         closeProjectArchiveConfirm();
+        return;
+      }
+
+      if (state.changelogArchiveConfirmOpen && event.key === "Escape") {
+        event.preventDefault();
+        closeChangelogArchiveConfirm();
         return;
       }
 
@@ -4982,10 +5008,6 @@
     async function archiveChangelog() {
       if (!state.workspace || !state.workspace.done_tasks.length) return;
 
-      const itemCount = state.workspace.done_tasks.length;
-      const itemLabel = itemCount === 1 ? "1 completed task" : `${itemCount} completed tasks`;
-      if (!window.confirm(`Archive ${itemLabel} from the changelog?`)) return;
-
       const response = await fetchJson("/api/tasks/archive", {
         method: "POST",
         body: JSON.stringify({
@@ -4999,8 +5021,72 @@
       if (!response) return;
 
       applyWorkspace(response.workspace);
-      flashTodoStatus("changelog archived");
+      if (!applyArchiveMutation(response) && state.archiveMenuOpen) {
+        await loadArchiveMenu();
+      }
+      flashChangelogStatus("sent to archive");
       render();
+    }
+
+    function openChangelogArchiveConfirm() {
+      if (!state.workspace?.done_tasks?.length) return;
+      state.changelogArchiveConfirmOpen = true;
+      renderChangelogArchiveConfirm();
+    }
+
+    function closeChangelogArchiveConfirm() {
+      if (!state.changelogArchiveConfirmOpen) return;
+      state.changelogArchiveConfirmOpen = false;
+      renderChangelogArchiveConfirm();
+    }
+
+    async function confirmChangelogArchive() {
+      if (!state.changelogArchiveConfirmOpen) return;
+      closeChangelogArchiveConfirm();
+      await archiveChangelog();
+    }
+
+    function renderChangelogArchiveConfirm() {
+      if (!state.changelogArchiveConfirmOpen) {
+        changelogArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      const doneTasks = state.workspace?.done_tasks || [];
+      if (!doneTasks.length) {
+        state.changelogArchiveConfirmOpen = false;
+        changelogArchiveOverlay.innerHTML = "";
+        return;
+      }
+
+      const itemCount = doneTasks.length;
+      const itemLabel = itemCount === 1 ? "1 completed task" : `${itemCount} completed tasks`;
+      changelogArchiveOverlay.innerHTML = `
+        <div class="overlay-shell open" data-changelog-archive-backdrop="true">
+          <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive completed tasks">
+            <div class="overlay-head">
+              <div class="overlay-title">
+                <div class="small-label">archive completed tasks</div>
+                <h2>${escapeHtml(itemLabel)}</h2>
+              </div>
+              <button class="icon-btn" type="button" data-changelog-archive-close aria-label="Close archive confirmation">×</button>
+            </div>
+            <section class="overlay-section">
+              <div class="overlay-value">Move these completed tasks into the archive?</div>
+              <div class="overlay-muted">They will be removed from the changelog and can be restored later from the archive pane.</div>
+              <div class="overlay-inline-actions">
+                <button class="text-btn" type="button" data-changelog-archive-close>cancel</button>
+                <button class="text-btn danger-btn" type="button" data-changelog-archive-confirm>archive tasks</button>
+              </div>
+            </section>
+          </section>
+        </div>
+      `;
+
+      const confirmButton = changelogArchiveOverlay.querySelector("[data-changelog-archive-confirm]");
+      if (confirmButton) {
+        confirmButton.focus();
+      }
     }
 
     function render(options = {}) {
@@ -5014,6 +5100,7 @@
       renderArchivePane();
       renderTasks();
       renderChangelogPane();
+      renderChangelogArchiveConfirm();
       renderNotes();
       renderNoteFilePicker();
       renderProjectSettings();

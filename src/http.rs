@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::markdown::render_markdown_html;
 use crate::repo_sync::derive_sync_source_key;
-use crate::service::{AppService, ServiceError};
+use crate::service::{AppService, ArchiveEntityRequest, ServiceError};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectPatch,
     ProjectSourceKind, ProjectWorkspace, TaskFilters, TaskPatch, TaskStatus,
@@ -205,6 +205,8 @@ struct NotePayload {
 struct TaskMutationResponse {
     workspace: WorkspacePayload,
     created_task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archive: Option<ArchiveContentsPayload>,
 }
 
 #[derive(Debug, Serialize)]
@@ -655,6 +657,7 @@ async fn api_create_task(
     Ok(Json(TaskMutationResponse {
         workspace: map_workspace_payload(workspace),
         created_task_id: Some(created_task_id),
+        archive: None,
     }))
 }
 
@@ -697,6 +700,7 @@ async fn api_update_task(
     Ok(Json(TaskMutationResponse {
         workspace: map_workspace_payload(workspace),
         created_task_id: None,
+        archive: None,
     }))
 }
 
@@ -738,6 +742,7 @@ async fn api_archive_task(
     Ok(Json(TaskMutationResponse {
         workspace: map_workspace_payload(workspace),
         created_task_id: None,
+        archive: None,
     }))
 }
 
@@ -753,6 +758,7 @@ async fn api_archive_tasks(
         return Err(bad_request_json("at least one task is required"));
     }
 
+    let mut archive_requests = Vec::with_capacity(request.tasks.len());
     for task in &request.tasks {
         let task_id = task.id.trim();
         if task_id.is_empty() {
@@ -764,20 +770,27 @@ async fn api_archive_tasks(
             return Err(bad_request_json("expected_revision is required"));
         }
 
-        state
-            .service
-            .archive_entity(task_id, expected_revision, Actor::human("operator"))
-            .map_err(map_service_err_json)?;
+        archive_requests.push(ArchiveEntityRequest {
+            id: task_id.to_string(),
+            expected_revision: expected_revision.to_string(),
+        });
     }
+
+    state
+        .service
+        .archive_tasks(archive_requests, Actor::human("operator"))
+        .map_err(map_service_err_json)?;
 
     let workspace = state
         .service
         .load_project_workspace(project_id)
         .map_err(internal_api_err)?;
+    let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
         workspace: map_workspace_payload(workspace),
         created_task_id: None,
+        archive: Some(archive),
     }))
 }
 
