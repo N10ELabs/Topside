@@ -39,7 +39,7 @@ tower = { version = "0.5", features = ["util"] }
 muda = { version = "0.17.1", default-features = false }
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSImage", "NSMenu", "NSMenuItem", "NSEvent"] }
-objc2-foundation = { version = "0.3.2", features = ["NSData", "NSString"] }
+objc2-foundation = { version = "0.3.2", features = ["NSData", "NSProcessInfo", "NSString"] }
 tao = "0.34.5"
 window-vibrancy = "0.6.0"
 wry = { version = "0.54.2", default-features = false, features = ["transparent"] }

@@ -84,13 +84,13 @@
       "sync_key": "tsk_01KJV7F1Q1KVSRAMVVER9RC9WH"
     },
     {
-      "title": "Update task placeholder text",
+      "title": "to-do pane, collapse all expand all toggle",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVB9N6EP1T7WCVCM6MJMT1H"
+      "sync_key": "tsk_01KJVEB2T872GNQKJ01R8Y5G66"
     },
     {
       "title": "Implement archive feature in changelog",
@@ -100,6 +100,51 @@
         }
       },
       "sync_key": "tsk_01KJP9Y748DW8MAQ6X1V904DJ0"
+    },
+    {
+      "title": "Update task placeholder text",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVB9N6EP1T7WCVCM6MJMT1H"
+    },
+    {
+      "title": "Ensure copied changelog are in document",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVCGTSB2SAG3QZCZ6EBYVZS"
+    },
+    {
+      "title": "Add polished search bar in docs pane",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVDT3TXNT2FW4BDQ6AHP859"
+    },
+    {
+      "title": "Add tasking priority",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVDTZ4MW6X4PG9CRHCC66TD"
+    },
+    {
+      "title": "Ensure launch restores latest project tab and position",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVEG5VG76DQGQVT5NC5VTE2"
     },
     {
       "title": "Phase 7 - Hub as Interactive Codebase",
@@ -114,6 +159,60 @@
         }
       },
       "sync_key": "tsk_01KJNG52W4H6XJYEX9X9VPJ4GA"
+    },
+    {
+      "title": "Scan the linked repo for TODO:, FIXME:, and HACK: comments and surface them as suggested tasks. This is high-impact because it turns hidden code debt into visible, actionable planning in one click.",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVDY7VAN604FKYJ3XSARX3J"
+    },
+    {
+      "title": "Add port viewer/killer",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVE81MYK9R8V046ZG6HYC0K"
+    },
+    {
+      "title": "Add agent usage meter",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVE88CKN1RYGB01WJTXC8TK"
+    },
+    {
+      "title": "Add focus mode/timer",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVE9GRET0XZMN4JQX7E33KC"
+    },
+    {
+      "title": "Project baseball card",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVEBM5PW13ZZYT0FVGTAKSG"
+    },
+    {
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJVECK59HR77C7T7HAA2CFYT"
     }
   ]
 }

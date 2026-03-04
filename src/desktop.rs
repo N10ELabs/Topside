@@ -15,7 +15,7 @@ use objc2::rc::Retained;
 use objc2_app_kit::{NSApplication, NSImage, NSEventModifierFlags, NSMenu, NSMenuItem};
 
 #[cfg(target_os = "macos")]
-use objc2_foundation::{NSData, NSString};
+use objc2_foundation::{NSData, NSProcessInfo, NSString};
 
 #[cfg(target_os = "macos")]
 use muda::accelerator::{Accelerator, CMD_OR_CTRL, Code};
@@ -126,6 +126,12 @@ fn configure_native_zoom_in_shortcut() {
 }
 
 #[cfg(target_os = "macos")]
+fn configure_process_name() {
+    let process_name = NSString::from_str("Topside");
+    NSProcessInfo::processInfo().setProcessName(&process_name);
+}
+
+#[cfg(target_os = "macos")]
 fn configure_application_icon() {
     let Some(mtm) = MainThreadMarker::new() else {
         return;
@@ -145,6 +151,7 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
     {
         let browser_url = url.to_string();
         let workspace_root = workspace_root.to_path_buf();
+        configure_process_name();
         let event_loop = EventLoopBuilder::<DesktopEvent>::with_user_event().build();
         let proxy = event_loop.create_proxy();
         MenuEvent::set_event_handler(Some(move |event| {
@@ -193,6 +200,7 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
 
             match event {
                 Event::NewEvents(StartCause::Init) | Event::Resumed => {
+                    configure_process_name();
                     configure_application_icon();
                 }
                 Event::UserEvent(DesktopEvent::Menu(menu_event)) => menu.handle_event(
