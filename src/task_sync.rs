@@ -226,6 +226,15 @@ pub fn managed_todo_sidecar_path(managed_file_path: &Path) -> PathBuf {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("to-do");
+    parent.join(format!(".{stem}.topside-sync.json"))
+}
+
+pub fn legacy_managed_todo_sidecar_path(managed_file_path: &Path) -> PathBuf {
+    let parent = managed_file_path.parent().unwrap_or_else(|| Path::new(""));
+    let stem = managed_file_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("to-do");
     parent.join(format!(".{stem}.n10e-sync.json"))
 }
 
@@ -306,7 +315,7 @@ fn parse_checkbox_title(line: &str) -> Option<(bool, &str)> {
 }
 
 fn split_visible_title_and_id(value: &str) -> (&str, Option<String>) {
-    let re = Regex::new(r"(?i)\s*<!--\s*n10e:id=([A-Za-z0-9_-]+)\s*-->\s*$")
+    let re = Regex::new(r"(?i)\s*<!--\s*(?:n10e|topside):id=([A-Za-z0-9_-]+)\s*-->\s*$")
         .expect("valid managed task sync id regex");
     if let Some(captures) = re.captures(value) {
         let matched = captures.get(0).map(|m| m.as_str()).unwrap_or("");
@@ -398,9 +407,9 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        ManagedTodoEntryKind, ManagedTodoRenderEntry, managed_todo_sidecar_path,
-        parse_managed_todo, parse_managed_todo_sidecar, render_managed_todo,
-        render_managed_todo_sidecar,
+        ManagedTodoEntryKind, ManagedTodoRenderEntry, legacy_managed_todo_sidecar_path,
+        managed_todo_sidecar_path, parse_managed_todo, parse_managed_todo_sidecar,
+        render_managed_todo, render_managed_todo_sidecar,
     };
 
     #[test]
@@ -418,6 +427,19 @@ mod tests {
             parsed.entries[1].kind,
             ManagedTodoEntryKind::Task { completed: false }
         );
+        assert_eq!(parsed.entries[1].sync_key, "tsk_456");
+    }
+
+    #[test]
+    fn parse_managed_todo_reads_topside_inline_sync_keys() {
+        let parsed = parse_managed_todo(
+            "## Planning <!-- topside:id=sec_123 -->\n- [ ] Draft copy <!-- topside:id=tsk_456 -->\n",
+            &[],
+        );
+
+        assert_eq!(parsed.entries.len(), 2);
+        assert!(parsed.had_inline_sync_keys);
+        assert_eq!(parsed.entries[0].sync_key, "sec_123");
         assert_eq!(parsed.entries[1].sync_key, "tsk_456");
     }
 
@@ -480,6 +502,12 @@ mod tests {
     #[test]
     fn sidecar_path_is_hidden_beside_managed_file() {
         let path = managed_todo_sidecar_path(Path::new("docs/to-do.md"));
+        assert_eq!(path.to_string_lossy(), "docs/.to-do.topside-sync.json");
+    }
+
+    #[test]
+    fn legacy_sidecar_path_matches_previous_name() {
+        let path = legacy_managed_todo_sidecar_path(Path::new("docs/to-do.md"));
         assert_eq!(path.to_string_lossy(), "docs/.to-do.n10e-sync.json");
     }
 }

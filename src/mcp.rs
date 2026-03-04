@@ -62,7 +62,7 @@ fn handle_request(req: RpcRequest) -> std::result::Result<Value, Value> {
     match req.method.as_str() {
         "initialize" => Ok(json!({
             "protocolVersion": "2024-11-05",
-            "serverInfo": {"name": "n10e", "version": env!("CARGO_PKG_VERSION")},
+            "serverInfo": {"name": "Topside", "version": env!("CARGO_PKG_VERSION")},
             "capabilities": {
                 "tools": { "listChanged": false },
                 "resources": { "subscribe": false, "listChanged": false }

@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-const BUNDLE_NAME: &str = "n10e";
-const BUNDLE_IDENTIFIER: &str = "labs.n10e.desktop";
+const BUNDLE_DISPLAY_NAME: &str = "Topside";
+const BUNDLE_EXECUTABLE_NAME: &str = "topside";
+const BUNDLE_IDENTIFIER: &str = "labs.topside.desktop";
 const MINIMUM_MACOS_VERSION: &str = "12.0";
 
 pub fn bundle_macos_app(
@@ -15,7 +16,7 @@ pub fn bundle_macos_app(
 ) -> Result<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        let bundle_root = output_dir.join("n10e.app");
+        let bundle_root = output_dir.join("Topside.app");
         if bundle_root.exists() {
             fs::remove_dir_all(&bundle_root).with_context(|| {
                 format!("failed removing existing bundle {}", bundle_root.display())
@@ -32,8 +33,8 @@ pub fn bundle_macos_app(
         fs::create_dir_all(&bundle_binary_dir)
             .with_context(|| format!("failed creating {}", bundle_binary_dir.display()))?;
 
-        let launcher_path = macos_dir.join("n10e");
-        let bundled_binary_path = bundle_binary_dir.join("n10e");
+        let launcher_path = macos_dir.join(BUNDLE_EXECUTABLE_NAME);
+        let bundled_binary_path = bundle_binary_dir.join(BUNDLE_EXECUTABLE_NAME);
         let info_plist_path = contents_dir.join("Info.plist");
 
         let launcher = render_launcher_script(default_workspace);
@@ -95,15 +96,15 @@ fn render_info_plist(icon_file_name: Option<&str>) -> String {
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>{bundle_name}</string>
+  <string>{bundle_executable_name}</string>
   <key>CFBundleIdentifier</key>
   <string>{bundle_identifier}</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>{bundle_name}</string>
+  <string>{bundle_display_name}</string>
   <key>CFBundleDisplayName</key>
-  <string>{bundle_name}</string>
+  <string>{bundle_display_name}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
 {icon_entry}  <key>CFBundleShortVersionString</key>
@@ -120,7 +121,8 @@ fn render_info_plist(icon_file_name: Option<&str>) -> String {
 </plist>
 "#,
         bundle_identifier = xml_escape(BUNDLE_IDENTIFIER),
-        bundle_name = xml_escape(BUNDLE_NAME),
+        bundle_display_name = xml_escape(BUNDLE_DISPLAY_NAME),
+        bundle_executable_name = xml_escape(BUNDLE_EXECUTABLE_NAME),
         bundle_version = xml_escape(env!("CARGO_PKG_VERSION")),
         icon_entry = icon_entry,
         minimum_macos_version = xml_escape(MINIMUM_MACOS_VERSION),
@@ -137,7 +139,7 @@ fn render_launcher_script(default_workspace: Option<&Path>) -> String {
 set -eu
 
 APP_CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="$APP_CONTENTS/Resources/bin/n10e"
+BIN="$APP_CONTENTS/Resources/bin/topside"
 DEFAULT_WORKSPACE={default_workspace}
 
 WORKSPACE="${{1:-}}"
@@ -146,7 +148,7 @@ if [ -z "$WORKSPACE" ] && [ -n "$DEFAULT_WORKSPACE" ] && [ -d "$DEFAULT_WORKSPAC
 fi
 
 if [ -z "$WORKSPACE" ]; then
-  WORKSPACE="$(osascript -e 'POSIX path of (choose folder with prompt "Select n10e workspace")' 2>/dev/null || true)"
+  WORKSPACE="$(osascript -e 'POSIX path of (choose folder with prompt "Select Topside workspace")' 2>/dev/null || true)"
   WORKSPACE="${{WORKSPACE%/}}"
 fi
 
@@ -235,7 +237,8 @@ mod tests {
     #[test]
     fn info_plist_contains_app_identity() {
         let plist = render_info_plist(None);
-        assert!(plist.contains("<string>n10e</string>"));
+        assert!(plist.contains("<string>Topside</string>"));
+        assert!(plist.contains("<string>topside</string>"));
         assert!(plist.contains("<string>APPL</string>"));
         assert!(plist.contains(env!("CARGO_PKG_VERSION")));
         assert!(!plist.contains("CFBundleIconFile"));
@@ -243,9 +246,9 @@ mod tests {
 
     #[test]
     fn info_plist_includes_icon_when_requested() {
-        let plist = render_info_plist(Some("n10e.icns"));
+        let plist = render_info_plist(Some("topside.icns"));
         assert!(plist.contains("CFBundleIconFile"));
-        assert!(plist.contains("<string>n10e.icns</string>"));
+        assert!(plist.contains("<string>topside.icns</string>"));
     }
 
     #[test]
@@ -271,11 +274,11 @@ mod tests {
     #[test]
     fn bundle_icon_uses_file_name() {
         let dir = tempfile::tempdir().expect("create temp dir");
-        let icon_path = dir.path().join("n10e.icns");
+        let icon_path = dir.path().join("topside.icns");
         fs::write(&icon_path, b"fake-icon").expect("write icon");
 
         let icon_name = bundle_icon_file_name(&icon_path).expect("icon file name");
-        assert_eq!(icon_name, "n10e.icns");
+        assert_eq!(icon_name, "topside.icns");
     }
 
     #[test]

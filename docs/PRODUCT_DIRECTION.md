@@ -4,7 +4,7 @@ Last updated: 2026-02-27
 
 ## Positioning
 
-`n10e` is a local-first agent workspace and memory layer for software projects.
+`Topside` is a local-first agent workspace and memory layer for software projects.
 
 The product is not trying to win by becoming the loudest orchestration dashboard. The differentiation is durable project context:
 
@@ -17,7 +17,7 @@ The UI exists to help a human keep project context simple, shared, and fast to p
 
 ## Core Promise
 
-If a human plans a project in `n10e`, any compatible agent should be able to pick up the current state quickly, understand what matters, and continue without rebuilding context from scratch.
+If a human plans a project in `Topside`, any compatible agent should be able to pick up the current state quickly, understand what matters, and continue without rebuilding context from scratch.
 
 ## Product Pillars
 
@@ -42,7 +42,7 @@ The UI should read as a calm shared knowledge hub, not a dashboard.
 - keep the main surface to three panes: projects, to-do, notes
 - favor inline editing, buttons, and text fields over visible forms
 - preserve markdown as the storage format while allowing a cleaner note-reading mode
-- keep project-linked local folders and GitHub repos visibly separate from n10e-managed markdown
+- keep project-linked local folders and GitHub repos visibly separate from Topside-managed markdown
 - reduce chrome so the project context itself is the primary focus
 
 ## Highest-Value Next Scope
@@ -55,4 +55,4 @@ The UI should read as a calm shared knowledge hub, not a dashboard.
 
 ## Strategic Test
 
-`n10e` succeeds if users describe it as the place where project context lives, not merely the screen where they launch agents.
+`Topside` succeeds if users describe it as the place where project context lives, not merely the screen where they launch agents.

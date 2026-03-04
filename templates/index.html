@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>n10e</title>
+  <title>Topside</title>
   <style>
     :root {
       --app-height: 100vh;
@@ -131,17 +131,17 @@
       overflow: hidden;
     }
 
-    html[data-n10e-desktop="true"] body {
+    html[data-topside-desktop="true"] body {
       background: transparent;
       border-radius: var(--glass-shell-radius);
       overflow: hidden;
     }
 
-    html[data-n10e-desktop="true"] .shell::before {
+    html[data-topside-desktop="true"] .shell::before {
       content: none;
     }
 
-    html[data-n10e-desktop="true"] .shell {
+    html[data-topside-desktop="true"] .shell {
       padding: 8px;
       position: relative;
       z-index: 1;
@@ -157,17 +157,17 @@
       backdrop-filter: none;
     }
 
-    html[data-n10e-desktop="true"] .layout {
+    html[data-topside-desktop="true"] .layout {
       position: relative;
       z-index: 1;
       gap: 8px;
     }
 
-    html[data-n10e-desktop="true"] .pane {
+    html[data-topside-desktop="true"] .pane {
       box-shadow: 0 12px 28px rgba(2, 8, 14, 0.28);
     }
 
-    html[data-n10e-desktop="true"] .pane-projects {
+    html[data-topside-desktop="true"] .pane-projects {
       align-self: stretch;
       grid-template-rows: auto 1fr;
       border: none;
@@ -177,17 +177,17 @@
       backdrop-filter: none;
     }
 
-    html[data-n10e-desktop="true"] .pane-projects .pane-head,
-    html[data-n10e-desktop="true"] .pane-projects .pane-body,
-    html[data-n10e-desktop="true"] #project-tray,
-    html[data-n10e-desktop="true"] #project-list {
+    html[data-topside-desktop="true"] .pane-projects .pane-head,
+    html[data-topside-desktop="true"] .pane-projects .pane-body,
+    html[data-topside-desktop="true"] #project-tray,
+    html[data-topside-desktop="true"] #project-list {
       background: transparent;
       box-shadow: none;
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
     }
 
-    html[data-n10e-desktop="true"] .pane-projects .pane-body {
+    html[data-topside-desktop="true"] .pane-projects .pane-body {
       padding-top: 6px;
       min-height: 0;
     }
@@ -2358,11 +2358,15 @@
   {% endif %}
   <script>
     const initialState = JSON.parse(document.getElementById("initial-state").textContent);
-    const noteModeKey = "n10e-note-mode";
-    const changelogCollapseKey = "n10e-changelog-collapsed";
-    const taskSectionCollapseKey = "n10e-task-sections-collapsed";
-    const doneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
-    const isDesktopShell = document.documentElement.dataset.n10eDesktop === "true";
+    const noteModeKey = "topside-note-mode";
+    const legacyNoteModeKey = "n10e-note-mode";
+    const changelogCollapseKey = "topside-changelog-collapsed";
+    const legacyChangelogCollapseKey = "n10e-changelog-collapsed";
+    const taskSectionCollapseKey = "topside-task-sections-collapsed";
+    const legacyTaskSectionCollapseKey = "n10e-task-sections-collapsed";
+    const doneTaskSectionCollapseKey = "topside-done-task-sections-collapsed";
+    const legacyDoneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
+    const isDesktopShell = document.documentElement.dataset.topsideDesktop === "true";
     const layoutModeBreakpoints = Object.freeze({
       oneColumn: 960,
       twoColumn: 1360,
@@ -2372,8 +2376,8 @@
       selectedProjectId: initialState.selected_project_id || null,
       workspace: initialState.workspace || null,
       serverPort: initialState.server_port,
-      noteMode: localStorage.getItem(noteModeKey) || "markdown",
-      changelogCollapsed: localStorage.getItem(changelogCollapseKey) === "true",
+      noteMode: readStorageItem(noteModeKey, legacyNoteModeKey) || "markdown",
+      changelogCollapsed: readStorageItem(changelogCollapseKey, legacyChangelogCollapseKey) === "true",
       collapsedTaskSections: loadCollapsedTaskSections(),
       collapsedDoneTaskSections: loadCollapsedDoneTaskSections(),
       openNoteId: initialState.workspace?.suggested_open_note_id || null,
@@ -2422,6 +2426,18 @@
       uiRefreshInFlight: false,
       pendingRemoteUiState: null,
     };
+
+    function readStorageItem(key, legacyKey) {
+      try {
+        const value = localStorage.getItem(key);
+        if (value !== null) {
+          return value;
+        }
+        return legacyKey ? localStorage.getItem(legacyKey) : null;
+      } catch (_error) {
+        return null;
+      }
+    }
 
     const projectTray = document.getElementById("project-tray");
     const projectList = document.getElementById("project-list");
@@ -4110,7 +4126,7 @@
 
     function loadCollapsedTaskSections() {
       try {
-        const rawValue = localStorage.getItem(taskSectionCollapseKey);
+        const rawValue = readStorageItem(taskSectionCollapseKey, legacyTaskSectionCollapseKey);
         if (!rawValue) return {};
         const parsedValue = JSON.parse(rawValue);
         return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
@@ -4121,7 +4137,7 @@
 
     function loadCollapsedDoneTaskSections() {
       try {
-        const rawValue = localStorage.getItem(doneTaskSectionCollapseKey);
+        const rawValue = readStorageItem(doneTaskSectionCollapseKey, legacyDoneTaskSectionCollapseKey);
         if (!rawValue) return {};
         const parsedValue = JSON.parse(rawValue);
         return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
@@ -5524,7 +5540,7 @@
                 <div class="small-label">source</div>
               </div>
               <div class="overlay-value">${escapeHtml(sourceLabel)}</div>
-              <div class="overlay-muted">${sourceLocator ? escapeHtml(sourceLocator) : "This project is currently local to n10e only."}</div>
+              <div class="overlay-muted">${sourceLocator ? escapeHtml(sourceLocator) : "This project is currently local to Topside only."}</div>
               ${renderProjectSettingsSourceControls(sourceKind, sourceLocator)}
             </section>
             <section class="overlay-section">
@@ -5698,11 +5714,11 @@
       }
 
       if (!project.task_sync_enabled) {
-        return "Keep one n10e-managed docs/to-do.md in the linked folder and sync tasks both ways automatically.";
+        return "Keep one Topside-managed docs/to-do.md in the linked folder and sync tasks both ways automatically.";
       }
 
       if (project.task_sync_status === "conflict") {
-        return project.task_sync_conflict_summary || "n10e paused automatic task sync because both sides changed before reconciliation.";
+        return project.task_sync_conflict_summary || "Topside paused automatic task sync because both sides changed before reconciliation.";
       }
 
       const details = [];
@@ -5748,7 +5764,7 @@
 
       if (project.task_sync_status === "conflict") {
         actions.push(renderProjectSettingsActionButton("resolve-task-sync-file", "Resolve Using File", "sync"));
-        actions.push(renderProjectSettingsActionButton("resolve-task-sync-local", "Resolve Using n10e", "save"));
+        actions.push(renderProjectSettingsActionButton("resolve-task-sync-local", "Resolve Using Topside", "save"));
       }
 
       return `
@@ -6223,7 +6239,7 @@
           <div>Note changed in the background. Choose which version to keep.</div>
           <div class="note-sync-actions">
             <button class="text-btn" type="button" data-note-revision-action="latest" data-note-revision-id="${note.id}">Use Latest</button>
-            <button class="text-btn" type="button" data-note-revision-action="local" data-note-revision-id="${note.id}">Use n10e</button>
+            <button class="text-btn" type="button" data-note-revision-action="local" data-note-revision-id="${note.id}">Use Topside</button>
           </div>
         </div>
       ` : "";
@@ -6233,7 +6249,7 @@
           <div>${escapeHtml(note.sync_conflict_summary || "Linked note sync is paused until you pick a source of truth.")}</div>
           <div class="note-sync-actions">
             <button class="text-btn" type="button" data-note-action="resolve-file" data-note-action-id="${note.id}">Use File</button>
-            <button class="text-btn" type="button" data-note-action="resolve-local" data-note-action-id="${note.id}">Use n10e</button>
+            <button class="text-btn" type="button" data-note-action="resolve-local" data-note-action-id="${note.id}">Use Topside</button>
           </div>
         </div>
       ` : "";

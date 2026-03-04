@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{APP_DIR, CONFIG_FILE_NAME, INDEX_DB_NAME, PROJECT_CODENAME};
+use crate::constants::{
+    APP_DIR, CONFIG_FILE_NAME, INDEX_DB_NAME, LEGACY_APP_DIR, LEGACY_CONFIG_FILE_NAME,
+    PROJECT_CODENAME,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -57,6 +60,7 @@ impl AppConfig {
     }
 
     pub fn load_from_workspace(workspace_root: &Path) -> Result<Self> {
+        maybe_migrate_workspace_identity(workspace_root)?;
         let path = workspace_root.join(CONFIG_FILE_NAME);
         let raw = fs::read_to_string(&path)
             .with_context(|| format!("failed reading config at {}", path.display()))?;
@@ -170,6 +174,51 @@ impl AppConfig {
     }
 }
 
+pub fn maybe_migrate_workspace_identity(workspace_root: &Path) -> Result<()> {
+    let config_path = workspace_root.join(CONFIG_FILE_NAME);
+    let legacy_config_path = workspace_root.join(LEGACY_CONFIG_FILE_NAME);
+    let app_dir_path = workspace_root.join(APP_DIR);
+    let legacy_app_dir_path = workspace_root.join(LEGACY_APP_DIR);
+
+    if config_path.exists() && legacy_config_path.exists() {
+        anyhow::bail!(
+            "workspace contains both {} and {}; remove one before continuing",
+            CONFIG_FILE_NAME,
+            LEGACY_CONFIG_FILE_NAME
+        );
+    }
+
+    if app_dir_path.exists() && legacy_app_dir_path.exists() {
+        anyhow::bail!(
+            "workspace contains both {} and {}; remove one before continuing",
+            APP_DIR,
+            LEGACY_APP_DIR
+        );
+    }
+
+    if !config_path.exists() && legacy_config_path.exists() {
+        fs::rename(&legacy_config_path, &config_path).with_context(|| {
+            format!(
+                "failed migrating {} to {}",
+                legacy_config_path.display(),
+                config_path.display()
+            )
+        })?;
+    }
+
+    if !app_dir_path.exists() && legacy_app_dir_path.exists() {
+        fs::rename(&legacy_app_dir_path, &app_dir_path).with_context(|| {
+            format!(
+                "failed migrating {} to {}",
+                legacy_app_dir_path.display(),
+                app_dir_path.display()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
 impl Default for DirConfig {
     fn default() -> Self {
         Self {
@@ -207,5 +256,62 @@ impl Default for SearchConfig {
             bm25_k1: 1.2,
             bm25_b: 0.75,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use anyhow::Result;
+
+    use super::AppConfig;
+    use crate::constants::{APP_DIR, CONFIG_FILE_NAME, LEGACY_APP_DIR, LEGACY_CONFIG_FILE_NAME};
+
+    #[test]
+    fn load_from_workspace_migrates_legacy_identity() -> Result<()> {
+        let temp = tempfile::TempDir::new()?;
+        let workspace_root = temp.path();
+        let mut config = AppConfig::default_for_workspace(workspace_root.to_path_buf());
+        config.codename = "n10e-01".to_string();
+
+        fs::create_dir_all(workspace_root.join(LEGACY_APP_DIR))?;
+        fs::write(
+            workspace_root.join(LEGACY_CONFIG_FILE_NAME),
+            toml::to_string_pretty(&config)?,
+        )?;
+
+        let loaded = AppConfig::load_from_workspace(workspace_root)?;
+
+        assert_eq!(loaded.codename, "n10e-01");
+        assert!(workspace_root.join(CONFIG_FILE_NAME).exists());
+        assert!(!workspace_root.join(LEGACY_CONFIG_FILE_NAME).exists());
+        assert!(workspace_root.join(APP_DIR).exists());
+        assert!(!workspace_root.join(LEGACY_APP_DIR).exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn load_from_workspace_rejects_conflicting_identity_paths() -> Result<()> {
+        let temp = tempfile::TempDir::new()?;
+        let workspace_root = temp.path();
+        let config = AppConfig::default_for_workspace(workspace_root.to_path_buf());
+
+        fs::create_dir_all(workspace_root.join(APP_DIR))?;
+        fs::create_dir_all(workspace_root.join(LEGACY_APP_DIR))?;
+        fs::write(
+            workspace_root.join(CONFIG_FILE_NAME),
+            toml::to_string_pretty(&config)?,
+        )?;
+        fs::write(
+            workspace_root.join(LEGACY_CONFIG_FILE_NAME),
+            toml::to_string_pretty(&config)?,
+        )?;
+
+        let err = AppConfig::load_from_workspace(workspace_root).expect_err("expected conflict");
+        assert!(err.to_string().contains(CONFIG_FILE_NAME));
+
+        Ok(())
     }
 }

@@ -1,10 +1,10 @@
 [package]
-name = "n10e"
+name = "topside"
 version = "0.1.0"
 edition = "2024"
-description = "Agent-native local project management and note knowledge hub"
+description = "Topside is a local-first project context hub for builders"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/anthonymarti/n10e-01"
+repository = "https://github.com/anthonymarti/topside"
 
 [dependencies]
 anyhow = "1.0"

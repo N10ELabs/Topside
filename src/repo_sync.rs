@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::constants::{APP_DIR, LEGACY_APP_DIR};
+
 const TODO_FILE_NAMES: &[&str] = &["to-do.md", "todo.md", "TODO.md"];
 const DOCS_ROOT: &str = "docs";
 
@@ -238,7 +240,7 @@ fn is_markdown_file(path: &Path) -> bool {
 fn is_ignored(path: &Path) -> bool {
     path.components().any(|part| {
         let value = part.as_os_str().to_string_lossy();
-        value == ".git" || value == ".n10e"
+        value == ".git" || value == APP_DIR || value == LEGACY_APP_DIR
     })
 }
 #[cfg(test)]

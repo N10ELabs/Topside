@@ -7,9 +7,9 @@ use std::time::Instant;
 use anyhow::Result;
 use rusqlite::params;
 
-use n10e::db::Db;
-use n10e::service::ServiceError;
-use n10e::types::{
+use topside::db::Db;
+use topside::service::ServiceError;
+use topside::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, NotePatch, NoteSyncKind,
     NoteSyncStatus, ProjectPatch, ProjectSourceKind, SearchFilters, TaskFilters, TaskPatch,
     TaskStatus, TaskSyncKind, TaskSyncStatus,
@@ -29,9 +29,9 @@ fn wait_for(label: &str, mut predicate: impl FnMut() -> Result<bool>) -> Result<
 }
 
 fn project_by_id(
-    service: &n10e::service::AppService,
+    service: &topside::service::AppService,
     project_id: &str,
-) -> Result<n10e::types::ProjectItem> {
+) -> Result<topside::types::ProjectItem> {
     service
         .list_projects(20, false)?
         .into_iter()
@@ -121,7 +121,7 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
         &task.id,
         TaskPatch {
             title: Some("Implement Core Flow (updated)".to_string()),
-            status: Some(n10e::types::TaskStatus::InProgress),
+            status: Some(topside::types::TaskStatus::InProgress),
             ..Default::default()
         },
         &task.revision,
@@ -453,7 +453,8 @@ fn managed_task_sync_handles_outbound_inbound_conflict_and_recovery() -> Result<
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root = tempfile::TempDir::new()?;
     let sync_path = repo_root.path().join("docs/to-do.md");
-    let sidecar_path = repo_root.path().join("docs/.to-do.n10e-sync.json");
+    let sidecar_path = repo_root.path().join("docs/.to-do.topside-sync.json");
+    let legacy_sidecar_path = repo_root.path().join("docs/.to-do.n10e-sync.json");
 
     let project = service.create_project(
         CreateProjectPayload {
@@ -491,6 +492,22 @@ fn managed_task_sync_handles_outbound_inbound_conflict_and_recovery() -> Result<
     assert_eq!(enabled.task_sync_file.as_deref(), Some("docs/to-do.md"));
     assert!(sync_path.exists());
     assert!(sidecar_path.exists());
+
+    let initial_sidecar = std::fs::read_to_string(&sidecar_path)?;
+    std::fs::remove_file(&sidecar_path)?;
+    std::fs::write(&legacy_sidecar_path, initial_sidecar)?;
+
+    let project_after_legacy_sidecar = project_by_id(&service, &project.id)?;
+    let resolved_after_legacy_sidecar = service
+        .resolve_managed_task_sync_from_file(&project.id, &project_after_legacy_sidecar.revision)?;
+    assert_eq!(
+        resolved_after_legacy_sidecar.task_sync_status,
+        Some(TaskSyncStatus::Live)
+    );
+
+    wait_for("legacy sidecar rewrite", || {
+        Ok(sidecar_path.exists() && !legacy_sidecar_path.exists())
+    })?;
 
     let initial_file = std::fs::read_to_string(&sync_path)?;
     assert!(initial_file.contains("- [ ] Draft spec"));
@@ -837,7 +854,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
 
     let resolved_from_file = service.resolve_note_sync_from_file(&linked.id)?;
     match resolved_from_file.frontmatter {
-        n10e::types::EntityFrontmatter::Note(note) => {
+        topside::types::EntityFrontmatter::Note(note) => {
             assert_eq!(note.sync_status, Some(NoteSyncStatus::Live));
         }
         _ => panic!("expected note snapshot"),
@@ -854,7 +871,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     let _pending_local_conflict = service.update_note(
         &linked.id,
         NotePatch {
-            body: Some("# Architecture\n\nn10e wins.\n".to_string()),
+            body: Some("# Architecture\n\nTopside wins.\n".to_string()),
             ..Default::default()
         },
         &note_after_file_resolve.revision,
@@ -875,9 +892,9 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     })?;
 
     let resolved_from_local = service.resolve_note_sync_from_local(&linked.id)?;
-    assert!(resolved_from_local.body.contains("n10e wins."));
+    assert!(resolved_from_local.body.contains("Topside wins."));
     let resolved_file = std::fs::read_to_string(&doc_path)?;
-    assert!(resolved_file.contains("n10e wins."));
+    assert!(resolved_file.contains("Topside wins."));
     assert!(!resolved_file.contains("External stray content."));
 
     let archived = service.archive_entity(
@@ -886,7 +903,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
         Actor::human("tester"),
     )?;
     assert!(archived.archived);
-    assert!(std::fs::read_to_string(&doc_path)?.contains("n10e wins."));
+    assert!(std::fs::read_to_string(&doc_path)?.contains("Topside wins."));
 
     Ok(())
 }

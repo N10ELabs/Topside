@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use notify::Watcher;
 
 use crate::config::AppConfig;
+use crate::constants::APP_DIR;
 use crate::db::Db;
 
 #[derive(Debug, Clone)]
@@ -76,7 +77,7 @@ fn check_watcher(config: &AppConfig) -> Result<bool> {
 }
 
 fn check_write_boundary(config: &AppConfig) -> Result<bool> {
-    let probe_dir = config.workspace_root.join(".n10e");
+    let probe_dir = config.workspace_root.join(APP_DIR);
     std::fs::create_dir_all(&probe_dir)?;
     let probe_file = probe_dir.join("doctor-probe.tmp");
     write_probe_file(&probe_file)?;

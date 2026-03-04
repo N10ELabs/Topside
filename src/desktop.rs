@@ -147,7 +147,7 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
             .with_transparent(true)
             .with_background_color((0, 0, 0, 0))
             .with_initialization_script(
-                "window.__N10E_DESKTOP__ = true; document.documentElement.dataset.n10eDesktop = 'true';",
+                "window.__TOPSIDE_DESKTOP__ = true; document.documentElement.dataset.topsideDesktop = 'true';",
             )
             .with_navigation_handler({
                 let allowed_origin = allowed_origin.clone();
@@ -203,8 +203,8 @@ pub fn window_title(workspace_root: &Path) -> String {
         .file_name()
         .and_then(|value| value.to_str())
         .filter(|value| !value.trim().is_empty())
-        .map(|value| format!("n10e - {value}"))
-        .unwrap_or_else(|| "n10e".to_string())
+        .map(|value| format!("Topside - {value}"))
+        .unwrap_or_else(|| "Topside".to_string())
 }
 
 fn app_origin(url: &str) -> String {
@@ -246,7 +246,7 @@ impl DesktopMenu {
     fn install() -> Result<Self> {
         let menu_bar = Menu::new();
 
-        let app_menu = Submenu::new("n10e", true);
+        let app_menu = Submenu::new("Topside", true);
         let file_menu = Submenu::new("File", true);
         let edit_menu = Submenu::new("Edit", true);
         let view_menu = Submenu::new("View", true);
@@ -275,7 +275,7 @@ impl DesktopMenu {
             &PredefinedMenuItem::about(
                 None,
                 Some(AboutMetadata {
-                    name: Some("n10e".to_string()),
+                    name: Some("Topside".to_string()),
                     version: Some(env!("CARGO_PKG_VERSION").to_string()),
                     ..Default::default()
                 }),
@@ -370,13 +370,13 @@ mod tests {
     #[test]
     fn window_title_uses_workspace_folder_name() {
         let title = window_title(Path::new("/tmp/my-workspace"));
-        assert_eq!(title, "n10e - my-workspace");
+        assert_eq!(title, "Topside - my-workspace");
     }
 
     #[test]
     fn window_title_falls_back_for_root_paths() {
         let title = window_title(Path::new("/"));
-        assert_eq!(title, "n10e");
+        assert_eq!(title, "Topside");
     }
 
     #[cfg(target_os = "macos")]

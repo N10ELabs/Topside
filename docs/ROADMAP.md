@@ -30,7 +30,7 @@ Last updated: 2026-02-26
 
 ## 1) Summary Goals
 
-- [x] Build a single Rust binary `n10e`.
+- [x] Build a single Rust binary `topside`.
 - [x] Deliver integrated minimal core (planning queue + note context + compact activity panel).
 - [x] Retain a minimal MCP compatibility endpoint for client handshakes and discovery.
 - [x] Record append-only activity events for all mutations.
@@ -61,26 +61,26 @@ Last updated: 2026-02-26
 
 ## 4) Workspace and File Conventions
 
-- [x] `n10e.toml` at workspace root.
-- [x] `n10e init` scaffolds `projects/`, `tasks/`, `notes/`, `agents/`, `archive/`.
+- [x] `topside.toml` at workspace root.
+- [x] `topside init` scaffolds `projects/`, `tasks/`, `notes/`, `agents/`, `archive/`.
 - [x] Enforce write boundary to workspace root.
-- [x] Keep `PROJECT_CODENAME = "n10e-01"` default.
-- [x] Keep CLI/binary placeholder name as `n10e`.
+- [x] Keep `PROJECT_CODENAME = "Topside"` default.
+- [x] Ship the CLI/binary as `topside`.
 
 ## 5) Public Interfaces
 
 ### CLI
 
-- [x] `n10e init`
-- [x] `n10e serve`
-- [x] `n10e reindex`
-- [x] `n10e import <path>`
-- [x] `n10e doctor`
-- [x] `n10e bench`
-- [x] `n10e seed-bench --count <n>`
-- [x] `n10e mcp`
+- [x] `topside init`
+- [x] `topside serve`
+- [x] `topside reindex`
+- [x] `topside import <path>`
+- [x] `topside doctor`
+- [x] `topside bench`
+- [x] `topside seed-bench --count <n>`
+- [x] `topside mcp`
 
-### Config (`n10e.toml`)
+### Config (`topside.toml`)
 
 - [x] `codename`, `workspace_root`, `dirs`, `server`, `index`, `search` sections.
 
@@ -153,7 +153,7 @@ Last updated: 2026-02-26
 ### Week 1: Foundation
 
 - [x] Initialize Rust workspace and module layout.
-- [x] Implement config parsing and `n10e init`.
+- [x] Implement config parsing and `topside init`.
 - [x] Add SQLite connection, migration runner, base schema.
 - [x] Implement markdown parser/frontmatter validator and ULID utilities.
 
@@ -162,7 +162,7 @@ Last updated: 2026-02-26
 - [x] Implement startup full scan and file watcher pipeline.
 - [x] Implement FTS5 indexing and `search_context`.
 - [x] Add wiki-link extraction and reverse-link indexing.
-- [x] Add `n10e reindex` and health checks in `doctor`.
+- [x] Add `topside reindex` and health checks in `doctor`.
 
 ### Week 3: MCP Core
 
@@ -187,7 +187,7 @@ Last updated: 2026-02-26
 
 ### Week 5: Hardening + Import + Packaging
 
-- [x] Add `n10e import`.
+- [x] Add `topside import`.
 - [x] Add watcher overflow-triggered full rescan path.
 - [x] Add malformed-frontmatter tolerant indexing behavior (skip bad files, continue).
 - [x] Add DB lock contention handling baseline (`busy_timeout`).
@@ -205,7 +205,7 @@ Last updated: 2026-02-26
 
 ### Functional
 
-- [x] `init` creates expected directories/config with codename default.
+- [x] `init` creates expected directories/config with the Topside default codename.
 - [x] Startup indexes empty and imported workspace (smoke validated).
 - [x] Automated MCP CRUD integration tests cover markdown + DB + activity.
 - [x] Automated conflict-path test (stale `expected_revision`) prevents overwrite.

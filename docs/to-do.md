@@ -6,6 +6,7 @@
 - [ ] Record assignment audit events and guardrails for automated reassignment
 ## Section: Phase 6 - Visual Polish and Functionality
 - [ ] Visual animation when tasks are created or destroyed by agent in todo.md
-- [ ] Implement archive feature in changelog
+- [x] Perform rename to "Topside"
+- [x] Implement archive feature in changelog
 ## Phase 7 - Hub as Interactive Codebase
 - [ ] Initial project selection should initilaize todo.md in project workspace

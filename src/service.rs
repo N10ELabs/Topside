@@ -23,10 +23,10 @@ use crate::repo_sync::{
 use crate::task_sync::{
     ManagedTodoEntryKind, ManagedTodoRenderEntry, OUTBOUND_DEBOUNCE_MS, ParsedManagedTodoEntry,
     WATCHER_DEBOUNCE_MS, compute_file_hash, compute_file_hash_from_path, ensure_parent_dir,
-    ensure_sync_key_for_title, is_heading_title, managed_todo_sidecar_path,
-    normalize_managed_task_sync_file, parse_managed_todo, parse_managed_todo_sidecar,
-    render_entry_from_task, render_managed_todo, render_managed_todo_sidecar,
-    resolve_managed_file_path, task_title_from_entry,
+    ensure_sync_key_for_title, is_heading_title, legacy_managed_todo_sidecar_path,
+    managed_todo_sidecar_path, normalize_managed_task_sync_file, parse_managed_todo,
+    parse_managed_todo_sidecar, render_entry_from_task, render_managed_todo,
+    render_managed_todo_sidecar, resolve_managed_file_path, task_title_from_entry,
 };
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
@@ -1374,7 +1374,7 @@ impl AppService {
             Actor::human("operator"),
             project_id,
             "resolve_task_sync_from_local",
-            "Resolved managed task sync using n10e state",
+            "Resolved managed task sync using Topside state",
         )?;
         self.get_project_item(project_id)
     }
@@ -2523,7 +2523,7 @@ impl AppService {
                 if known_hash != current_hash {
                     self.mark_note_sync_conflict(
                         note_id,
-                        "Linked note sync detected external edits before n10e could write back.",
+                        "Linked note sync detected external edits before Topside could write back.",
                     )?;
                     return Err(ServiceError::Other(anyhow::anyhow!(
                         "linked markdown file changed externally"
@@ -2557,7 +2557,7 @@ impl AppService {
         let summary = if enforce_hash_match {
             "Synced linked note to file"
         } else {
-            "Resolved linked note sync using n10e"
+            "Resolved linked note sync using Topside"
         };
 
         let snapshot = self.write_note_entity(
@@ -2933,6 +2933,15 @@ impl AppService {
         ))
     }
 
+    fn legacy_managed_task_sync_sidecar_path(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<PathBuf, ServiceError> {
+        Ok(legacy_managed_todo_sidecar_path(
+            &self.managed_task_sync_file_path(project)?,
+        ))
+    }
+
     fn managed_task_sync_entries_from_local(
         &self,
         project_id: &str,
@@ -2970,11 +2979,19 @@ impl AppService {
     ) -> Result<(Vec<ManagedTodoRenderEntry>, bool), ServiceError> {
         let local_entries = self.managed_task_sync_entries_from_local(&project.id, sync_file)?;
         let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
-        if !sidecar_path.exists() {
+        let legacy_sidecar_path = self.legacy_managed_task_sync_sidecar_path(project)?;
+        let existing_sidecar_path = if sidecar_path.exists() {
+            sidecar_path
+        } else if legacy_sidecar_path.exists() {
+            legacy_sidecar_path
+        } else {
+            return Ok((local_entries, false));
+        };
+        if !existing_sidecar_path.exists() {
             return Ok((local_entries, false));
         }
 
-        let raw = match std::fs::read_to_string(&sidecar_path) {
+        let raw = match std::fs::read_to_string(&existing_sidecar_path) {
             Ok(raw) => raw,
             Err(_) => return Ok((local_entries, true)),
         };
@@ -3000,6 +3017,22 @@ impl AppService {
         atomic_write(sidecar_path, &sidecar).map_err(ServiceError::Other)
     }
 
+    fn remove_legacy_managed_task_sync_sidecar(
+        &self,
+        project: &crate::types::ProjectItem,
+    ) -> Result<(), ServiceError> {
+        let legacy_sidecar_path = self.legacy_managed_task_sync_sidecar_path(project)?;
+        if legacy_sidecar_path.exists() {
+            std::fs::remove_file(&legacy_sidecar_path).with_context(|| {
+                format!(
+                    "failed removing legacy managed task sync sidecar {}",
+                    legacy_sidecar_path.display()
+                )
+            })?;
+        }
+        Ok(())
+    }
+
     fn write_managed_task_sync_sidecar_from_local(
         &self,
         project: &crate::types::ProjectItem,
@@ -3007,7 +3040,8 @@ impl AppService {
         let sync_file = normalize_managed_task_sync_file(project.task_sync_file.as_deref());
         let entries = self.managed_task_sync_entries_from_local(&project.id, &sync_file)?;
         let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
-        self.write_managed_task_sync_sidecar(&sidecar_path, &entries)
+        self.write_managed_task_sync_sidecar(&sidecar_path, &entries)?;
+        self.remove_legacy_managed_task_sync_sidecar(project)
     }
 
     fn write_managed_task_sync_file_from_local(
@@ -3025,7 +3059,7 @@ impl AppService {
                 if known_hash != current_hash {
                     self.mark_managed_task_sync_conflict(
                         &project.id,
-                        "Managed task sync detected external edits before n10e could write back.",
+                        "Managed task sync detected external edits before Topside could write back.",
                     )?;
                     return Err(ServiceError::Other(anyhow::anyhow!(
                         "managed task sync file changed externally"
@@ -3041,6 +3075,7 @@ impl AppService {
         atomic_write(&sync_path, &content).map_err(ServiceError::Other)?;
         let sidecar_path = self.managed_task_sync_sidecar_path(project)?;
         self.write_managed_task_sync_sidecar(&sidecar_path, &entries)?;
+        self.remove_legacy_managed_task_sync_sidecar(project)?;
         let new_hash = compute_file_hash(&content);
         if let Ok(mut runtime) = self.task_sync_runtime.lock() {
             let state = runtime.projects.entry(project.id.clone()).or_default();

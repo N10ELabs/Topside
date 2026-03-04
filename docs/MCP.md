@@ -1,6 +1,6 @@
 # MCP / Tool Interface
 
-`n10e mcp` starts a dedicated stdio JSON-RPC endpoint for protocol compatibility.
+`topside mcp` starts a dedicated stdio JSON-RPC endpoint for protocol compatibility.
 
 ## Current Scope
 
@@ -13,13 +13,13 @@ Operational reads and writes now flow through the synced markdown source of trut
 
 ## Stable Response Contract
 
-- Transport: `n10e mcp` accepts standard stdio MCP framing (`Content-Length` headers). It also tolerates newline-delimited JSON requests for local compatibility tests.
+- Transport: `topside mcp` accepts standard stdio MCP framing (`Content-Length` headers). It also tolerates newline-delimited JSON requests for local compatibility tests.
 - `initialize` result shape:
 
 ```json
 {
   "protocolVersion": "2024-11-05",
-  "serverInfo": { "name": "n10e", "version": "<semver>" },
+  "serverInfo": { "name": "Topside", "version": "<semver>" },
   "capabilities": {
     "tools": { "listChanged": false },
     "resources": { "subscribe": false, "listChanged": false }

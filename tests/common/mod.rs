@@ -3,8 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 use tempfile::TempDir;
 
-use n10e::config::AppConfig;
-use n10e::service::AppService;
+use topside::config::AppConfig;
+use topside::service::AppService;
 
 pub fn setup_service_workspace() -> Result<(TempDir, AppService)> {
     let tmp = TempDir::new()?;

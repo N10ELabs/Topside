@@ -16,7 +16,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/package-macos-release.sh [--output-dir DIR] [--workspace PATH] [--icon FILE.icns] [--sign-identity NAME]
 
-Builds the release binary, creates a macOS app bundle via `n10e bundle-app`,
+Builds the release binary, creates a macOS app bundle via `topside bundle-app`,
 and packages the bundle into a compressed .dmg.
 
 Options:
@@ -71,7 +71,7 @@ mkdir -p "$OUTPUT_DIR"
 cd "$ROOT_DIR"
 cargo build --release
 
-BUNDLE_CMD=("$ROOT_DIR/target/release/n10e")
+BUNDLE_CMD=("$ROOT_DIR/target/release/topside")
 if [[ -n "$WORKSPACE" ]]; then
   BUNDLE_CMD+=("--workspace" "$WORKSPACE")
 fi
@@ -82,15 +82,15 @@ fi
 
 "${BUNDLE_CMD[@]}"
 
-APP_BUNDLE="$OUTPUT_DIR/n10e.app"
-DMG_PATH="$OUTPUT_DIR/n10e-macos.dmg"
+APP_BUNDLE="$OUTPUT_DIR/Topside.app"
+DMG_PATH="$OUTPUT_DIR/topside-macos.dmg"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 fi
 
 rm -f "$DMG_PATH"
-hdiutil create -volname "n10e" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
+hdiutil create -volname "Topside" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"

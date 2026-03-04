@@ -1,14 +1,11 @@
-# Renaming Guide (Codename -> Final Brand)
+# Renaming Guide
 
-Current codename is `n10e-01` with runtime codename value in config (`codename`).
+Topside is now the final product name.
 
-When final naming is chosen:
+Current rename rules:
 
-1. Update Cargo package/binary naming if needed (`Cargo.toml`).
-2. Keep compatibility alias if possible for one release cycle.
-3. Update `PROJECT_CODENAME` constant default.
-4. Update docs and release workflows.
-5. Provide migration note for existing `n10e.toml` files.
-
-Recommended: keep CLI command `n10e` stable unless a strong rebrand requirement exists.
-
+1. The CLI, crate, bundle, and release assets use `topside`.
+2. New workspaces use `topside.toml` and `.topside`.
+3. Existing workspaces auto-migrate from `n10e.toml` and `.n10e` when loaded.
+4. Managed task sync still reads legacy `n10e` sidecars and inline IDs, but writes Topside-named sidecars going forward.
+5. Documentation and packaging should treat `Topside` as the only public-facing product identity.

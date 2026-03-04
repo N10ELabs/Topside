@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -13,7 +14,7 @@ struct McpHarness {
 
 impl McpHarness {
     fn start(workspace: &Path) -> Result<Self> {
-        let bin = env!("CARGO_BIN_EXE_n10e");
+        let bin = env!("CARGO_BIN_EXE_topside");
         let mut child = Command::new(bin)
             .arg("--workspace")
             .arg(workspace)
@@ -22,7 +23,7 @@ impl McpHarness {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context("failed spawning n10e mcp subprocess")?;
+            .context("failed spawning topside mcp subprocess")?;
 
         let stdin = child.stdin.take().context("missing child stdin")?;
         let stdout = child.stdout.take().context("missing child stdout")?;
@@ -110,14 +111,14 @@ impl Drop for McpHarness {
 }
 
 fn ensure_workspace_initialized(workspace: &Path) -> Result<()> {
-    let bin = env!("CARGO_BIN_EXE_n10e");
+    let bin = env!("CARGO_BIN_EXE_topside");
     let status = Command::new(bin)
         .arg("init")
         .arg(workspace)
         .status()
-        .context("failed to run n10e init")?;
+        .context("failed to run topside init")?;
     if !status.success() {
-        anyhow::bail!("n10e init failed with status {status}");
+        anyhow::bail!("topside init failed with status {status}");
     }
     Ok(())
 }
@@ -131,7 +132,7 @@ fn mcp_initialize_and_discovery_are_protocol_only() -> Result<()> {
 
     let init = mcp.call(1, "initialize", json!({}))?;
     assert_eq!(init["result"]["protocolVersion"], "2024-11-05");
-    assert_eq!(init["result"]["serverInfo"]["name"], "n10e");
+    assert_eq!(init["result"]["serverInfo"]["name"], "Topside");
 
     let tools = mcp.call(2, "tools/list", json!({}))?;
     let tool_list = tools["result"]["tools"]
@@ -194,6 +195,62 @@ fn mcp_framed_initialize_and_ping_work() -> Result<()> {
 
     let ping = mcp.call_framed(2, "ping", json!({}))?;
     assert_eq!(ping["result"], json!({}));
+
+    Ok(())
+}
+
+#[test]
+fn init_migrates_legacy_workspace_identity() -> Result<()> {
+    let temp = tempfile::TempDir::new()?;
+    fs::create_dir_all(temp.path().join(".n10e"))?;
+    fs::write(
+        temp.path().join("n10e.toml"),
+        r#"codename = "n10e-01"
+workspace_root = "."
+
+[dirs]
+projects = "projects"
+tasks = "tasks"
+notes = "notes"
+agents = "agents"
+archive = "archive"
+
+[server]
+host = "127.0.0.1"
+port = 8123
+
+[index]
+debounce_ms = 350
+startup_full_scan = true
+
+[search]
+default_limit = 20
+bm25_k1 = 1.2
+bm25_b = 0.75
+"#,
+    )?;
+
+    ensure_workspace_initialized(temp.path())?;
+
+    assert!(temp.path().join("topside.toml").exists());
+    assert!(!temp.path().join("n10e.toml").exists());
+    assert!(temp.path().join(".topside").exists());
+    assert!(!temp.path().join(".n10e").exists());
+
+    let config = fs::read_to_string(temp.path().join("topside.toml"))?;
+    assert!(config.contains("codename = \"n10e-01\""));
+    assert!(config.contains("port = 8123"));
+
+    let bin = env!("CARGO_BIN_EXE_topside");
+    let status = Command::new(bin)
+        .arg("--workspace")
+        .arg(temp.path())
+        .arg("doctor")
+        .status()
+        .context("failed to run topside doctor")?;
+    if !status.success() {
+        anyhow::bail!("topside doctor failed with status {status}");
+    }
 
     Ok(())
 }

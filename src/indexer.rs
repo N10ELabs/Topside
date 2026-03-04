@@ -10,6 +10,7 @@ use tracing::{error, warn};
 use walkdir::WalkDir;
 
 use crate::config::AppConfig;
+use crate::constants::{APP_DIR, LEGACY_APP_DIR};
 use crate::db::Db;
 use crate::markdown::parse_entity_markdown;
 use crate::types::IndexedEntity;
@@ -301,7 +302,7 @@ fn collect_paths(paths: &mut HashMap<PathBuf, bool>, event: notify::Result<Event
 fn is_ignored(path: &Path) -> bool {
     path.components().any(|part| {
         let p = part.as_os_str().to_string_lossy();
-        p == ".git" || p == ".n10e"
+        p == ".git" || p == APP_DIR || p == LEGACY_APP_DIR
     })
 }
 

@@ -2,9 +2,9 @@
 
 ## Runtime
 
-n10e is a single Rust binary with subcommands.
+Topside is a single Rust binary with subcommands.
 
-n10e serve runs:
+topside serve runs:
 
 - Axum HTTP server (workspace UI + mutation endpoints)
 - stdio MCP server (JSON-RPC style tools)
@@ -14,7 +14,7 @@ n10e serve runs:
 ## Storage Model
 
 - Source of truth: markdown files on disk.
-- Index/search layer: SQLite (.n10e/index.sqlite).
+- Index/search layer: SQLite (.topside/index.sqlite).
 - Full-text search: SQLite FTS5 (fts_documents).
 - Reverse references: entity_links from wiki links ([[task:…]], [[project:…]], [[note:…]]).
 
@@ -36,7 +36,7 @@ n10e serve runs:
 - Projects can carry a linked local folder or GitHub repository as source metadata.
 - Phase 1 repo sync is manual and local-folder only.
 - POST /api/projects/{id}/sync scans linked folders for to-do.md, todo.md, and TODO.md.
-- Markdown checkboxes are imported into n10e as sync-managed tasks without writing back to repo files.
+- Markdown checkboxes are imported into Topside as sync-managed tasks without writing back to repo files.
 - Project metadata stores the last sync time and summary so the UI can surface sync state in Project Settings.
 
 ## UI

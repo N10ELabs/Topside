@@ -7,21 +7,21 @@ use clap::{Parser, Subcommand};
 use tokio::task::JoinHandle;
 use tracing::info;
 
-use n10e::bench::{run_bench, seed_synthetic_corpus};
-use n10e::bundle::bundle_macos_app;
-use n10e::config::AppConfig;
-use n10e::constants::PROJECT_CODENAME;
-use n10e::desktop::{run_native_window, window_title};
-use n10e::dev::run_dev_supervisor;
-use n10e::doctor::run_doctor;
-use n10e::http::{WebState, router};
-use n10e::mcp::run_stdio_server_forever;
-use n10e::service::AppService;
+use topside::bench::{run_bench, seed_synthetic_corpus};
+use topside::bundle::bundle_macos_app;
+use topside::config::{AppConfig, maybe_migrate_workspace_identity};
+use topside::constants::{CONFIG_FILE_NAME, PROJECT_CODENAME};
+use topside::desktop::{run_native_window, window_title};
+use topside::dev::run_dev_supervisor;
+use topside::doctor::run_doctor;
+use topside::http::{WebState, router};
+use topside::mcp::run_stdio_server_forever;
+use topside::service::AppService;
 
 #[derive(Debug, Parser)]
-#[command(name = "n10e")]
+#[command(name = "topside")]
 #[command(version)]
-#[command(about = "Agent-native local PM + knowledge hub")]
+#[command(about = "Topside: local-first project context hub")]
 struct Cli {
     #[arg(long, global = true)]
     workspace: Option<PathBuf>,
@@ -90,14 +90,27 @@ fn cmd_init(path: Option<PathBuf>) -> Result<()> {
     std::fs::create_dir_all(&workspace_root)
         .with_context(|| format!("failed creating workspace {}", workspace_root.display()))?;
 
-    let mut config = AppConfig::default_for_workspace(workspace_root.clone());
-    config.codename = PROJECT_CODENAME.to_string();
+    maybe_migrate_workspace_identity(&workspace_root)?;
+
+    let config_path = workspace_root.join(CONFIG_FILE_NAME);
+    let config = if config_path.exists() {
+        let mut config = AppConfig::load_from_workspace(&workspace_root)?;
+        config.workspace_root = workspace_root.clone();
+        config
+    } else {
+        let mut config = AppConfig::default_for_workspace(workspace_root.clone());
+        config.codename = PROJECT_CODENAME.to_string();
+        config
+    };
     config.ensure_workspace_dirs()?;
     let path = config.save_to_workspace(&workspace_root)?;
 
     let _service = AppService::bootstrap(config.clone())?;
 
-    println!("Initialized n10e workspace at {}", workspace_root.display());
+    println!(
+        "Initialized Topside workspace at {}",
+        workspace_root.display()
+    );
     println!("Config: {}", path.display());
     println!("Codename: {}", config.codename);
     Ok(())
@@ -110,8 +123,8 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let app = router(build_web_state(service));
     let (addr, listener) = bind_http_listener(&config).await?;
 
-    info!(address = %addr, "n10e server starting");
-    println!("n10e serve listening on http://{addr}");
+    info!(address = %addr, "topside server starting");
+    println!("topside serve listening on http://{addr}");
 
     axum::serve(listener, app.into_make_service()).await?;
     Ok(())
@@ -127,8 +140,8 @@ async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
     let url = format!("http://{addr}");
     let title = window_title(&config.workspace_root);
 
-    info!(address = %addr, "n10e desktop window starting");
-    println!("n10e open launching native window at {url}");
+    info!(address = %addr, "topside desktop window starting");
+    println!("topside open launching native window at {url}");
 
     run_native_window(&url, &title, &config.workspace_root)
 }
@@ -249,7 +262,7 @@ fn load_config(workspace_override: Option<PathBuf>) -> Result<AppConfig> {
 fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
     Arc::new(WebState {
         service,
-        dev_reload_token: std::env::var("N10E_DEV_RELOAD_TOKEN").ok(),
+        dev_reload_token: std::env::var("TOPSIDE_DEV_RELOAD_TOKEN").ok(),
     })
 }
 
@@ -316,7 +329,7 @@ fn init_tracing() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "n10e=info,axum=info".into()),
+                .unwrap_or_else(|_| "topside=info,axum=info".into()),
         )
         .with_writer(std::io::stderr)
         .with_target(false)

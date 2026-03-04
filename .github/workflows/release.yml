@@ -18,16 +18,16 @@ jobs:
       - name: Package
         run: |
           ./scripts/package-macos-release.sh --output-dir dist
-          cp target/release/n10e dist/n10e
-          tar -czf dist/n10e-macos-universal.tar.gz -C dist n10e
+          cp target/release/topside dist/topside
+          tar -czf dist/topside-macos-universal.tar.gz -C dist topside
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: n10e-macos
+          name: topside-macos
           path: |
-            dist/n10e-macos-universal.tar.gz
-            dist/n10e-macos.dmg
+            dist/topside-macos-universal.tar.gz
+            dist/topside-macos.dmg
 
   publish:
     needs: build-macos
@@ -36,12 +36,12 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: n10e-macos
+          name: topside-macos
           path: dist
 
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/n10e-macos-universal.tar.gz
-            dist/n10e-macos.dmg
+            dist/topside-macos-universal.tar.gz
+            dist/topside-macos.dmg

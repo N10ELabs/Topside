@@ -8,8 +8,8 @@ use axum::http::{Request, StatusCode, header};
 use serde_json::json;
 use tower::util::ServiceExt;
 
-use n10e::http::{WebState, router};
-use n10e::types::{
+use topside::http::{WebState, router};
+use topside::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, ProjectSourceKind,
     TaskFilters, TaskStatus,
 };
@@ -100,7 +100,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
         .await?;
     assert_eq!(create_response.status(), StatusCode::OK);
 
-    let tasks = service.list_tasks(&n10e::types::TaskFilters {
+    let tasks = service.list_tasks(&topside::types::TaskFilters {
         status: None,
         priority: None,
         project_id: Some(project.id.clone()),

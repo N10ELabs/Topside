@@ -44,13 +44,13 @@ pub async fn run_dev_supervisor(workspace: Option<PathBuf>) -> Result<()> {
     let mut generation = 1u64;
     let mut child = spawn_dev_child(&manifest_dir, workspace.as_deref(), generation)?;
 
-    println!("n10e dev watching {}", DEV_WATCH_PATHS.join(", "));
+    println!("topside dev watching {}", DEV_WATCH_PATHS.join(", "));
 
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 stop_child(&mut child)?;
-                println!("n10e dev stopped");
+                println!("topside dev stopped");
                 break;
             }
             maybe_event = rx.recv() => {
@@ -60,14 +60,14 @@ pub async fn run_dev_supervisor(workspace: Option<PathBuf>) -> Result<()> {
                 };
 
                 if let Err(err) = event {
-                    eprintln!("n10e dev watcher error: {err}");
+                    eprintln!("topside dev watcher error: {err}");
                     continue;
                 }
 
                 tokio::time::sleep(Duration::from_millis(250)).await;
                 while rx.try_recv().is_ok() {}
 
-                println!("n10e dev change detected, rebuilding...");
+                println!("topside dev change detected, rebuilding...");
                 stop_child(&mut child)?;
                 generation += 1;
                 child = spawn_dev_child(&manifest_dir, workspace.as_deref(), generation)?;
@@ -90,7 +90,7 @@ fn spawn_dev_child(
         .arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--")
-        .env("N10E_DEV_RELOAD_TOKEN", generation.to_string())
+        .env("TOPSIDE_DEV_RELOAD_TOKEN", generation.to_string())
         .current_dir(manifest_dir)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())

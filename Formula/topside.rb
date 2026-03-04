@@ -1,7 +1,7 @@
-class N10e < Formula
+class Topside < Formula
   desc "Agent-native local project management and knowledge hub"
-  homepage "https://github.com/anthonymarti/n10e-01"
-  url "https://github.com/anthonymarti/n10e-01/archive/refs/tags/v0.1.0.tar.gz"
+  homepage "https://github.com/anthonymarti/topside"
+  url "https://github.com/anthonymarti/topside/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "REPLACE_WITH_RELEASE_TARBALL_SHA256"
   license "MIT OR Apache-2.0"
 
@@ -12,6 +12,6 @@ class N10e < Formula
   end
 
   test do
-    system "#{bin}/n10e", "--version"
+    system "#{bin}/topside", "--version"
   end
 end

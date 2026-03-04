@@ -15,19 +15,19 @@ This project includes a reproducible local harness for the V0 performance target
 1. Initialize workspace (once):
 
 ```bash
-n10e init /path/to/workspace
+topside init /path/to/workspace
 ```
 
 2. Seed synthetic corpus (5k notes + benchmark project):
 
 ```bash
-n10e --workspace /path/to/workspace seed-bench --count 5000
+topside --workspace /path/to/workspace seed-bench --count 5000
 ```
 
 3. Run benchmark:
 
 ```bash
-n10e --workspace /path/to/workspace bench --iterations 1000 --query benchmark-search-token
+topside --workspace /path/to/workspace bench --iterations 1000 --query benchmark-search-token
 ```
 
 ## Convenience Script
@@ -59,4 +59,3 @@ Record results with machine details:
 - search_p95_ms:
 - read_p50_ms:
 - read_p95_ms:
-
