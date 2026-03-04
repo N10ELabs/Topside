@@ -143,6 +143,20 @@ BIN="$APP_CONTENTS/Resources/bin/topside"
 DEFAULT_WORKSPACE={default_workspace}
 
 WORKSPACE="${{1:-}}"
+if [ -n "$WORKSPACE" ] && [[ "$WORKSPACE" == -psn_* ]]; then
+  WORKSPACE=""
+fi
+
+if [ -z "$WORKSPACE" ]; then
+  for arg in "$@"; do
+    if [[ "$arg" == -psn_* ]]; then
+      continue
+    fi
+    WORKSPACE="$arg"
+    break
+  done
+fi
+
 if [ -z "$WORKSPACE" ] && [ -n "$DEFAULT_WORKSPACE" ] && [ -d "$DEFAULT_WORKSPACE" ]; then
   WORKSPACE="$DEFAULT_WORKSPACE"
 fi
@@ -156,7 +170,8 @@ if [ -z "$WORKSPACE" ]; then
   exit 0
 fi
 
-exec "$BIN" --workspace "$WORKSPACE" open
+"$BIN" --workspace "$WORKSPACE" open &
+wait "$!"
 "#
     )
 }
@@ -255,7 +270,9 @@ mod tests {
     fn launcher_script_embeds_default_workspace() {
         let script = render_launcher_script(Some(Path::new("/tmp/project")));
         assert!(script.contains("DEFAULT_WORKSPACE='/tmp/project'"));
-        assert!(script.contains(r#"exec "$BIN" --workspace "$WORKSPACE" open"#));
+        assert!(script.contains(r#""$BIN" --workspace "$WORKSPACE" open &"#));
+        assert!(script.contains(r#"wait "$!""#));
+        assert!(script.contains(r#"[[ "$WORKSPACE" == -psn_* ]]"#));
     }
 
     #[test]

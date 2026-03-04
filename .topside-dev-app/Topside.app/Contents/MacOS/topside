@@ -1,0 +1,37 @@
+#!/bin/zsh
+set -eu
+
+APP_CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
+BIN="$APP_CONTENTS/Resources/bin/topside"
+DEFAULT_WORKSPACE='/Users/anthonymarti/Desktop/N10E LABS Code/n10e-01'
+
+WORKSPACE="${1:-}"
+if [ -n "$WORKSPACE" ] && [[ "$WORKSPACE" == -psn_* ]]; then
+  WORKSPACE=""
+fi
+
+if [ -z "$WORKSPACE" ]; then
+  for arg in "$@"; do
+    if [[ "$arg" == -psn_* ]]; then
+      continue
+    fi
+    WORKSPACE="$arg"
+    break
+  done
+fi
+
+if [ -z "$WORKSPACE" ] && [ -n "$DEFAULT_WORKSPACE" ] && [ -d "$DEFAULT_WORKSPACE" ]; then
+  WORKSPACE="$DEFAULT_WORKSPACE"
+fi
+
+if [ -z "$WORKSPACE" ]; then
+  WORKSPACE="$(osascript -e 'POSIX path of (choose folder with prompt "Select Topside workspace")' 2>/dev/null || true)"
+  WORKSPACE="${WORKSPACE%/}"
+fi
+
+if [ -z "$WORKSPACE" ]; then
+  exit 0
+fi
+
+"$BIN" --workspace "$WORKSPACE" open &
+wait "$!"

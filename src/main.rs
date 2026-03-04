@@ -18,6 +18,15 @@ use topside::http::{WebState, router};
 use topside::mcp::run_stdio_server_forever;
 use topside::service::AppService;
 
+#[cfg(target_os = "macos")]
+use std::ffi::OsString;
+
+#[cfg(target_os = "macos")]
+use std::os::unix::process::CommandExt;
+
+#[cfg(target_os = "macos")]
+use std::process::Command;
+
 #[derive(Debug, Parser)]
 #[command(name = "topside")]
 #[command(version)]
@@ -121,7 +130,7 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
     let app = router(build_web_state(service));
-    let (addr, listener) = bind_http_listener(&config).await?;
+    let (addr, listener) = bind_http_listener(&config.server.host, config.server.port).await?;
 
     info!(address = %addr, "topside server starting");
     println!("topside serve listening on http://{addr}");
@@ -131,11 +140,14 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
 }
 
 async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    maybe_relaunch_open_with_app_name()?;
+
     let config = load_config(workspace)?;
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
     let app = router(build_web_state(service));
-    let (addr, listener) = bind_http_listener(&config).await?;
+    let (addr, listener) = bind_http_listener_for_open(&config).await?;
     let _http_task = spawn_http_server(listener, app);
     let url = format!("http://{addr}");
     let title = window_title(&config.workspace_root);
@@ -144,6 +156,33 @@ async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
     println!("topside open launching native window at {url}");
 
     run_native_window(&url, &title, &config.workspace_root)
+}
+
+#[cfg(target_os = "macos")]
+fn maybe_relaunch_open_with_app_name() -> Result<()> {
+    const APP_NAME_ENV: &str = "TOPSIDE_APP_NAME_ARG0";
+
+    if std::env::var_os(APP_NAME_ENV).is_some() {
+        return Ok(());
+    }
+
+    let current_exe = std::env::current_exe().context("failed locating current executable")?;
+    if current_exe
+        .components()
+        .any(|component| component.as_os_str().to_string_lossy().ends_with(".app"))
+    {
+        return Ok(());
+    }
+
+    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let status = Command::new(&current_exe)
+        .args(&args)
+        .arg0("Topside")
+        .env(APP_NAME_ENV, "1")
+        .status()
+        .with_context(|| format!("failed relaunching {}", current_exe.display()))?;
+
+    std::process::exit(status.code().unwrap_or(0));
 }
 
 fn cmd_bundle_app(
@@ -266,15 +305,43 @@ fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
     })
 }
 
-async fn bind_http_listener(config: &AppConfig) -> Result<(SocketAddr, tokio::net::TcpListener)> {
-    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port)
+async fn bind_http_listener(host: &str, port: u16) -> Result<(SocketAddr, tokio::net::TcpListener)> {
+    let requested_addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .context("invalid server host/port configuration")?;
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(requested_addr)
         .await
-        .with_context(|| format!("failed binding http listener at {addr}"))?;
+        .with_context(|| format!("failed binding http listener at {requested_addr}"))?;
+    let addr = listener
+        .local_addr()
+        .context("failed reading bound http listener address")?;
 
     Ok((addr, listener))
+}
+
+async fn bind_http_listener_for_open(
+    config: &AppConfig,
+) -> Result<(SocketAddr, tokio::net::TcpListener)> {
+    match bind_http_listener(&config.server.host, config.server.port).await {
+        Ok(bound) => Ok(bound),
+        Err(error) if error_is_addr_in_use(&error) => {
+            info!(
+                configured_host = %config.server.host,
+                configured_port = config.server.port,
+                "configured Topside port unavailable; falling back to an ephemeral port for native window",
+            );
+            bind_http_listener(&config.server.host, 0).await
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn error_is_addr_in_use(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io_error| io_error.kind() == std::io::ErrorKind::AddrInUse)
+    })
 }
 
 fn spawn_http_server(
