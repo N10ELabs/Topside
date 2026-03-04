@@ -7,6 +7,8 @@
 ## Section: Phase 6 - Visual Polish and Functionality
 - [ ] Visual animation when tasks are created or destroyed by agent in todo.md
 - [x] Perform rename to "Topside"
+- [x] Make an app icon
+- [ ] Update task placeholder text
 - [x] Implement archive feature in changelog
 ## Phase 7 - Hub as Interactive Codebase
-- [ ] Initial project selection should initilaize todo.md in project workspace
+- [ ] Project selection should initilaize todo.md in project workspace

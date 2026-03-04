@@ -156,7 +156,7 @@ fn cmd_bundle_app(
         .transpose()?;
     let source_binary = std::env::current_exe().context("failed locating current executable")?;
     let output_dir = resolve_output_dir(output_dir)?;
-    let icon = icon.map(resolve_absolute_path).transpose()?;
+    let icon = resolve_bundle_icon(icon)?;
     std::fs::create_dir_all(&output_dir)
         .with_context(|| format!("failed creating {}", output_dir.display()))?;
 
@@ -322,6 +322,20 @@ fn resolve_absolute_path(path: PathBuf) -> Result<PathBuf> {
         Ok(path)
     } else {
         Ok(std::env::current_dir()?.join(path))
+    }
+}
+
+fn resolve_bundle_icon(path: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    match path {
+        Some(path) => Ok(Some(resolve_absolute_path(path)?)),
+        None => {
+            let default_icon = std::env::current_dir()?.join("topside.icns");
+            if default_icon.is_file() {
+                Ok(Some(default_icon))
+            } else {
+                Ok(None)
+            }
+        }
     }
 }
 

@@ -11,6 +11,7 @@ OUTPUT_DIR="$ROOT_DIR/dist"
 WORKSPACE=""
 ICON=""
 SIGN_IDENTITY=""
+DEFAULT_ICON_PATH="$ROOT_DIR/topside.icns"
 
 usage() {
   cat <<'EOF'
@@ -23,6 +24,7 @@ Options:
   --output-dir DIR       Destination directory (default: ./dist)
   --workspace PATH       Embed a default workspace path into the bundle launcher
   --icon FILE.icns       Copy a macOS .icns file into the bundle and set it as the app icon
+                         (default: ./topside.icns if present)
   --sign-identity NAME   Optional codesign identity for the .app and .dmg
   -h, --help             Show this help text
 EOF
@@ -64,6 +66,10 @@ done
 
 if [[ "$OUTPUT_DIR" != /* ]]; then
   OUTPUT_DIR="$ROOT_DIR/$OUTPUT_DIR"
+fi
+
+if [[ -z "$ICON" && -f "$DEFAULT_ICON_PATH" ]]; then
+  ICON="$DEFAULT_ICON_PATH"
 fi
 
 mkdir -p "$OUTPUT_DIR"

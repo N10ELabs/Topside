@@ -6,16 +6,16 @@ use anyhow::Result;
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
-use objc2::MainThreadMarker;
+use objc2::{AllocAnyThread, MainThreadMarker};
 
 #[cfg(target_os = "macos")]
 use objc2::rc::Retained;
 
 #[cfg(target_os = "macos")]
-use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+use objc2_app_kit::{NSApplication, NSImage, NSEventModifierFlags, NSMenu, NSMenuItem};
 
 #[cfg(target_os = "macos")]
-use objc2_foundation::NSString;
+use objc2_foundation::{NSData, NSString};
 
 #[cfg(target_os = "macos")]
 use muda::accelerator::{Accelerator, CMD_OR_CTRL, Code};
@@ -26,7 +26,7 @@ use muda::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu
 #[cfg(target_os = "macos")]
 use tao::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent},
+    event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
@@ -60,6 +60,9 @@ const MAX_ZOOM_LEVEL: f64 = 3.0;
 
 #[cfg(target_os = "macos")]
 const ZOOM_STEP: f64 = 0.1;
+
+#[cfg(target_os = "macos")]
+const APP_ICON_BYTES: &[u8] = include_bytes!("../topside.icns");
 
 #[cfg(target_os = "macos")]
 fn normalize_zoom_level(value: f64) -> f64 {
@@ -122,6 +125,21 @@ fn configure_native_zoom_in_shortcut() {
     zoom_in_item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
 }
 
+#[cfg(target_os = "macos")]
+fn configure_application_icon() {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let icon_data = NSData::with_bytes(APP_ICON_BYTES);
+    let Some(icon) = NSImage::initWithData(NSImage::alloc(), &icon_data) else {
+        return;
+    };
+
+    unsafe {
+        NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&icon));
+    }
+}
+
 pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -166,6 +184,7 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
             Some(NSVisualEffectState::Active),
             None,
         )?;
+        configure_application_icon();
 
         let mut zoom_level = DEFAULT_ZOOM_LEVEL;
 
@@ -173,6 +192,9 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
             *control_flow = ControlFlow::Wait;
 
             match event {
+                Event::NewEvents(StartCause::Init) | Event::Resumed => {
+                    configure_application_icon();
+                }
                 Event::UserEvent(DesktopEvent::Menu(menu_event)) => menu.handle_event(
                     &menu_event,
                     &browser_url,
@@ -198,13 +220,8 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
     }
 }
 
-pub fn window_title(workspace_root: &Path) -> String {
-    workspace_root
-        .file_name()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.trim().is_empty())
-        .map(|value| format!("Topside - {value}"))
-        .unwrap_or_else(|| "Topside".to_string())
+pub fn window_title(_workspace_root: &Path) -> String {
+    "Topside".to_string()
 }
 
 fn app_origin(url: &str) -> String {
@@ -368,9 +385,9 @@ mod tests {
     use super::{MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, normalize_zoom_level};
 
     #[test]
-    fn window_title_uses_workspace_folder_name() {
+    fn window_title_is_fixed() {
         let title = window_title(Path::new("/tmp/my-workspace"));
-        assert_eq!(title, "Topside - my-workspace");
+        assert_eq!(title, "Topside");
     }
 
     #[test]
