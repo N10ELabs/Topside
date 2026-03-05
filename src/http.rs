@@ -453,6 +453,7 @@ async fn api_create_project(
 ) -> ApiResult<UiStatePayload> {
     let (title, source_kind, source_locator) =
         project_payload_parts(&request).map_err(bad_request_json)?;
+    let local_project = source_kind == Some(ProjectSourceKind::Local);
 
     let created = state
         .service
@@ -468,6 +469,18 @@ async fn api_create_project(
             Actor::human("operator"),
         )
         .map_err(map_service_err_json)?;
+
+    if local_project {
+        if let Err(error) = state
+            .service
+            .ensure_local_project_user_files(&created.id, Actor::human("operator"))
+        {
+            eprintln!(
+                "warning: failed to bootstrap local project user files for {}: {}",
+                created.id, error
+            );
+        }
+    }
 
     let payload =
         build_ui_state_payload(&state.service, Some(created.id)).map_err(internal_api_err)?;

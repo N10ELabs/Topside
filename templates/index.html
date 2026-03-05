@@ -508,6 +508,65 @@
       opacity: 0.52;
     }
 
+    .pane-search-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+    }
+
+    .pane-search-nav[hidden] {
+      display: none;
+    }
+
+    .pane-search-count {
+      min-width: 64px;
+      text-align: right;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .pane-search-nav-btn {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(10, 20, 28, 0.86);
+      color: var(--muted);
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+    }
+
+    .pane-search-nav-btn svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pane-search-nav-btn:hover,
+    .pane-search-nav-btn:focus-visible {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: rgba(16, 33, 46, 0.92);
+      outline: none;
+    }
+
+    .pane-search-nav-btn:disabled {
+      opacity: 0.46;
+      cursor: default;
+      background: rgba(8, 15, 21, 0.62);
+      color: var(--muted);
+    }
+
     .pane-body {
       min-height: 0;
       overflow: auto;
@@ -1029,6 +1088,127 @@
       font-size: 11px;
       color: var(--muted);
       font-family: "IBM Plex Mono", monospace;
+    }
+
+    .settings-page-shell {
+      display: grid;
+      grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .settings-nav {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      position: sticky;
+      top: 0;
+    }
+
+    .settings-nav-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+      padding: 0 2px;
+    }
+
+    .settings-nav-btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(10, 18, 25, 0.44);
+      color: var(--text);
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+      text-align: left;
+      padding: 8px 10px;
+      display: grid;
+      gap: 4px;
+      transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+    }
+
+    .settings-nav-btn:hover,
+    .settings-nav-btn:focus-visible {
+      border-color: var(--line-strong);
+      background: rgba(16, 30, 40, 0.64);
+      outline: none;
+    }
+
+    .settings-nav-btn.active {
+      border-color: rgba(103, 232, 249, 0.38);
+      background: rgba(26, 48, 60, 0.72);
+      color: #e6fbff;
+    }
+
+    .settings-nav-btn-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .settings-nav-btn-meta {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+
+    .settings-panel {
+      min-width: 0;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .settings-panel-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(8, 15, 21, 0.56);
+      display: grid;
+      gap: 10px;
+    }
+
+    .settings-panel-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .settings-panel-copy {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .settings-coming-soon {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(10, 20, 28, 0.8);
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    @media (max-width: 1120px) {
+      .settings-page-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-nav {
+        position: static;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
+
+      .settings-nav-title {
+        grid-column: 1 / -1;
+      }
     }
 
     .section-title,
@@ -1807,6 +1987,13 @@
     }
 
     .note-toggle-main {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .note-toggle-topline {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -1815,6 +2002,49 @@
 
     .note-toggle-title {
       min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .note-search-snippet {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .note-search-snippet-label {
+      color: #93a7b8;
+      text-transform: lowercase;
+    }
+
+    .note-search-hit {
+      background: rgba(250, 204, 21, 0.18);
+      color: #fde68a;
+      border-radius: 3px;
+      padding: 0 2px;
+      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.22);
+    }
+
+    mark.note-search-active {
+      background: rgba(250, 204, 21, 0.28);
+      color: #fef3c7;
+      border-radius: 3px;
+      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.36);
+    }
+
+    .note-search-hit::selection,
+    mark.note-search-active::selection,
+    mark.markdown-search-hit::selection,
+    mark.markdown-search-hit.active::selection,
+    .markdown-input.note-body-input::selection,
+    .note-title-input::selection {
+      background: rgba(250, 204, 21, 0.46);
+      color: #f8fafc;
     }
 
     .note-card.open .note-toggle {
@@ -2144,6 +2374,57 @@
     .markdown-input.note-body-input:focus {
       outline: none;
       box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.55);
+    }
+
+    .note-body-wrap {
+      position: relative;
+      min-height: 320px;
+    }
+
+    .note-body-wrap .markdown-input.note-body-input {
+      position: relative;
+      z-index: 1;
+    }
+
+    .markdown-search-overlay {
+      position: absolute;
+      inset: 2px 0 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+      color: transparent;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .markdown-search-overlay[hidden] {
+      display: none;
+    }
+
+    .markdown-search-overlay-content {
+      margin: 0;
+      min-height: 100%;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      transform: translate3d(0, 0, 0);
+      will-change: transform;
+    }
+
+    mark.markdown-search-hit {
+      background: rgba(250, 204, 21, 0.18);
+      color: transparent;
+      border-radius: 3px;
+      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.22);
+    }
+
+    mark.markdown-search-hit.active {
+      background: rgba(250, 204, 21, 0.34);
+      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.4);
     }
 
     .clean-editor {
@@ -2488,14 +2769,12 @@
           <div id="project-list" class="project-list"></div>
           <div class="project-pane-footer">
             <div class="archive-menu" id="archive-menu-wrap">
-              <button class="text-btn archive-launch-btn" id="archive-menu-toggle" type="button" aria-label="Open archive" title="Open archive">
+              <button class="text-btn archive-launch-btn" id="archive-menu-toggle" type="button" aria-label="Open settings" title="Open settings">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 8h16"></path>
-                  <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
-                  <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
-                  <path d="M10 12h4"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.5 12a1.4 1.4 0 0 0 .02.26l1.54 1.2a1 1 0 0 1 .2 1.32l-1.45 2.5a1 1 0 0 1-1.26.43l-1.82-.73a7.8 7.8 0 0 1-1.35.78l-.28 1.93a1 1 0 0 1-.99.86h-2.9a1 1 0 0 1-.99-.86l-.28-1.93a7.8 7.8 0 0 1-1.35-.78l-1.82.73a1 1 0 0 1-1.26-.43l-1.45-2.5a1 1 0 0 1 .2-1.32l1.54-1.2a1.4 1.4 0 0 0 0-.52L2.94 11.06a1 1 0 0 1-.2-1.32l1.45-2.5a1 1 0 0 1 1.26-.43l1.82.73c.42-.32.88-.58 1.35-.78l.28-1.93a1 1 0 0 1 .99-.86h2.9a1 1 0 0 1 .99.86l.28 1.93c.47.2.93.46 1.35.78l1.82-.73a1 1 0 0 1 1.26.43l1.45 2.5a1 1 0 0 1-.2 1.32l-1.54 1.2a1.4 1.4 0 0 0-.02.26z"></path>
                 </svg>
-                <span>archive</span>
+                <span>settings</span>
               </button>
             </div>
           </div>
@@ -2593,6 +2872,19 @@
               autocomplete="off"
               spellcheck="false"
             >
+            <div class="pane-search-nav" id="notes-search-nav" hidden>
+              <span class="pane-search-count" id="notes-search-count"></span>
+              <button class="pane-search-nav-btn" id="notes-search-prev" type="button" aria-label="Previous match" title="Previous match">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m15 6-6 6 6 6"></path>
+                </svg>
+              </button>
+              <button class="pane-search-nav-btn" id="notes-search-next" type="button" aria-label="Next match" title="Next match">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6"></path>
+                </svg>
+              </button>
+            </div>
           </label>
           <div class="pane-head-actions">
             <span class="muted" id="note-status"></span>
@@ -2633,7 +2925,7 @@
 
       <section class="pane pane-archive" id="archive-pane">
         <div class="pane-head">
-          <span class="pane-title">archive</span>
+          <span class="pane-title">settings</span>
           <div class="pane-head-actions">
             <span class="muted" id="archive-status"></span>
           </div>
@@ -2690,6 +2982,8 @@
     const legacyDoneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
     const taskPrioritySortKey = "topside-task-priority-sort";
     const legacyTaskPrioritySortKey = "n10e-task-priority-sort";
+    const noteBodyHeightsKey = "topside-note-body-heights";
+    const legacyNoteBodyHeightsKey = "n10e-note-body-heights";
     const sessionStateKey = "topside-last-session";
     const legacySessionStateKey = "n10e-last-session";
     const sessionStateVersion = 1;
@@ -2719,6 +3013,10 @@
       taskMessage: "",
       noteMessage: "",
       notesSearchQuery: "",
+      pendingNoteSearchJump: null,
+      noteSearchNavIndex: -1,
+      noteSearchNavKey: "",
+      noteBodyHeights: loadNoteBodyHeights(),
       taskDrafts: [],
       taskEdits: {},
       noteFilePickerOpen: false,
@@ -2745,6 +3043,7 @@
       projectSettingsMessage: "",
       projectSettingsPickerFallback: false,
       archiveMenuOpen: false,
+      settingsTab: "archive",
       archiveMenuLoading: false,
       archiveItems: [],
       archiveTotalCount: 0,
@@ -2759,6 +3058,7 @@
       pendingActiveTaskAnimation: null,
       pendingSessionScrollState: null,
       sessionPersistTimer: null,
+      lifecycleSavePromise: null,
     };
 
     function readStorageItem(key, legacyKey) {
@@ -2771,6 +3071,64 @@
       } catch (_error) {
         return null;
       }
+    }
+
+    function loadNoteBodyHeights() {
+      const raw = readStorageItem(noteBodyHeightsKey, legacyNoteBodyHeightsKey);
+      if (!raw) return {};
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return {};
+        }
+        const heights = {};
+        Object.entries(parsed).forEach(([noteId, height]) => {
+          const normalized = Number(height);
+          if (
+            typeof noteId === "string"
+            && noteId
+            && Number.isFinite(normalized)
+            && normalized >= 120
+            && normalized <= 5000
+          ) {
+            heights[noteId] = Math.round(normalized);
+          }
+        });
+        return heights;
+      } catch (_error) {
+        return {};
+      }
+    }
+
+    function persistNoteBodyHeights() {
+      try {
+        localStorage.setItem(noteBodyHeightsKey, JSON.stringify(state.noteBodyHeights || {}));
+      } catch (_error) {
+        // Ignore storage failures and keep the in-memory size state.
+      }
+    }
+
+    function getSavedNoteBodyHeight(noteId) {
+      const candidate = Number(state.noteBodyHeights?.[noteId]);
+      if (!Number.isFinite(candidate) || candidate < 120) return null;
+      return Math.round(candidate);
+    }
+
+    function rememberNoteBodyHeight(noteId, nextHeight) {
+      if (!noteId) return;
+      const normalized = Number(nextHeight);
+      if (!Number.isFinite(normalized) || normalized < 120 || normalized > 5000) return;
+      const rounded = Math.round(normalized);
+      if (state.noteBodyHeights[noteId] === rounded) return;
+      state.noteBodyHeights[noteId] = rounded;
+      persistNoteBodyHeights();
+    }
+
+    function resetNoteSearchNavigationState() {
+      state.noteSearchNavIndex = -1;
+      state.noteSearchNavKey = "";
+      clearCleanSearchDecorations();
+      clearMarkdownSearchOverlays();
     }
 
     const projectTray = document.getElementById("project-tray");
@@ -2789,6 +3147,10 @@
     const changelogStatus = document.getElementById("changelog-status");
     const noteStatus = document.getElementById("note-status");
     const notesSearchInput = document.getElementById("notes-search-input");
+    const notesSearchNav = document.getElementById("notes-search-nav");
+    const notesSearchCount = document.getElementById("notes-search-count");
+    const notesSearchPrevButton = document.getElementById("notes-search-prev");
+    const notesSearchNextButton = document.getElementById("notes-search-next");
     const notesLinkButton = document.getElementById("notes-link");
     const noteLinkPickerWrap = document.getElementById("note-link-picker-wrap");
     const noteLinkPicker = document.getElementById("note-link-picker");
@@ -2809,6 +3171,19 @@
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
     const changelogBody = document.getElementById("changelog-body");
     const notesPaneBody = document.querySelector(".pane-notes .pane-body");
+    const observedNoteBodyInputs = new WeakSet();
+    const observedMarkdownOverlayInputs = new WeakSet();
+    const noteBodyResizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver((entries) => {
+        entries.forEach((entry) => {
+          const input = entry.target;
+          if (!(input instanceof HTMLTextAreaElement)) return;
+          const noteId = input.dataset.noteBodyId;
+          if (!noteId) return;
+          rememberNoteBodyHeight(noteId, entry.contentRect.height);
+        });
+      })
+      : null;
     const shellScrollPaneNodes = Object.freeze({
       projects: projectsPaneBody,
       activeTasks: activeTaskList,
@@ -2863,6 +3238,271 @@
     const scrollRevealTimers = new WeakMap();
     const scrollIndicators = new WeakMap();
     const uiRefreshIntervalMs = 1400;
+    const cleanNoteSearchMarkerSelector = "mark[data-note-search-active='true']";
+    let noteSearchAutoJumpTimer = null;
+
+    function clearNoteSearchAutoJumpTimer() {
+      if (noteSearchAutoJumpTimer === null) return;
+      window.clearTimeout(noteSearchAutoJumpTimer);
+      noteSearchAutoJumpTimer = null;
+    }
+
+    function unwrapElement(node) {
+      if (!(node instanceof HTMLElement) || !node.parentNode) return;
+      while (node.firstChild) {
+        node.parentNode.insertBefore(node.firstChild, node);
+      }
+      node.remove();
+    }
+
+    function stripSearchDecorationsFromContainer(container) {
+      if (!(container instanceof Element)) return;
+      container.querySelectorAll(cleanNoteSearchMarkerSelector).forEach((marker) => {
+        unwrapElement(marker);
+      });
+    }
+
+    function stripSearchDecorationsFromHtml(html) {
+      const container = document.createElement("div");
+      container.innerHTML = html || "";
+      stripSearchDecorationsFromContainer(container);
+      return container.innerHTML;
+    }
+
+    function clearCleanSearchDecorations(noteId = null) {
+      if (noteId) {
+        const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
+        if (editor instanceof HTMLElement) {
+          stripSearchDecorationsFromContainer(editor);
+        }
+        return;
+      }
+      document.querySelectorAll("[data-note-clean-id]").forEach((editor) => {
+        if (!(editor instanceof HTMLElement)) return;
+        stripSearchDecorationsFromContainer(editor);
+      });
+    }
+
+    function resolveCleanMatchRangeByOffsets(editor, match) {
+      if (!(editor instanceof HTMLElement) || !match) return null;
+      const absoluteStart = Number(match.absoluteStart);
+      const absoluteEnd = Number(match.absoluteEnd);
+      if (!Number.isFinite(absoluteStart) || !Number.isFinite(absoluteEnd)) return null;
+      if (absoluteEnd <= absoluteStart) return null;
+
+      let startNode = null;
+      let startOffset = 0;
+      let endNode = null;
+      let endOffset = 0;
+      let offset = 0;
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        const value = node.nodeValue || "";
+        const length = value.length;
+        const nextOffset = offset + length;
+
+        if (!startNode && absoluteStart >= offset && absoluteStart <= nextOffset) {
+          startNode = node;
+          startOffset = absoluteStart - offset;
+        }
+
+        if (!endNode && absoluteEnd >= offset && absoluteEnd <= nextOffset) {
+          endNode = node;
+          endOffset = absoluteEnd - offset;
+        }
+
+        if (startNode && endNode) break;
+        offset = nextOffset;
+        node = walker.nextNode();
+      }
+
+      if (!startNode || !endNode) return null;
+      if (startNode === endNode && endOffset <= startOffset) return null;
+      return {
+        startNode,
+        startOffset,
+        endNode,
+        endOffset
+      };
+    }
+
+    function decorateCleanSearchMatch(editor, match) {
+      if (!(editor instanceof HTMLElement) || !match) return null;
+      clearCleanSearchDecorations(editor.dataset.noteCleanId || null);
+      const resolved = resolveCleanMatchRangeByOffsets(editor, match);
+      if (!resolved) return null;
+
+      const range = document.createRange();
+      range.setStart(resolved.startNode, resolved.startOffset);
+      range.setEnd(resolved.endNode, resolved.endOffset);
+      const marker = document.createElement("mark");
+      marker.dataset.noteSearchActive = "true";
+      marker.className = "note-search-active";
+      marker.appendChild(range.extractContents());
+      range.insertNode(marker);
+      return marker;
+    }
+
+    function scheduleInitialSearchJump(query) {
+      clearNoteSearchAutoJumpTimer();
+      if (!query) return;
+      noteSearchAutoJumpTimer = window.setTimeout(async () => {
+        noteSearchAutoJumpTimer = null;
+        if (String(state.notesSearchQuery || "").trim() !== query) return;
+        const preserveSearchFocus = document.activeElement === notesSearchInput;
+        await focusGlobalNoteSearchMatchAt(0, query, { preserveSearchFocus });
+      }, 150);
+    }
+
+    function applyInitialSearchActivation(query) {
+      const searchData = getGlobalNoteSearchData(query);
+      if (!searchData.query || !searchData.globalMatches.length) {
+        state.noteSearchNavKey = searchData.navKey;
+        state.noteSearchNavIndex = -1;
+        return false;
+      }
+
+      // Bridge "matches found" and "active match selected" in one update cycle.
+      state.noteSearchNavKey = searchData.navKey;
+      state.noteSearchNavIndex = 0;
+
+      const firstMatch = searchData.globalMatches[0];
+      if (!firstMatch || firstMatch.noteId !== state.openNoteId) {
+        return false;
+      }
+
+      const targets = getOpenNoteSearchTargetsForField(
+        firstMatch.noteId,
+        searchData.terms,
+        firstMatch.field
+      );
+      if (!targets?.matches?.length) {
+        return false;
+      }
+
+      const targetFieldIndex = Number.isFinite(firstMatch.fieldIndex)
+        ? firstMatch.fieldIndex
+        : 0;
+      const nextMatchIndex = Math.min(
+        Math.max(0, targetFieldIndex),
+        targets.matches.length - 1
+      );
+      return applyOpenNoteSearchMatch(targets, nextMatchIndex, { stealFocus: false });
+    }
+
+    function getMarkdownOverlayElements(noteId = state.openNoteId) {
+      if (!noteId) return {};
+      const input = document.querySelector(`[data-note-body-id="${noteId}"]`);
+      const overlay = document.querySelector(`[data-note-search-overlay-id="${noteId}"]`);
+      const content = overlay?.querySelector(".markdown-search-overlay-content") || null;
+      return { input, overlay, content };
+    }
+
+    function clearMarkdownSearchOverlays(noteId = null) {
+      if (noteId) {
+        const { overlay, content } = getMarkdownOverlayElements(noteId);
+        if (content instanceof HTMLElement) {
+          content.innerHTML = "";
+        }
+        if (overlay instanceof HTMLElement) {
+          overlay.hidden = true;
+        }
+        return;
+      }
+      document.querySelectorAll("[data-note-search-overlay-id]").forEach((overlay) => {
+        if (!(overlay instanceof HTMLElement)) return;
+        const content = overlay.querySelector(".markdown-search-overlay-content");
+        if (content instanceof HTMLElement) {
+          content.innerHTML = "";
+        }
+        overlay.hidden = true;
+      });
+    }
+
+    function getActiveBodyFieldIndexForNote(noteId, query) {
+      if (!noteId || !query) return -1;
+      const searchData = getGlobalNoteSearchData(query);
+      const navIndex = Number.isFinite(state.noteSearchNavIndex) ? state.noteSearchNavIndex : -1;
+      if (navIndex < 0 || navIndex >= searchData.globalMatches.length) return -1;
+      const activeMatch = searchData.globalMatches[navIndex];
+      if (!activeMatch) return -1;
+      if (activeMatch.noteId !== noteId || activeMatch.field !== "body") return -1;
+      return Number.isFinite(activeMatch.fieldIndex) ? activeMatch.fieldIndex : -1;
+    }
+
+    function buildMarkdownSearchOverlayHtml(text, terms, activeFieldIndex = -1) {
+      const source = String(text || "");
+      if (!source || !Array.isArray(terms) || !terms.length) return "";
+      const matches = collectTextSearchMatches(source, terms);
+      if (!matches.length) return "";
+
+      let cursor = 0;
+      let html = "";
+      matches.forEach((match, index) => {
+        const start = Math.max(0, Number(match.start) || 0);
+        const end = Math.max(start, Number(match.end) || start);
+        if (start < cursor) return;
+        html += escapeHtml(source.slice(cursor, start));
+        const className = index === activeFieldIndex
+          ? "markdown-search-hit active"
+          : "markdown-search-hit";
+        html += `<mark class="${className}">${escapeHtml(source.slice(start, end))}</mark>`;
+        cursor = end;
+      });
+      html += escapeHtml(source.slice(cursor));
+      return html;
+    }
+
+    function syncMarkdownSearchOverlayPosition(noteId = state.openNoteId) {
+      const { input, content } = getMarkdownOverlayElements(noteId);
+      if (!(input instanceof HTMLTextAreaElement) || !(content instanceof HTMLElement)) return;
+      content.style.transform = `translate(${-input.scrollLeft}px, ${-input.scrollTop}px)`;
+    }
+
+    function renderMarkdownSearchOverlay(noteId = state.openNoteId, queryOverride = null) {
+      const { input, overlay, content } = getMarkdownOverlayElements(noteId);
+      if (!(input instanceof HTMLTextAreaElement) || !(overlay instanceof HTMLElement) || !(content instanceof HTMLElement)) return;
+
+      const query = String(queryOverride ?? state.notesSearchQuery ?? "").trim();
+      if (!query) {
+        overlay.hidden = true;
+        content.innerHTML = "";
+        return;
+      }
+      const terms = getNotesSearchTerms(query);
+      if (!terms.length) {
+        overlay.hidden = true;
+        content.innerHTML = "";
+        return;
+      }
+
+      const activeFieldIndex = getActiveBodyFieldIndexForNote(noteId, query);
+      const html = buildMarkdownSearchOverlayHtml(input.value, terms, activeFieldIndex);
+      if (!html) {
+        overlay.hidden = true;
+        content.innerHTML = "";
+        return;
+      }
+
+      content.innerHTML = html;
+      overlay.hidden = false;
+      syncMarkdownSearchOverlayPosition(noteId);
+    }
+
+    function bindMarkdownSearchOverlayTracking() {
+      document.querySelectorAll("[data-note-body-id]").forEach((node) => {
+        if (!(node instanceof HTMLTextAreaElement)) return;
+        if (observedMarkdownOverlayInputs.has(node)) return;
+        observedMarkdownOverlayInputs.add(node);
+        node.addEventListener("scroll", () => {
+          syncMarkdownSearchOverlayPosition(node.dataset.noteBodyId || null);
+        }, { passive: true });
+        node.addEventListener("input", () => {
+          renderMarkdownSearchOverlay(node.dataset.noteBodyId || null);
+        });
+      });
+    }
 
     changelogExportButton.addEventListener("click", () => {
       exportChangelog();
@@ -2943,15 +3583,70 @@
 
     notesSearchInput.addEventListener("input", () => {
       state.notesSearchQuery = notesSearchInput.value || "";
+      state.pendingNoteSearchJump = null;
+      resetNoteSearchNavigationState();
+      clearNoteSearchAutoJumpTimer();
+      const query = String(state.notesSearchQuery || "").trim();
+      if (!query) {
+        renderNotes();
+        return;
+      }
+
       renderNotes();
+
+      const activatedInline = applyInitialSearchActivation(query);
+      updateNotesSearchFindingsUi();
+      if (!activatedInline) {
+        scheduleInitialSearchJump(query);
+      }
     });
 
-    notesSearchInput.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || !state.notesSearchQuery) return;
+    notesSearchInput.addEventListener("keydown", async (event) => {
+      if (event.key === "Escape" && state.notesSearchQuery) {
+        event.preventDefault();
+        clearNoteSearchAutoJumpTimer();
+        state.notesSearchQuery = "";
+        notesSearchInput.value = "";
+        state.pendingNoteSearchJump = null;
+        resetNoteSearchNavigationState();
+        renderNotes();
+        return;
+      }
+
+      if (event.key !== "Enter") return;
+      const query = String(state.notesSearchQuery || "").trim();
+      if (!query || !state.workspace) return;
+
       event.preventDefault();
-      state.notesSearchQuery = "";
-      notesSearchInput.value = "";
-      renderNotes();
+      clearNoteSearchAutoJumpTimer();
+      const stepped = await stepOpenNoteSearchMatch(event.shiftKey ? -1 : 1, query);
+      if (stepped) return;
+
+      const searchData = getGlobalNoteSearchData(query);
+      if (!searchData.filteredNotes.length) return;
+      const fallbackNoteId = searchData.filteredNotes[0]?.id;
+      if (!fallbackNoteId) return;
+
+      if (state.openNoteId && state.openNoteId !== fallbackNoteId) {
+        await saveOpenNote();
+      }
+      state.openNoteId = fallbackNoteId;
+      state.pendingNoteSearchJump = null;
+      render();
+    });
+
+    notesSearchPrevButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearNoteSearchAutoJumpTimer();
+      await stepOpenNoteSearchMatch(-1);
+    });
+
+    notesSearchNextButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearNoteSearchAutoJumpTimer();
+      await stepOpenNoteSearchMatch(1);
     });
 
     notesLinkButton.addEventListener("click", async (event) => {
@@ -2979,7 +3674,9 @@
       state.archiveMenuOpen = true;
       state.archiveEmptyConfirm = false;
       render();
-      await loadArchiveMenu();
+      if (state.settingsTab === "archive") {
+        await loadArchiveMenu();
+      }
     });
 
     document.querySelectorAll("[data-note-mode]").forEach((button) => {
@@ -2993,19 +3690,25 @@
       });
     });
 
-    document.addEventListener("visibilitychange", () => {
+    document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState === "visible") {
         scheduleUiRefresh(50);
       } else {
+        await flushPendingEntitySaves();
+        flushPendingRemoteUiState();
         persistSessionStateNow();
       }
     });
 
     window.addEventListener("pagehide", () => {
+      void flushPendingEntitySaves();
+      flushPendingRemoteUiState();
       persistSessionStateNow();
     });
 
     window.addEventListener("beforeunload", () => {
+      void flushPendingEntitySaves();
+      flushPendingRemoteUiState();
       persistSessionStateNow();
     });
 
@@ -3258,6 +3961,21 @@
         return;
       }
 
+      const settingsTabButton = event.target.closest("[data-settings-tab]");
+      if (settingsTabButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        const nextTab = settingsTabButton.dataset.settingsTab;
+        if (!nextTab || nextTab === state.settingsTab) return;
+        state.settingsTab = nextTab;
+        state.archiveEmptyConfirm = false;
+        renderArchivePane();
+        if (nextTab === "archive") {
+          await loadArchiveMenu();
+        }
+        return;
+      }
+
       const archiveRestoreButton = event.target.closest("[data-archive-restore-id]");
       if (archiveRestoreButton) {
         event.preventDefault();
@@ -3361,9 +4079,16 @@
         const noteId = noteToggle.dataset.noteId;
         if (state.openNoteId === noteId) {
           state.openNoteId = null;
+          state.pendingNoteSearchJump = null;
+          resetNoteSearchNavigationState();
         } else {
           await saveOpenNote();
           state.openNoteId = noteId;
+          const query = String(state.notesSearchQuery || "").trim();
+          resetNoteSearchNavigationState();
+          state.pendingNoteSearchJump = query
+            ? { noteId, query, retriesRemaining: 1 }
+            : null;
         }
         render();
         return;
@@ -3470,6 +4195,7 @@
       const markdownBody = event.target.closest("[data-note-body-id]");
       if (markdownBody && markdownBody.tagName === "TEXTAREA") {
         state.noteBodyEdits[markdownBody.dataset.noteBodyId] = markdownBody.value;
+        renderMarkdownSearchOverlay(markdownBody.dataset.noteBodyId);
         debounceNoteSave(markdownBody.dataset.noteBodyId);
         return;
       }
@@ -3759,6 +4485,7 @@
     }
 
     async function loadArchiveMenu() {
+      if (state.archiveMenuLoading) return;
       state.archiveMenuLoading = true;
       renderArchivePane();
       const response = await fetchJson("/api/archive", {}, "project");
@@ -3813,10 +4540,10 @@
     function renderArchiveMenu() {
       archiveMenuToggle.classList.toggle("active", state.archiveMenuOpen);
       archiveMenuToggle.setAttribute("aria-pressed", state.archiveMenuOpen ? "true" : "false");
-      archiveMenuToggle.title = state.archiveMenuOpen ? "Close archive" : "Open archive";
+      archiveMenuToggle.title = state.archiveMenuOpen ? "Close settings" : "Open settings";
       archiveMenuToggle.setAttribute(
         "aria-label",
-        state.archiveMenuOpen ? "Close archive" : "Open archive"
+        state.archiveMenuOpen ? "Close settings" : "Open settings"
       );
     }
 
@@ -3828,74 +4555,151 @@
         archiveBody.innerHTML = "";
         return;
       }
-
-      if (state.archiveMenuLoading) {
-        archiveStatus.textContent = "loading…";
-        archiveBody.innerHTML = `<div class="empty-state">Loading archive…</div>`;
-        return;
+      archiveStatus.textContent = "";
+      const settingsTabs = [
+        {
+          id: "archive",
+          label: "archive",
+          description: "Restore or permanently clear archived items."
+        },
+        {
+          id: "workspace",
+          label: "workspace",
+          description: "Workspace defaults and behavior controls.",
+          comingSoon: true
+        },
+        {
+          id: "automation",
+          label: "automation",
+          description: "Recurring actions and integration controls.",
+          comingSoon: true
+        }
+      ];
+      const activeTab = settingsTabs.find((tab) => tab.id === state.settingsTab) || settingsTabs[0];
+      if (state.settingsTab !== activeTab.id) {
+        state.settingsTab = activeTab.id;
       }
 
-      let previousType = null;
-      const itemsMarkup = state.archiveItems.map((item) => {
-        const showSection = item.entity_type !== previousType;
-        previousType = item.entity_type;
-        const sectionLabel = item.entity_type === "project"
-          ? "projects"
-          : item.entity_type === "task"
-            ? "tasks"
-            : "notes";
-        const detailParts = [item.context_label, item.detail_label].filter(Boolean);
-
+      const tabsMarkup = settingsTabs.map((tab) => {
+        const isActive = tab.id === activeTab.id;
+        const metaLabel = tab.id === "archive"
+          ? (state.archiveMenuLoading
+            ? "loading..."
+            : `${state.archiveTotalCount} ${state.archiveTotalCount === 1 ? "item" : "items"}`)
+          : (tab.comingSoon ? "coming soon" : tab.description);
         return `
-          ${showSection ? `<div class="archive-menu-section-label">${escapeHtml(sectionLabel)}</div>` : ""}
-          <div class="archive-item">
-            <div class="archive-item-meta">
-              <div class="archive-item-title">${escapeHtml(item.title || "Untitled")}</div>
-              <div class="archive-item-detail">${escapeHtml(detailParts.join(" | "))}</div>
-            </div>
-            <button
-              class="text-btn"
-              type="button"
-              data-archive-restore-id="${escapeAttribute(item.id)}"
-              data-archive-restore-revision="${escapeAttribute(item.revision)}"
-            >
-              restore
-            </button>
-          </div>
+          <button
+            class="settings-nav-btn${isActive ? " active" : ""}"
+            type="button"
+            data-settings-tab="${escapeAttribute(tab.id)}"
+            aria-pressed="${isActive ? "true" : "false"}"
+          >
+            <span class="settings-nav-btn-label">${escapeHtml(tab.label)}</span>
+            <span class="settings-nav-btn-meta">${escapeHtml(metaLabel)}</span>
+          </button>
         `;
       }).join("");
 
-      const totalLabel = state.archiveTotalCount === 1
-        ? "1 item"
-        : `${state.archiveTotalCount} items`;
-      archiveStatus.textContent = totalLabel;
+      let activePanelMarkup = "";
+      if (activeTab.id === "archive") {
+        if (state.archiveMenuLoading) {
+          activePanelMarkup = `
+            <section class="settings-panel-card">
+              <div class="settings-panel-title">archive</div>
+              <div class="settings-panel-copy">Loading archived items...</div>
+            </section>
+          `;
+        } else {
+          let previousType = null;
+          const itemsMarkup = state.archiveItems.map((item) => {
+            const showSection = item.entity_type !== previousType;
+            previousType = item.entity_type;
+            const sectionLabel = item.entity_type === "project"
+              ? "projects"
+              : item.entity_type === "task"
+                ? "tasks"
+                : "notes";
+            const detailParts = [item.context_label, item.detail_label].filter(Boolean);
 
-      const emptyStateMarkup = state.archiveItems.length
-        ? ""
-        : `<div class="empty-state">Archive is empty.</div>`;
-      const actionsMarkup = state.archiveTotalCount === 0
-        ? ""
-        : (state.archiveEmptyConfirm
-          ? `
-            <div class="archive-empty-confirm">
-              <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
-              <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
-              <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
+            return `
+              ${showSection ? `<div class="archive-menu-section-label">${escapeHtml(sectionLabel)}</div>` : ""}
+              <div class="archive-item">
+                <div class="archive-item-meta">
+                  <div class="archive-item-title">${escapeHtml(item.title || "Untitled")}</div>
+                  <div class="archive-item-detail">${escapeHtml(detailParts.join(" | "))}</div>
+                </div>
+                <button
+                  class="text-btn"
+                  type="button"
+                  data-archive-restore-id="${escapeAttribute(item.id)}"
+                  data-archive-restore-revision="${escapeAttribute(item.revision)}"
+                >
+                  restore
+                </button>
+              </div>
+            `;
+          }).join("");
+
+          const totalLabel = state.archiveTotalCount === 1
+            ? "1 item"
+            : `${state.archiveTotalCount} items`;
+          const archiveSectionHeadMarkup = `
+            <div class="archive-menu-head">
+              <span class="archive-menu-title">archive</span>
+              <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
             </div>
-          `
-          : `
-            <div class="archive-menu-actions">
-              <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
-            </div>
-          `);
+          `;
+          const emptyStateMarkup = state.archiveItems.length
+            ? ""
+            : `<div class="empty-state">Archive is empty.</div>`;
+          const actionsMarkup = state.archiveTotalCount === 0
+            ? ""
+            : (state.archiveEmptyConfirm
+              ? `
+                <div class="archive-empty-confirm">
+                  <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
+                  <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
+                  <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
+                </div>
+              `
+              : `
+                <div class="archive-menu-actions">
+                  <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
+                </div>
+              `);
+
+          activePanelMarkup = `
+            <section class="settings-panel-card">
+              ${archiveSectionHeadMarkup}
+              <div class="archive-menu-list">
+                ${itemsMarkup}
+              </div>
+              ${emptyStateMarkup}
+              ${actionsMarkup}
+            </section>
+          `;
+        }
+      } else {
+        activePanelMarkup = `
+          <section class="settings-panel-card">
+            <div class="settings-panel-title">${escapeHtml(activeTab.label)}</div>
+            <div class="settings-panel-copy">${escapeHtml(activeTab.description)}</div>
+            <span class="settings-coming-soon">coming soon</span>
+          </section>
+        `;
+      }
 
       archiveBody.innerHTML = `
         ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
-        <div class="archive-menu-list">
-          ${itemsMarkup}
+        <div class="settings-page-shell">
+          <nav class="settings-nav" aria-label="Settings sections">
+            <div class="settings-nav-title">sections</div>
+            ${tabsMarkup}
+          </nav>
+          <div class="settings-panel">
+            ${activePanelMarkup}
+          </div>
         </div>
-        ${emptyStateMarkup}
-        ${actionsMarkup}
       `;
     }
 
@@ -3926,7 +4730,7 @@
         })
       }, "task");
       if (!response) return;
-      removeDraft(draft.key);
+      removeDraft(draft.key, { autoInsertWhenEmpty: false });
       applyWorkspace(response.workspace);
       insertDraftAfter(response.created_task_id);
       render();
@@ -4241,6 +5045,56 @@
       state.noteMessage = "";
       noteMessage.innerHTML = "";
       return true;
+    }
+
+    function collectPendingTaskSaveIds() {
+      const ids = new Set([
+        ...Object.keys(state.taskEdits),
+        ...Object.keys(state.taskTimers),
+      ]);
+      return Array.from(ids).filter(Boolean);
+    }
+
+    function collectPendingNoteSaveIds() {
+      const ids = new Set([
+        ...Object.keys(state.noteTimers),
+        ...Object.keys(state.noteTitleEdits),
+        ...Object.keys(state.noteBodyEdits),
+        ...Object.keys(state.noteHtmlEdits),
+      ]);
+      return Array.from(ids).filter(Boolean);
+    }
+
+    async function flushPendingEntitySaves() {
+      if (state.lifecycleSavePromise) {
+        return state.lifecycleSavePromise;
+      }
+
+      const pendingTaskIds = collectPendingTaskSaveIds();
+      const pendingNoteIds = collectPendingNoteSaveIds();
+      if (!pendingTaskIds.length && !pendingNoteIds.length) {
+        return;
+      }
+
+      state.lifecycleSavePromise = (async () => {
+        for (const taskId of pendingTaskIds) {
+          clearTimeout(state.taskTimers[taskId]);
+          delete state.taskTimers[taskId];
+          await saveTask(taskId);
+        }
+
+        for (const noteId of pendingNoteIds) {
+          clearTimeout(state.noteTimers[noteId]);
+          delete state.noteTimers[noteId];
+          await saveNote(noteId);
+        }
+      })();
+
+      try {
+        await state.lifecycleSavePromise;
+      } finally {
+        state.lifecycleSavePromise = null;
+      }
     }
 
     async function resolveNoteRevisionConflict(noteId, source) {
@@ -4746,6 +5600,7 @@
     }
 
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
+      const previousOpenNoteId = state.openNoteId;
       const pendingAnimation = computeActiveTaskAnimation(state.workspace, workspace);
       if (pendingAnimation) {
         pendingAnimation.beforeTaskRowSnapshot = captureTaskRowSnapshot();
@@ -4759,8 +5614,11 @@
       state.pendingActiveTaskAnimation = pendingAnimation;
       state.workspace = workspace;
       if (!workspace) {
+        clearNoteSearchAutoJumpTimer();
         setSelectedTaskId(null);
         state.openNoteId = null;
+        state.pendingNoteSearchJump = null;
+        resetNoteSearchNavigationState();
         state.taskDrafts = [];
         state.noteRevisionConflict = null;
         state.pendingRemoteUiState = null;
@@ -4785,6 +5643,10 @@
       ) {
         state.noteRevisionConflict = null;
       }
+      if (previousOpenNoteId !== state.openNoteId) {
+        clearCleanSearchDecorations(previousOpenNoteId || null);
+        clearMarkdownSearchOverlays(previousOpenNoteId || null);
+      }
       ensureDraftRow();
       syncLocation();
       scheduleUiRefresh();
@@ -4795,12 +5657,15 @@
       state.projects = payload.projects || [];
       state.selectedProjectId = payload.selected_project_id || null;
       if (state.selectedProjectId !== previousProjectId) {
+        clearNoteSearchAutoJumpTimer();
         state.noteRevisionConflict = null;
         state.noteLinkableFiles = [];
         state.noteLinkableFilesLoaded = false;
         state.noteFilePickerLoading = false;
         state.noteFilePickerOpen = false;
         state.notesSearchQuery = "";
+        state.pendingNoteSearchJump = null;
+        resetNoteSearchNavigationState();
       }
       applyWorkspace(payload.workspace || null, payload.workspace?.suggested_open_note_id || null);
     }
@@ -4819,9 +5684,14 @@
       state.focusDraftKey = key;
     }
 
-    function removeDraft(key) {
+    function removeDraft(key, options = {}) {
+      const autoInsertWhenEmpty = options.autoInsertWhenEmpty !== false;
       state.taskDrafts = state.taskDrafts.filter((draft) => draft.key !== key);
-      if (!state.taskDrafts.length && state.workspace?.active_tasks.length === 0) {
+      if (
+        autoInsertWhenEmpty
+        && !state.taskDrafts.length
+        && state.workspace?.active_tasks.length === 0
+      ) {
         insertDraftAfter(null);
       }
     }
@@ -6290,7 +7160,7 @@
             </div>
             <section class="overlay-section">
               <div class="overlay-value">Move these completed tasks into the archive?</div>
-              <div class="overlay-muted">They will be removed from the changelog and can be restored later from the archive pane.</div>
+              <div class="overlay-muted">They will be removed from the changelog and can be restored later from settings > archive.</div>
               <div class="overlay-inline-actions">
                 <button class="text-btn" type="button" data-changelog-archive-close>cancel</button>
                 <button class="text-btn danger-btn" type="button" data-changelog-archive-confirm>archive tasks</button>
@@ -6319,6 +7189,8 @@
       renderChangelogPane();
       renderChangelogArchiveConfirm();
       renderNotes();
+      bindNoteBodyResizeTracking();
+      bindMarkdownSearchOverlayTracking();
       renderNoteFilePicker();
       renderProjectSettings();
       renderProjectArchiveConfirm();
@@ -6332,6 +7204,16 @@
       restoreShellScrollState(scrollState);
       restorePendingSessionScrollState();
       scheduleSessionPersist();
+    }
+
+    function bindNoteBodyResizeTracking() {
+      if (!noteBodyResizeObserver) return;
+      document.querySelectorAll("[data-note-body-id]").forEach((node) => {
+        if (!(node instanceof HTMLTextAreaElement)) return;
+        if (observedNoteBodyInputs.has(node)) return;
+        observedNoteBodyInputs.add(node);
+        noteBodyResizeObserver.observe(node);
+      });
     }
 
     function renderTodoTaskActionButtons() {
@@ -7338,6 +8220,559 @@
       return String(query || "").trim().toLowerCase();
     }
 
+    function getNotesSearchTerms(query) {
+      const normalizedQuery = getNormalizedNotesSearchQuery(query);
+      if (!normalizedQuery) return [];
+      const seen = new Set();
+      const terms = [];
+      normalizedQuery.split(/\s+/).forEach((term) => {
+        if (!term || seen.has(term) || terms.length >= 8) return;
+        seen.add(term);
+        terms.push(term);
+      });
+      terms.sort((a, b) => b.length - a.length);
+      return terms;
+    }
+
+    function escapeRegExp(value) {
+      return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightNoteSearchText(value, terms) {
+      const source = String(value || "");
+      if (!terms.length) return escapeHtml(source);
+      const escapedTerms = terms.map(escapeRegExp).filter(Boolean);
+      if (!escapedTerms.length) return escapeHtml(source);
+      const matcher = new RegExp(`(${escapedTerms.join("|")})`, "ig");
+      return source.split(matcher).map((segment, index) => (
+        index % 2 === 1
+          ? `<mark class="note-search-hit">${escapeHtml(segment)}</mark>`
+          : escapeHtml(segment)
+      )).join("");
+    }
+
+    function findNoteSearchMatch(text, terms) {
+      const source = String(text || "");
+      const normalized = source.toLowerCase();
+      for (const term of terms) {
+        const index = normalized.indexOf(term);
+        if (index !== -1) {
+          return { index, term };
+        }
+      }
+      return null;
+    }
+
+    function buildNoteSearchSnippet(text, match, terms) {
+      if (!match) return "";
+      const source = String(text || "");
+      if (!source) return "";
+      const start = Math.max(0, match.index - 30);
+      const end = Math.min(source.length, match.index + Math.max(1, match.term.length) + 52);
+      const compact = source.slice(start, end).replace(/\s+/g, " ").trim();
+      if (!compact) return "";
+      const prefix = start > 0 ? "..." : "";
+      const suffix = end < source.length ? "..." : "";
+      return `${prefix}${highlightNoteSearchText(compact, terms)}${suffix}`;
+    }
+
+    function getNoteSearchMeta(note, terms) {
+      if (!terms.length) return null;
+      const pathMatch = findNoteSearchMatch(note.sync_path, terms);
+      if (pathMatch) {
+        const snippet = buildNoteSearchSnippet(note.sync_path, pathMatch, terms);
+        if (snippet) {
+          return { label: "path", snippetHtml: snippet };
+        }
+      }
+      const bodyMatch = findNoteSearchMatch(note.body, terms);
+      if (bodyMatch) {
+        const snippet = buildNoteSearchSnippet(note.body, bodyMatch, terms);
+        if (snippet) {
+          return { label: "body", snippetHtml: snippet };
+        }
+      }
+      return null;
+    }
+
+    function buildNoteSearchMatcher(terms) {
+      const escapedTerms = terms.map(escapeRegExp).filter(Boolean);
+      if (!escapedTerms.length) return null;
+      return new RegExp(escapedTerms.join("|"), "ig");
+    }
+
+    function collectTextSearchMatches(text, terms) {
+      const source = String(text || "");
+      if (!source || !terms.length) return [];
+      const matcher = buildNoteSearchMatcher(terms);
+      if (!matcher) return [];
+      const matches = [];
+      let match;
+      while ((match = matcher.exec(source)) !== null) {
+        const token = String(match[0] || "");
+        if (!token.length) {
+          matcher.lastIndex += 1;
+          continue;
+        }
+        matches.push({
+          start: match.index,
+          end: match.index + token.length
+        });
+        if (matcher.lastIndex === match.index) {
+          matcher.lastIndex += 1;
+        }
+      }
+      return matches;
+    }
+
+    function collectMarkdownNoteSearchTargets(noteId, terms) {
+      const input = document.querySelector(`[data-note-body-id="${noteId}"]`);
+      if (!(input instanceof HTMLTextAreaElement)) return null;
+      return {
+        noteId,
+        kind: "markdown",
+        input,
+        matches: collectTextSearchMatches(input.value, terms)
+      };
+    }
+
+    function scrollMarkdownMatchIntoView(input, matchIndex) {
+      const before = input.value.slice(0, Math.max(0, matchIndex));
+      const lineIndex = before.split("\n").length - 1;
+      const style = window.getComputedStyle(input);
+      const lineHeight = Number.parseFloat(style.lineHeight) || 20;
+      const targetTop = Math.max(0, (lineIndex * lineHeight) - (input.clientHeight / 2));
+      input.scrollTop = targetTop;
+      input.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+
+    function collectCleanEditorSearchMatches(editor, terms) {
+      if (!(editor instanceof HTMLElement) || !terms.length) return [];
+      const matcherTemplate = buildNoteSearchMatcher(terms);
+      if (!matcherTemplate) return [];
+      const matcherSource = matcherTemplate.source;
+      const matches = [];
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+      let absoluteOffset = 0;
+      let node = walker.nextNode();
+      while (node) {
+        const value = node.nodeValue || "";
+        if (value) {
+          const matcher = new RegExp(matcherSource, "ig");
+          let match;
+          while ((match = matcher.exec(value)) !== null) {
+            const token = String(match[0] || "");
+            if (!token.length) {
+              matcher.lastIndex += 1;
+              continue;
+            }
+            matches.push({
+              node,
+              start: match.index,
+              end: match.index + token.length,
+              absoluteStart: absoluteOffset + match.index,
+              absoluteEnd: absoluteOffset + match.index + token.length
+            });
+            if (matcher.lastIndex === match.index) {
+              matcher.lastIndex += 1;
+            }
+          }
+        }
+        absoluteOffset += value.length;
+        node = walker.nextNode();
+      }
+      return matches;
+    }
+
+    function collectCleanNoteSearchTargets(noteId, terms) {
+      const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
+      if (!(editor instanceof HTMLElement)) return null;
+      return {
+        noteId,
+        kind: "clean",
+        editor,
+        matches: collectCleanEditorSearchMatches(editor, terms)
+      };
+    }
+
+    function collectTitleSearchTargets(noteId, terms) {
+      const input = document.querySelector(`[data-note-title-id="${noteId}"]`);
+      if (!(input instanceof HTMLInputElement)) return null;
+      return {
+        noteId,
+        kind: "title",
+        input,
+        matches: collectTextSearchMatches(input.value, terms)
+      };
+    }
+
+    function getOpenNoteSearchTargets(terms, noteId = state.openNoteId) {
+      if (!noteId || !terms.length) return null;
+      if (state.noteMode === "markdown") {
+        return collectMarkdownNoteSearchTargets(noteId, terms)
+          || collectCleanNoteSearchTargets(noteId, terms)
+          || collectTitleSearchTargets(noteId, terms);
+      }
+      return collectCleanNoteSearchTargets(noteId, terms)
+        || collectMarkdownNoteSearchTargets(noteId, terms)
+        || collectTitleSearchTargets(noteId, terms);
+    }
+
+    function getOpenNoteSearchTargetsForField(noteId, terms, field = "body") {
+      if (field === "title") {
+        return collectTitleSearchTargets(noteId, terms)
+          || getOpenNoteSearchTargets(terms, noteId);
+      }
+      return getOpenNoteSearchTargets(terms, noteId);
+    }
+
+    function buildGlobalNoteSearchMatches(filteredNotes, terms) {
+      const globalMatches = [];
+      filteredNotes.forEach((note) => {
+        const bodyMatches = collectTextSearchMatches(note.body, terms);
+        bodyMatches.forEach((match, fieldIndex) => {
+          globalMatches.push({
+            noteId: note.id,
+            field: "body",
+            fieldIndex,
+            start: match.start,
+            end: match.end
+          });
+        });
+
+        const titleMatches = collectTextSearchMatches(note.title, terms);
+        titleMatches.forEach((match, fieldIndex) => {
+          globalMatches.push({
+            noteId: note.id,
+            field: "title",
+            fieldIndex,
+            start: match.start,
+            end: match.end
+          });
+        });
+      });
+      return globalMatches;
+    }
+
+    function buildGlobalNoteSearchNavigationKey(query, filteredNotes) {
+      const normalizedQuery = getNormalizedNotesSearchQuery(query);
+      const signature = filteredNotes.map((note) => `${note.id}:${note.revision}`).join("|");
+      return `${normalizedQuery}|${signature}`;
+    }
+
+    function getGlobalNoteSearchData(queryOverride = null) {
+      const query = String(queryOverride ?? state.notesSearchQuery ?? "").trim();
+      const normalizedQuery = getNormalizedNotesSearchQuery(query);
+      const terms = getNotesSearchTerms(normalizedQuery);
+      const notes = Array.isArray(state.workspace?.notes) ? state.workspace.notes : [];
+      const filteredNotes = filterNotesForSearch(notes, normalizedQuery);
+      const globalMatches = terms.length
+        ? buildGlobalNoteSearchMatches(filteredNotes, terms)
+        : [];
+      const navKey = buildGlobalNoteSearchNavigationKey(query, filteredNotes);
+      return {
+        query,
+        normalizedQuery,
+        terms,
+        filteredNotes,
+        globalMatches,
+        navKey
+      };
+    }
+
+    function findFirstGlobalMatchIndexForNote(globalMatches, noteId) {
+      if (!noteId) return -1;
+      for (let index = 0; index < globalMatches.length; index += 1) {
+        if (globalMatches[index]?.noteId === noteId) return index;
+      }
+      return -1;
+    }
+
+    function findLastGlobalMatchIndexForNote(globalMatches, noteId) {
+      if (!noteId) return -1;
+      for (let index = globalMatches.length - 1; index >= 0; index -= 1) {
+        if (globalMatches[index]?.noteId === noteId) return index;
+      }
+      return -1;
+    }
+
+    function applyOpenNoteSearchMatch(targets, index, options = {}) {
+      if (!targets || !Array.isArray(targets.matches)) return false;
+      const match = targets.matches[index];
+      if (!match) return false;
+      const shouldFocusTarget = options.stealFocus !== false;
+      const preserveSearchFocus = !shouldFocusTarget
+        && notesSearchInput instanceof HTMLInputElement
+        && document.activeElement === notesSearchInput;
+      const preservedSelectionStart = preserveSearchFocus ? notesSearchInput.selectionStart : null;
+      const preservedSelectionEnd = preserveSearchFocus ? notesSearchInput.selectionEnd : null;
+
+      function restoreSearchFocus() {
+        if (!preserveSearchFocus) return;
+        if (!(notesSearchInput instanceof HTMLInputElement)) return;
+        notesSearchInput.focus({ preventScroll: true });
+        try {
+          if (
+            Number.isInteger(preservedSelectionStart)
+            && Number.isInteger(preservedSelectionEnd)
+          ) {
+            notesSearchInput.setSelectionRange(preservedSelectionStart, preservedSelectionEnd);
+          }
+        } catch (_error) {
+          // Ignore selection restoration failures for non-text input states.
+        }
+      }
+
+      const noteCard = document.querySelector(`[data-note-card-id="${targets.noteId}"]`);
+      if (noteCard instanceof HTMLElement) {
+        noteCard.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+
+      if (targets.kind !== "clean") {
+        clearCleanSearchDecorations();
+      }
+      if (targets.kind !== "markdown") {
+        clearMarkdownSearchOverlays(targets.noteId);
+      }
+
+      if (targets.kind === "markdown" && targets.input instanceof HTMLTextAreaElement) {
+        if (shouldFocusTarget || preserveSearchFocus) {
+          targets.input.focus({ preventScroll: true });
+        }
+        targets.input.setSelectionRange(match.start, match.end);
+        scrollMarkdownMatchIntoView(targets.input, match.start);
+        window.requestAnimationFrame(() => {
+          scrollMarkdownMatchIntoView(targets.input, match.start);
+        });
+        renderMarkdownSearchOverlay(targets.noteId);
+        restoreSearchFocus();
+        return true;
+      }
+
+      if (targets.kind === "clean" && targets.editor instanceof HTMLElement) {
+        const marker = decorateCleanSearchMatch(targets.editor, match);
+        if (!(marker instanceof HTMLElement)) return false;
+        const anchor = marker.parentElement || marker;
+        if (!shouldFocusTarget) {
+          anchor.scrollIntoView({ block: "center", inline: "nearest" });
+          restoreSearchFocus();
+          return true;
+        }
+        const selection = window.getSelection();
+        if (!selection) return false;
+        const range = document.createRange();
+        range.selectNodeContents(marker);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        targets.editor.focus();
+        anchor.scrollIntoView({ block: "center", inline: "nearest" });
+        restoreSearchFocus();
+        return true;
+      }
+
+      if (targets.kind === "title" && targets.input instanceof HTMLInputElement) {
+        if (shouldFocusTarget || preserveSearchFocus) {
+          targets.input.focus({ preventScroll: true });
+        }
+        targets.input.setSelectionRange(match.start, match.end);
+        targets.input.scrollIntoView({ block: "nearest", inline: "nearest" });
+        restoreSearchFocus();
+        return true;
+      }
+
+      return false;
+    }
+
+    async function focusGlobalNoteSearchMatchAt(index, queryOverride = null, options = {}) {
+      const searchData = getGlobalNoteSearchData(queryOverride);
+      if (!searchData.query) {
+        updateNotesSearchFindingsUi(0);
+        return false;
+      }
+
+      const totalFindings = searchData.globalMatches.length;
+      if (!totalFindings) {
+        state.noteSearchNavKey = searchData.navKey;
+        state.noteSearchNavIndex = -1;
+        updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+        return false;
+      }
+
+      const normalizedIndex = Number.isFinite(index) ? Math.trunc(index) : 0;
+      const wrappedIndex = ((normalizedIndex % totalFindings) + totalFindings) % totalFindings;
+      const targetMatch = searchData.globalMatches[wrappedIndex];
+      if (!targetMatch) return false;
+
+      if (state.openNoteId && state.openNoteId !== targetMatch.noteId) {
+        await saveOpenNote();
+      }
+
+      state.openNoteId = targetMatch.noteId;
+      state.noteSearchNavKey = searchData.navKey;
+      state.noteSearchNavIndex = wrappedIndex;
+      state.pendingNoteSearchJump = {
+        noteId: targetMatch.noteId,
+        query: searchData.query,
+        navKey: searchData.navKey,
+        navIndex: wrappedIndex,
+        matchField: targetMatch.field,
+        matchFieldIndex: targetMatch.fieldIndex,
+        retriesRemaining: 1,
+        preserveSearchFocus: options.preserveSearchFocus === true
+      };
+      render();
+      return true;
+    }
+
+    async function stepOpenNoteSearchMatch(direction = 1, queryOverride = null) {
+      const searchData = getGlobalNoteSearchData(queryOverride);
+      if (!searchData.query) {
+        updateNotesSearchFindingsUi(0);
+        return false;
+      }
+
+      const totalFindings = searchData.globalMatches.length;
+      if (!totalFindings) {
+        state.noteSearchNavKey = searchData.navKey;
+        state.noteSearchNavIndex = -1;
+        updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+        return false;
+      }
+
+      let nextIndex;
+      if (
+        state.noteSearchNavKey === searchData.navKey
+        && state.noteSearchNavIndex >= 0
+        && state.noteSearchNavIndex < totalFindings
+      ) {
+        const step = direction < 0 ? -1 : 1;
+        nextIndex = (state.noteSearchNavIndex + step + totalFindings) % totalFindings;
+      } else {
+        const openNoteIndex = direction < 0
+          ? findLastGlobalMatchIndexForNote(searchData.globalMatches, state.openNoteId)
+          : findFirstGlobalMatchIndexForNote(searchData.globalMatches, state.openNoteId);
+        if (openNoteIndex !== -1) {
+          nextIndex = openNoteIndex;
+        } else {
+          nextIndex = direction < 0 ? totalFindings - 1 : 0;
+        }
+      }
+
+      return focusGlobalNoteSearchMatchAt(nextIndex, searchData.query);
+    }
+
+    function updateNotesSearchFindingsUi(filteredResultCount = null) {
+      if (!notesSearchNav || !notesSearchCount || !notesSearchPrevButton || !notesSearchNextButton) return;
+
+      const searchData = getGlobalNoteSearchData();
+      if (!searchData.query) {
+        resetNoteSearchNavigationState();
+        notesSearchNav.hidden = true;
+        notesSearchCount.textContent = "";
+        notesSearchPrevButton.disabled = true;
+        notesSearchNextButton.disabled = true;
+        return;
+      }
+
+      const totalFindings = searchData.globalMatches.length;
+      if (totalFindings > 0) {
+        if (
+          state.noteSearchNavKey !== searchData.navKey
+          || state.noteSearchNavIndex < 0
+          || state.noteSearchNavIndex >= totalFindings
+        ) {
+          const openNoteIndex = findFirstGlobalMatchIndexForNote(searchData.globalMatches, state.openNoteId);
+          state.noteSearchNavIndex = openNoteIndex !== -1 ? openNoteIndex : 0;
+        }
+        state.noteSearchNavKey = searchData.navKey;
+        notesSearchCount.textContent = `${state.noteSearchNavIndex + 1}/${totalFindings}`;
+        notesSearchPrevButton.disabled = totalFindings <= 1;
+        notesSearchNextButton.disabled = totalFindings <= 1;
+        renderMarkdownSearchOverlay(state.openNoteId, searchData.query);
+      } else {
+        clearCleanSearchDecorations();
+        clearMarkdownSearchOverlays();
+        const resultCount = filteredResultCount === null
+          ? searchData.filteredNotes.length
+          : filteredResultCount;
+        const safeResultCount = Math.max(0, Number(resultCount) || 0);
+        state.noteSearchNavKey = searchData.navKey;
+        state.noteSearchNavIndex = -1;
+        notesSearchCount.textContent = safeResultCount === 1 ? "1 result" : `${safeResultCount} results`;
+        notesSearchPrevButton.disabled = true;
+        notesSearchNextButton.disabled = true;
+      }
+
+      notesSearchNav.hidden = false;
+    }
+
+    function jumpToOpenNoteSearchMatch() {
+      const pending = state.pendingNoteSearchJump;
+      if (!pending || !pending.noteId || pending.noteId !== state.openNoteId) {
+        state.pendingNoteSearchJump = null;
+        return false;
+      }
+
+      const searchData = getGlobalNoteSearchData(pending.query);
+      if (!searchData.globalMatches.length) {
+        state.pendingNoteSearchJump = null;
+        updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+        return false;
+      }
+
+      let navIndex = Number.isFinite(pending.navIndex) ? pending.navIndex : -1;
+      if (navIndex < 0 || navIndex >= searchData.globalMatches.length) {
+        navIndex = findFirstGlobalMatchIndexForNote(searchData.globalMatches, pending.noteId);
+      }
+      if (navIndex < 0 || navIndex >= searchData.globalMatches.length) {
+        navIndex = 0;
+      }
+
+      const match = searchData.globalMatches[navIndex];
+      const targetField = pending.matchField || match?.field || "body";
+      const targetFieldIndex = Number.isFinite(pending.matchFieldIndex)
+        ? pending.matchFieldIndex
+        : (match?.fieldIndex ?? 0);
+      const targets = getOpenNoteSearchTargetsForField(pending.noteId, searchData.terms, targetField);
+      state.noteSearchNavKey = searchData.navKey;
+      state.noteSearchNavIndex = navIndex;
+
+      if (!targets?.matches?.length) {
+        const retriesRemaining = Number.isFinite(pending.retriesRemaining)
+          ? pending.retriesRemaining
+          : 0;
+        if (retriesRemaining > 0) {
+          state.pendingNoteSearchJump = {
+            ...pending,
+            navKey: searchData.navKey,
+            navIndex,
+            retriesRemaining: retriesRemaining - 1
+          };
+          window.requestAnimationFrame(() => {
+            if (!state.pendingNoteSearchJump) return;
+            if (state.pendingNoteSearchJump.noteId !== pending.noteId) return;
+            render();
+          });
+          updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+          return true;
+        }
+        state.pendingNoteSearchJump = null;
+        updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+        return false;
+      }
+
+      state.pendingNoteSearchJump = null;
+      const nextMatchIndex = Math.min(
+        Math.max(0, targetFieldIndex),
+        targets.matches.length - 1
+      );
+      const applied = applyOpenNoteSearchMatch(targets, nextMatchIndex, {
+        stealFocus: pending.preserveSearchFocus !== true
+      });
+      updateNotesSearchFindingsUi(searchData.filteredNotes.length);
+      return applied;
+    }
+
     function scoreNoteForSearch(note, terms, fullQuery) {
       const title = String(note.title || "").toLowerCase();
       const path = String(note.sync_path || "").toLowerCase();
@@ -7371,7 +8806,7 @@
         return notes;
       }
 
-      const terms = normalizedQuery.split(/\s+/).filter(Boolean).slice(0, 8);
+      const terms = getNotesSearchTerms(normalizedQuery);
       if (!terms.length) {
         return notes;
       }
@@ -7401,12 +8836,14 @@
       if (!state.projects.length) {
         resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = "";
+        updateNotesSearchFindingsUi(0);
         return;
       }
 
       if (!state.workspace) {
         resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = `<div class="empty-state">Select or create a project to start collecting notes.</div>`;
+        updateNotesSearchFindingsUi(0);
         return;
       }
 
@@ -7414,13 +8851,16 @@
       if (!workspaceNotes.length) {
         resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = `<div class="empty-state">Use the plus button to create the first project note.</div>`;
+        updateNotesSearchFindingsUi(0);
         return;
       }
 
       const activeQuery = getNormalizedNotesSearchQuery(state.notesSearchQuery);
+      const searchTerms = getNotesSearchTerms(activeQuery);
       const filteredNotes = filterNotesForSearch(workspaceNotes, activeQuery);
       if (activeQuery && !filteredNotes.length) {
         notesList.innerHTML = `<div class="empty-state">No docs matched "${escapeHtml(state.notesSearchQuery.trim())}".</div>`;
+        updateNotesSearchFindingsUi(0);
         return;
       }
 
@@ -7428,11 +8868,14 @@
         const isOpen = state.openNoteId === note.id;
         const title = state.noteTitleEdits[note.id] ?? note.title;
         const isSynced = Boolean(note.sync_kind);
+        const highlightedTitle = highlightNoteSearchText(title, searchTerms);
+        const highlightedSyncPath = highlightNoteSearchText(note.sync_path || "", searchTerms);
+        const searchMeta = getNoteSearchMeta(note, searchTerms);
         const syncPill = isSynced
           ? `<span class="note-sync-pill ${note.sync_status === "conflict" ? "conflict" : ""}">${escapeHtml(note.sync_status === "conflict" ? "conflict" : "linked")}</span>`
           : "";
         return `
-          <section class="note-card ${isOpen ? "open" : ""}">
+          <section class="note-card ${isOpen ? "open" : ""}" data-note-card-id="${note.id}">
             ${isOpen ? `
               <div class="note-head-open">
                 <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="true" aria-label="Collapse note" title="Collapse note">
@@ -7443,8 +8886,8 @@
                 ${isSynced ? `
                   <div class="note-sync-meta">
                     <div style="min-width:0; flex:1;">
-                      <div class="note-title-readonly">${escapeHtml(title)}</div>
-                      <div class="note-path-inline">${escapeHtml(note.sync_path || "")}</div>
+                      <div class="note-title-readonly">${highlightedTitle}</div>
+                      <div class="note-path-inline">${highlightedSyncPath}</div>
                     </div>
                     ${syncPill}
                   </div>
@@ -7464,13 +8907,16 @@
             ` : `
               <button class="note-toggle" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="false">
                 <span class="note-toggle-main">
-                  <span class="note-toggle-caret" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m7 10 5 5 5-5"></path>
-                    </svg>
+                  <span class="note-toggle-topline">
+                    <span class="note-toggle-caret" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m7 10 5 5 5-5"></path>
+                      </svg>
+                    </span>
+                    <span class="note-toggle-title">${highlightedTitle}</span>
+                    ${syncPill}
                   </span>
-                  <span class="note-toggle-title">${escapeHtml(title)}</span>
-                  ${syncPill}
+                  ${searchMeta ? `<span class="note-search-snippet"><span class="note-search-snippet-label">${escapeHtml(searchMeta.label)}:</span> ${searchMeta.snippetHtml}</span>` : ""}
                 </span>
                 <span class="muted">${escapeHtml(formatLocalTimestamp(note.updated_at_iso, note.updated_at_label))}</span>
               </button>
@@ -7481,6 +8927,7 @@
       }).join("");
 
       hydrateCleanEditor();
+      updateNotesSearchFindingsUi(filteredNotes.length);
     }
 
     function renderNoteFilePicker() {
@@ -7543,6 +8990,8 @@
         </div>
       ` : "";
       const syncMeta = syncDetails ? `<div class="muted">${escapeHtml(syncDetails)}</div>` : "";
+      const savedBodyHeight = getSavedNoteBodyHeight(note.id);
+      const bodyHeightStyle = savedBodyHeight ? ` style="height:${savedBodyHeight}px;"` : "";
 
       if (state.noteMode === "markdown") {
         const body = state.noteBodyEdits[note.id] ?? note.body;
@@ -7551,7 +9000,12 @@
             ${revisionConflictBanner}
             ${syncBanner}
             ${syncMeta}
-            <textarea class="markdown-input note-body-input" data-note-body-id="${note.id}" placeholder="Capture context, decisions, links, or a handoff note...">${escapeHtml(body)}</textarea>
+            <div class="note-body-wrap">
+              <div class="markdown-search-overlay" data-note-search-overlay-id="${note.id}" hidden aria-hidden="true">
+                <pre class="markdown-search-overlay-content"></pre>
+              </div>
+              <textarea class="markdown-input note-body-input" data-note-body-id="${note.id}" placeholder="Capture context, decisions, links, or a handoff note..."${bodyHeightStyle}>${escapeHtml(body)}</textarea>
+            </div>
           </div>
         `;
       }
@@ -7616,6 +9070,10 @@
         }
       }
 
+      if (jumpToOpenNoteSearchMatch()) {
+        return;
+      }
+
       if (state.focusNoteId) {
         const input = document.querySelector(`[data-note-title-id="${state.focusNoteId}"]`);
         if (input) {
@@ -7662,6 +9120,7 @@
     function normalizeCleanHtml(html) {
       const container = document.createElement("div");
       container.innerHTML = html || "";
+      stripSearchDecorationsFromContainer(container);
       container.querySelectorAll("input[type='checkbox']").forEach((input) => {
         input.removeAttribute("disabled");
       });
@@ -7670,12 +9129,12 @@
 
     function getCurrentCleanHtml(noteId) {
       const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
-      return editor ? editor.innerHTML : null;
+      return editor ? stripSearchDecorationsFromHtml(editor.innerHTML) : null;
     }
 
     function cleanHtmlToMarkdown(html) {
       const container = document.createElement("div");
-      container.innerHTML = html || "";
+      container.innerHTML = stripSearchDecorationsFromHtml(html || "");
       const markdown = serializeBlockChildren(container).trim();
       return markdown ? `${markdown}\n` : "";
     }

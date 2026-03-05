@@ -1,5 +1,6 @@
 mod common;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -11,7 +12,7 @@ use tower::util::ServiceExt;
 use topside::http::{WebState, router};
 use topside::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, ProjectSourceKind,
-    TaskFilters, TaskStatus,
+    TaskFilters, TaskStatus, TaskSyncMode, TaskSyncStatus,
 };
 
 #[tokio::test]
@@ -329,6 +330,208 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
 
     let refreshed = service.load_project_workspace(&project.id)?;
     assert!(refreshed.notes[0].body.contains("Resolved via HTTP."));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_local_project_bootstraps_managed_todo_file() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    std::fs::create_dir_all(repo_root.path().join("docs"))?;
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/projects")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "mode": "local",
+                        "source_locator": repo_root.path().to_string_lossy().to_string()
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let projects = service.list_projects(20, false)?;
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].source_kind, Some(ProjectSourceKind::Local));
+    assert!(projects[0].task_sync_enabled);
+    assert_eq!(
+        projects[0].task_sync_mode,
+        Some(TaskSyncMode::ManagedTodoFile)
+    );
+    assert_eq!(projects[0].task_sync_status, Some(TaskSyncStatus::Live));
+
+    let managed_todo_path = repo_root.path().join("docs").join("to-do.md");
+    assert!(managed_todo_path.is_file());
+    let default_note_path = repo_root.path().join("docs").join("project-notes.md");
+    assert!(default_note_path.is_file());
+
+    let workspace = service.load_project_workspace(&projects[0].id)?;
+    assert_eq!(workspace.notes.len(), 1);
+    assert_eq!(
+        workspace.notes[0].sync_kind,
+        Some(topside::types::NoteSyncKind::RepoMarkdown)
+    );
+    assert_eq!(
+        workspace.notes[0].sync_path.as_deref(),
+        Some("docs/project-notes.md")
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_local_project_succeeds_when_bootstrap_fails() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+    let repo_path = repo_root.path().to_path_buf();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&repo_path, std::fs::Permissions::from_mode(0o555))?;
+    }
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/projects")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "mode": "local",
+                        "source_locator": repo_path.to_string_lossy().to_string()
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&repo_path, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let projects = service.list_projects(20, false)?;
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].source_kind, Some(ProjectSourceKind::Local));
+    let stored_locator = projects[0]
+        .source_locator
+        .as_deref()
+        .expect("source locator should be set");
+    assert_eq!(
+        PathBuf::from(stored_locator).canonicalize()?,
+        repo_path.canonicalize()?
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn create_and_update_note_for_local_project_writes_docs_file() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Local Notes Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service.clone()),
+        dev_reload_token: None,
+    });
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/notes")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "project_id": project.id,
+                        "title": "Design Notes"
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+
+    let workspace = service.load_project_workspace(&project.id)?;
+    let note = workspace
+        .notes
+        .iter()
+        .find(|item| item.sync_path.as_deref() == Some("docs/design-notes.md"))
+        .expect("linked note should exist");
+    assert_eq!(
+        note.sync_kind,
+        Some(topside::types::NoteSyncKind::RepoMarkdown)
+    );
+    let note_path = repo_root.path().join("docs").join("design-notes.md");
+    assert!(note_path.is_file());
+
+    let update_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/notes/{}", note.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({
+                        "expected_revision": note.revision,
+                        "body": "# Design Notes\n\nSaved through notes UI.\n"
+                    })
+                    .to_string(),
+                ))?,
+        )
+        .await?;
+    assert_eq!(update_response.status(), StatusCode::OK);
+
+    let mut updated_on_disk = false;
+    for _ in 0..40 {
+        let contents = std::fs::read_to_string(&note_path).unwrap_or_default();
+        if contents.contains("Saved through notes UI.") {
+            updated_on_disk = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    assert!(updated_on_disk);
 
     Ok(())
 }

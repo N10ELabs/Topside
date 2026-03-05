@@ -4,8 +4,8 @@ type: note
 title: 'Youtube Video Script #1'
 project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 created_at: 2026-03-04T00:47:34.739319+00:00
-updated_at: 2026-03-04T23:14:27.471522+00:00
-revision: 28404f6af3153a9dafbf6e2e8d4f31be34f24674e97a47cfab11fe103c7deecb
+updated_at: 2026-03-05T03:04:08.322614+00:00
+revision: 55b4faf37f3fc89854ad8ffbde2c67d69f115b05d66d9c80b7834d2a0ba9cda8
 ---
 Intro:
 If you’re in the developer space right now and you’re anything like me, you’re building something new every other week. But every new codex or claude code session adds to the stack of unfinished projects and unorganized context. To fix that, I’m building Topside.

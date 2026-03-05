@@ -348,6 +348,58 @@ impl AppService {
             .map_err(ServiceError::Other)
     }
 
+    pub fn ensure_local_project_user_files(
+        &self,
+        project_id: &str,
+        actor: Actor,
+    ) -> Result<(), ServiceError> {
+        let mut project = self.get_project_item(project_id)?;
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Ok(());
+        }
+
+        let needs_managed_task_sync = !project.task_sync_enabled
+            || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile);
+        if needs_managed_task_sync {
+            let _ = self.enable_managed_task_sync(project_id, &project.revision)?;
+            project = self.get_project_item(project_id)?;
+        }
+
+        let sync_path = self.managed_task_sync_file_path(&project)?;
+        if !sync_path.exists() {
+            self.write_managed_task_sync_file_from_local(&project, false)?;
+        }
+
+        let workspace = self
+            .load_project_workspace(project_id)
+            .map_err(ServiceError::Other)?;
+        if workspace.notes.is_empty() {
+            let mut linked = false;
+            if let Some(candidate) = self
+                .list_linkable_note_files(project_id)?
+                .into_iter()
+                .next()
+            {
+                self.link_note_to_repo_file(project_id, &candidate.relative_path, actor.clone())?;
+                linked = true;
+            }
+
+            if !linked {
+                self.create_note(
+                    CreateNotePayload {
+                        title: "Project notes".to_string(),
+                        project_id: Some(project_id.to_string()),
+                        tags: None,
+                        body: Some(String::new()),
+                    },
+                    actor,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn create_task(
         &self,
         payload: CreateTaskPayload,
@@ -482,10 +534,22 @@ impl AppService {
         payload: CreateNotePayload,
         actor: Actor,
     ) -> Result<EntitySnapshot, ServiceError> {
-        if let Some(project_id) = &payload.project_id {
+        if let Some(project_id) = payload.project_id.as_deref() {
             self.ensure_project_exists(project_id)?;
+            let project = self.get_project_item(project_id)?;
+            if project.source_kind == Some(crate::types::ProjectSourceKind::Local) {
+                return self.create_note_linked_to_project_docs(project, payload, actor);
+            }
         }
 
+        self.create_standalone_note(payload, actor)
+    }
+
+    fn create_standalone_note(
+        &self,
+        payload: CreateNotePayload,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
         let now = Utc::now();
         let id = format!("{}_{}", EntityType::Note.prefix(), Ulid::new());
         let title_slug = slugify(&payload.title);
@@ -518,9 +582,12 @@ impl AppService {
         });
 
         let body = payload.body.unwrap_or_default();
-        let content = render_entity_markdown(&mut fm, &body)?;
-        atomic_write(&path, &content)?;
-        let indexed = self.indexer.index_file(&path)?;
+        let content = render_entity_markdown(&mut fm, &body).map_err(ServiceError::Other)?;
+        atomic_write(&path, &content).map_err(ServiceError::Other)?;
+        let indexed = self
+            .indexer
+            .index_file(&path)
+            .map_err(ServiceError::Other)?;
 
         self.record_entity_activity(
             actor,
@@ -533,12 +600,119 @@ impl AppService {
                 after_revision: Some(indexed.revision.clone()),
                 summary: "Created note",
             },
-        )?;
+        )
+        .map_err(ServiceError::Other)?;
 
         self.db
             .read_entity_snapshot(&id)?
             .context("created note not found after indexing")
             .map_err(ServiceError::Other)
+    }
+
+    fn create_note_linked_to_project_docs(
+        &self,
+        project: crate::types::ProjectItem,
+        payload: CreateNotePayload,
+        actor: Actor,
+    ) -> Result<EntitySnapshot, ServiceError> {
+        let project_id = payload
+            .project_id
+            .clone()
+            .with_context(|| "project_id is required for project-linked notes")
+            .map_err(ServiceError::Other)?;
+        let now = Utc::now();
+        let id = format!("{}_{}", EntityType::Note.prefix(), Ulid::new());
+        let title = payload.title;
+        let title_slug = slugify(&title);
+        let relative_path = self.next_local_note_sync_path(&project, &title)?;
+        let target_path = self.note_sync_target_path(&project, &relative_path)?;
+        let body = payload.body.unwrap_or_default();
+        let body_hash = compute_file_hash(&body);
+
+        ensure_parent_dir(&target_path).map_err(ServiceError::Other)?;
+        atomic_write(&target_path, &body).map_err(ServiceError::Other)?;
+
+        let note_path = self
+            .config
+            .notes_dir()
+            .join(&project_id)
+            .join(format!("{id}-{title_slug}.md"));
+        self.config
+            .ensure_within_workspace(&note_path)
+            .map_err(ServiceError::Other)?;
+
+        let snapshot = self.write_note_entity(
+            &note_path,
+            body,
+            NoteFrontmatter {
+                id: id.clone(),
+                entity_type: EntityType::Note,
+                title: synced_note_title_from_path(&relative_path),
+                project_id: Some(project_id),
+                sync_kind: Some(NoteSyncKind::RepoMarkdown),
+                sync_path: Some(relative_path),
+                sync_status: Some(NoteSyncStatus::Live),
+                sync_last_seen_hash: Some(body_hash),
+                sync_last_inbound_at: None,
+                sync_last_outbound_at: Some(now),
+                sync_conflict_summary: None,
+                sync_conflict_at: None,
+                tags: payload.tags,
+                created_at: now,
+                updated_at: now,
+                revision: String::new(),
+            },
+            None,
+            false,
+            actor,
+            "create_note",
+            "Created note",
+        )?;
+
+        self.ensure_note_sync_watcher(&id)?;
+        Ok(snapshot)
+    }
+
+    fn next_local_note_sync_path(
+        &self,
+        project: &crate::types::ProjectItem,
+        title: &str,
+    ) -> Result<String, ServiceError> {
+        let mut base = slugify(title);
+        if base.trim().is_empty() {
+            base = "note".to_string();
+        }
+        let reserved_sync_file =
+            normalize_managed_task_sync_file(project.task_sync_file.as_deref());
+
+        for suffix in 0..10_000usize {
+            let file_name = if suffix == 0 {
+                format!("{base}.md")
+            } else {
+                format!("{base}-{}.md", suffix + 1)
+            };
+            let relative_path = format!("docs/{file_name}");
+            if relative_path == reserved_sync_file {
+                continue;
+            }
+            if self
+                .find_synced_note_id(&project.id, &relative_path)?
+                .is_some()
+            {
+                continue;
+            }
+
+            let target_path = self.note_sync_target_path(project, &relative_path)?;
+            if target_path.exists() {
+                continue;
+            }
+
+            return Ok(relative_path);
+        }
+
+        Err(ServiceError::Other(anyhow::anyhow!(
+            "unable to allocate a unique docs markdown path for note"
+        )))
     }
 
     pub fn list_linkable_note_files(

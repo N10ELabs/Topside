@@ -295,7 +295,24 @@ async fn cmd_mcp(workspace: Option<PathBuf>) -> Result<()> {
 
 fn load_config(workspace_override: Option<PathBuf>) -> Result<AppConfig> {
     let workspace_root = resolve_workspace(workspace_override)?;
-    AppConfig::load_from_workspace(&workspace_root)
+    maybe_migrate_workspace_identity(&workspace_root)?;
+    let config_path = workspace_root.join(CONFIG_FILE_NAME);
+    if config_path.exists() {
+        return AppConfig::load_from_workspace(&workspace_root);
+    }
+
+    std::fs::create_dir_all(&workspace_root).with_context(|| {
+        format!(
+            "failed creating workspace directory {}",
+            workspace_root.display()
+        )
+    })?;
+
+    let mut config = AppConfig::default_for_workspace(workspace_root.clone());
+    config.codename = PROJECT_CODENAME.to_string();
+    config.ensure_workspace_dirs()?;
+    config.save_to_workspace(&workspace_root)?;
+    Ok(config)
 }
 
 fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
