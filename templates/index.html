@@ -460,11 +460,21 @@
       max-width: 420px;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      gap: 10px;
       border: 1px solid var(--line);
       border-radius: 11px;
       padding: 0 10px;
       background: rgba(8, 15, 21, 0.9);
+      overflow: hidden;
+    }
+
+    .pane-search-field {
+      min-width: 0;
+      flex: 1 1 140px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .pane-search svg {
@@ -486,16 +496,28 @@
     }
 
     .pane-search-input {
-      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      flex: 1 1 auto;
       min-width: 0;
+      width: auto;
+      height: 100%;
       border: none;
       padding: 0;
       background: transparent;
       color: var(--text);
       font-family: "IBM Plex Mono", monospace;
       font-size: 12px;
-      line-height: 1;
+      line-height: 1.25;
       outline: none;
+    }
+
+    .pane-search-input::-webkit-search-decoration,
+    .pane-search-input::-webkit-search-cancel-button,
+    .pane-search-input::-webkit-search-results-button,
+    .pane-search-input::-webkit-search-results-decoration {
+      display: none;
+      -webkit-appearance: none;
     }
 
     .pane-search-input::placeholder {
@@ -508,11 +530,48 @@
       opacity: 0.52;
     }
 
+    .pane-search-clear {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 auto;
+      border: none;
+      border-radius: 999px;
+      background: rgba(16, 33, 46, 0.72);
+      color: var(--muted);
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      transition: color 120ms ease, background-color 120ms ease, transform 120ms ease;
+    }
+
+    .pane-search-clear[hidden] {
+      display: none;
+    }
+
+    .pane-search-clear svg {
+      width: 11px;
+      height: 11px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pane-search-clear:hover,
+    .pane-search-clear:focus-visible {
+      color: var(--text);
+      background: rgba(24, 46, 64, 0.92);
+      transform: scale(1.02);
+      outline: none;
+    }
+
     .pane-search-nav {
       display: inline-flex;
       align-items: center;
       gap: 4px;
       flex: 0 0 auto;
+      margin-left: auto;
     }
 
     .pane-search-nav[hidden] {
@@ -520,11 +579,12 @@
     }
 
     .pane-search-count {
-      min-width: 64px;
-      text-align: right;
+      min-width: 0;
+      text-align: center;
       color: var(--muted);
       font-size: 11px;
       font-family: "IBM Plex Mono", monospace;
+      font-variant-numeric: tabular-nums;
       line-height: 1;
       white-space: nowrap;
     }
@@ -2388,11 +2448,13 @@
 
     .markdown-search-overlay {
       position: absolute;
-      inset: 2px 0 0;
-      z-index: 0;
+      inset: 0;
+      z-index: 1;
+      padding: 2px 0 0;
       pointer-events: none;
       overflow: hidden;
       color: transparent;
+      user-select: none;
       white-space: pre-wrap;
       overflow-wrap: break-word;
       word-break: break-word;
@@ -2416,15 +2478,21 @@
     }
 
     mark.markdown-search-hit {
-      background: rgba(250, 204, 21, 0.18);
-      color: transparent;
-      border-radius: 3px;
-      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.22);
+      background: rgba(250, 204, 21, 0.22);
+      color: rgba(255, 246, 181, 0.18);
+      border-radius: 4px;
+      box-shadow:
+        inset 0 -0.5em 0 rgba(250, 204, 21, 0.18),
+        inset 0 0 0 1px rgba(250, 204, 21, 0.26);
     }
 
     mark.markdown-search-hit.active {
       background: rgba(250, 204, 21, 0.34);
-      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.4);
+      color: rgba(255, 247, 204, 0.28);
+      box-shadow:
+        inset 0 -0.58em 0 rgba(250, 204, 21, 0.28),
+        inset 0 0 0 1px rgba(250, 204, 21, 0.42),
+        0 0 0 1px rgba(250, 204, 21, 0.14);
     }
 
     .clean-editor {
@@ -2859,19 +2927,27 @@
         <div class="pane-head">
           <span class="pane-title">/docs</span>
           <label class="pane-search" for="notes-search-input">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7"></circle>
-              <path d="m20 20-3.4-3.4"></path>
-            </svg>
-            <input
-              id="notes-search-input"
-              class="pane-search-input"
-              type="search"
-              placeholder="Search imported docs..."
-              aria-label="Search imported docs in notes"
-              autocomplete="off"
-              spellcheck="false"
-            >
+            <span class="pane-search-field">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m20 20-3.4-3.4"></path>
+              </svg>
+              <input
+                id="notes-search-input"
+                class="pane-search-input"
+                type="text"
+                placeholder="Search imported docs..."
+                aria-label="Search imported docs in notes"
+                autocomplete="off"
+                spellcheck="false"
+              >
+              <button class="pane-search-clear" id="notes-search-clear" type="button" aria-label="Clear search" title="Clear search" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m7 7 10 10"></path>
+                  <path d="m17 7-10 10"></path>
+                </svg>
+              </button>
+            </span>
             <div class="pane-search-nav" id="notes-search-nav" hidden>
               <span class="pane-search-count" id="notes-search-count"></span>
               <button class="pane-search-nav-btn" id="notes-search-prev" type="button" aria-label="Previous match" title="Previous match">
@@ -3151,6 +3227,7 @@
     const notesSearchCount = document.getElementById("notes-search-count");
     const notesSearchPrevButton = document.getElementById("notes-search-prev");
     const notesSearchNextButton = document.getElementById("notes-search-next");
+    const notesSearchClearButton = document.getElementById("notes-search-clear");
     const notesLinkButton = document.getElementById("notes-link");
     const noteLinkPickerWrap = document.getElementById("note-link-picker-wrap");
     const noteLinkPicker = document.getElementById("note-link-picker");
@@ -3181,6 +3258,8 @@
           const noteId = input.dataset.noteBodyId;
           if (!noteId) return;
           rememberNoteBodyHeight(noteId, entry.contentRect.height);
+          syncMarkdownSearchOverlayMetrics(noteId);
+          syncMarkdownSearchOverlayPosition(noteId);
         });
       })
       : null;
@@ -3238,7 +3317,7 @@
     const scrollRevealTimers = new WeakMap();
     const scrollIndicators = new WeakMap();
     const uiRefreshIntervalMs = 1400;
-    const cleanNoteSearchMarkerSelector = "mark[data-note-search-active='true']";
+    const cleanNoteSearchMarkerSelector = "[data-note-search-marker='true']";
     let noteSearchAutoJumpTimer = null;
 
     function clearNoteSearchAutoJumpTimer() {
@@ -3283,65 +3362,38 @@
       });
     }
 
-    function resolveCleanMatchRangeByOffsets(editor, match) {
-      if (!(editor instanceof HTMLElement) || !match) return null;
-      const absoluteStart = Number(match.absoluteStart);
-      const absoluteEnd = Number(match.absoluteEnd);
-      if (!Number.isFinite(absoluteStart) || !Number.isFinite(absoluteEnd)) return null;
-      if (absoluteEnd <= absoluteStart) return null;
-
-      let startNode = null;
-      let startOffset = 0;
-      let endNode = null;
-      let endOffset = 0;
-      let offset = 0;
-      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        const value = node.nodeValue || "";
-        const length = value.length;
-        const nextOffset = offset + length;
-
-        if (!startNode && absoluteStart >= offset && absoluteStart <= nextOffset) {
-          startNode = node;
-          startOffset = absoluteStart - offset;
-        }
-
-        if (!endNode && absoluteEnd >= offset && absoluteEnd <= nextOffset) {
-          endNode = node;
-          endOffset = absoluteEnd - offset;
-        }
-
-        if (startNode && endNode) break;
-        offset = nextOffset;
-        node = walker.nextNode();
-      }
-
-      if (!startNode || !endNode) return null;
-      if (startNode === endNode && endOffset <= startOffset) return null;
-      return {
-        startNode,
-        startOffset,
-        endNode,
-        endOffset
-      };
+    function clearBrowserTextSelection() {
+      const selection = window.getSelection?.();
+      if (!selection || selection.rangeCount === 0) return;
+      selection.removeAllRanges();
     }
 
-    function decorateCleanSearchMatch(editor, match) {
-      if (!(editor instanceof HTMLElement) || !match) return null;
-      clearCleanSearchDecorations(editor.dataset.noteCleanId || null);
-      const resolved = resolveCleanMatchRangeByOffsets(editor, match);
-      if (!resolved) return null;
+    function decorateCleanSearchMatch(editor, terms, matchIndex) {
+      if (!(editor instanceof HTMLElement) || !Array.isArray(terms) || !terms.length) return null;
+      const sourceHtml = stripSearchDecorationsFromHtml(editor.innerHTML);
+      const scratch = document.createElement("div");
+      scratch.innerHTML = sourceHtml;
+      const matches = collectCleanEditorSearchMatches(scratch, terms);
+      const match = matches[matchIndex];
+      if (!match) {
+        editor.innerHTML = sourceHtml;
+        clearBrowserTextSelection();
+        return null;
+      }
 
       const range = document.createRange();
-      range.setStart(resolved.startNode, resolved.startOffset);
-      range.setEnd(resolved.endNode, resolved.endOffset);
+      range.setStart(match.startNode, match.startOffset);
+      range.setEnd(match.endNode, match.endOffset);
       const marker = document.createElement("mark");
+      marker.dataset.noteSearchMarker = "true";
       marker.dataset.noteSearchActive = "true";
       marker.className = "note-search-active";
       marker.appendChild(range.extractContents());
       range.insertNode(marker);
-      return marker;
+      editor.innerHTML = scratch.innerHTML;
+      clearBrowserTextSelection();
+      const activeMarker = editor.querySelector("[data-note-search-active='true']");
+      return activeMarker instanceof HTMLElement ? activeMarker : null;
     }
 
     function scheduleInitialSearchJump(query) {
@@ -3372,23 +3424,18 @@
         return false;
       }
 
-      const targets = getOpenNoteSearchTargetsForField(
-        firstMatch.noteId,
-        searchData.terms,
-        firstMatch.field
-      );
-      if (!targets?.matches?.length) {
-        return false;
-      }
-
-      const targetFieldIndex = Number.isFinite(firstMatch.fieldIndex)
-        ? firstMatch.fieldIndex
-        : 0;
-      const nextMatchIndex = Math.min(
-        Math.max(0, targetFieldIndex),
-        targets.matches.length - 1
-      );
-      return applyOpenNoteSearchMatch(targets, nextMatchIndex, { stealFocus: false });
+      state.pendingNoteSearchJump = {
+        noteId: firstMatch.noteId,
+        query: searchData.query,
+        navKey: searchData.navKey,
+        navIndex: 0,
+        matchField: firstMatch.field,
+        matchFieldIndex: Number.isFinite(firstMatch.fieldIndex) ? firstMatch.fieldIndex : 0,
+        retriesRemaining: 1,
+        preserveSearchFocus: true
+      };
+      render({ preserveShellScroll: true });
+      return true;
     }
 
     function getMarkdownOverlayElements(noteId = state.openNoteId) {
@@ -3460,34 +3507,40 @@
       content.style.transform = `translate(${-input.scrollLeft}px, ${-input.scrollTop}px)`;
     }
 
+    function syncMarkdownSearchOverlayMetrics(noteId = state.openNoteId) {
+      const { input, overlay, content } = getMarkdownOverlayElements(noteId);
+      if (!(input instanceof HTMLTextAreaElement) || !(overlay instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+        return;
+      }
+
+      const styles = window.getComputedStyle(input);
+      overlay.style.paddingTop = styles.paddingTop;
+      overlay.style.paddingRight = styles.paddingRight;
+      overlay.style.paddingBottom = styles.paddingBottom;
+      overlay.style.paddingLeft = styles.paddingLeft;
+      overlay.style.fontFamily = styles.fontFamily;
+      overlay.style.fontSize = styles.fontSize;
+      overlay.style.fontWeight = styles.fontWeight;
+      overlay.style.fontStyle = styles.fontStyle;
+      overlay.style.fontStretch = styles.fontStretch;
+      overlay.style.fontVariant = styles.fontVariant;
+      overlay.style.lineHeight = styles.lineHeight;
+      overlay.style.letterSpacing = styles.letterSpacing;
+      overlay.style.wordSpacing = styles.wordSpacing;
+      overlay.style.textTransform = styles.textTransform;
+      overlay.style.textIndent = styles.textIndent;
+      overlay.style.tabSize = styles.tabSize;
+      overlay.style.overflowWrap = styles.overflowWrap;
+      overlay.style.wordBreak = styles.wordBreak;
+      overlay.style.borderRadius = styles.borderRadius;
+      content.style.minHeight = `${Math.max(input.scrollHeight, input.clientHeight)}px`;
+    }
+
     function renderMarkdownSearchOverlay(noteId = state.openNoteId, queryOverride = null) {
       const { input, overlay, content } = getMarkdownOverlayElements(noteId);
       if (!(input instanceof HTMLTextAreaElement) || !(overlay instanceof HTMLElement) || !(content instanceof HTMLElement)) return;
-
-      const query = String(queryOverride ?? state.notesSearchQuery ?? "").trim();
-      if (!query) {
-        overlay.hidden = true;
-        content.innerHTML = "";
-        return;
-      }
-      const terms = getNotesSearchTerms(query);
-      if (!terms.length) {
-        overlay.hidden = true;
-        content.innerHTML = "";
-        return;
-      }
-
-      const activeFieldIndex = getActiveBodyFieldIndexForNote(noteId, query);
-      const html = buildMarkdownSearchOverlayHtml(input.value, terms, activeFieldIndex);
-      if (!html) {
-        overlay.hidden = true;
-        content.innerHTML = "";
-        return;
-      }
-
-      content.innerHTML = html;
-      overlay.hidden = false;
-      syncMarkdownSearchOverlayPosition(noteId);
+      content.innerHTML = "";
+      overlay.hidden = true;
     }
 
     function bindMarkdownSearchOverlayTracking() {
@@ -3501,6 +3554,7 @@
         node.addEventListener("input", () => {
           renderMarkdownSearchOverlay(node.dataset.noteBodyId || null);
         });
+        syncMarkdownSearchOverlayMetrics(node.dataset.noteBodyId || null);
       });
     }
 
@@ -3592,24 +3646,35 @@
         return;
       }
 
-      renderNotes();
-
       const activatedInline = applyInitialSearchActivation(query);
-      updateNotesSearchFindingsUi();
-      if (!activatedInline) {
-        scheduleInitialSearchJump(query);
+      if (activatedInline) {
+        return;
       }
+
+      renderNotes();
+      updateNotesSearchFindingsUi();
+      scheduleInitialSearchJump(query);
     });
+
+    function clearNotesSearch(options = {}) {
+      const shouldRefocus = options.refocus !== false;
+      clearNoteSearchAutoJumpTimer();
+      state.notesSearchQuery = "";
+      if (notesSearchInput instanceof HTMLInputElement) {
+        notesSearchInput.value = "";
+      }
+      state.pendingNoteSearchJump = null;
+      resetNoteSearchNavigationState();
+      renderNotes();
+      if (shouldRefocus && notesSearchInput instanceof HTMLInputElement && !notesSearchInput.disabled) {
+        notesSearchInput.focus({ preventScroll: true });
+      }
+    }
 
     notesSearchInput.addEventListener("keydown", async (event) => {
       if (event.key === "Escape" && state.notesSearchQuery) {
         event.preventDefault();
-        clearNoteSearchAutoJumpTimer();
-        state.notesSearchQuery = "";
-        notesSearchInput.value = "";
-        state.pendingNoteSearchJump = null;
-        resetNoteSearchNavigationState();
-        renderNotes();
+        clearNotesSearch();
         return;
       }
 
@@ -3633,6 +3698,16 @@
       state.openNoteId = fallbackNoteId;
       state.pendingNoteSearchJump = null;
       render();
+    });
+
+    notesSearchClearButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+
+    notesSearchClearButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      clearNotesSearch();
     });
 
     notesSearchPrevButton.addEventListener("click", async (event) => {
@@ -7385,6 +7460,8 @@
     window.addEventListener("resize", () => {
       applyResponsiveLayoutMode();
       scheduleTaskRowSync();
+      syncMarkdownSearchOverlayMetrics();
+      syncMarkdownSearchOverlayPosition();
       refreshScrollRevealBindings();
     });
 
@@ -8251,6 +8328,36 @@
       )).join("");
     }
 
+    function extractTextFromNoteHtml(html) {
+      const container = document.createElement("div");
+      container.innerHTML = stripSearchDecorationsFromHtml(html || "");
+      return String(container.textContent || "").replace(/\u00a0/g, " ");
+    }
+
+    function getSearchableNoteBodyText(note) {
+      if (!note) return "";
+      const noteId = note.id || null;
+      if (state.noteMode === "markdown") {
+        if (noteId && Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)) {
+          return String(state.noteBodyEdits[noteId] || "");
+        }
+        return String(note.body || "");
+      }
+
+      if (noteId) {
+        const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
+        if (editor instanceof HTMLElement) {
+          return String(editor.textContent || "");
+        }
+      }
+
+      const htmlSource = noteId
+        ? (state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
+        : note.rendered_html;
+      const renderedText = extractTextFromNoteHtml(htmlSource);
+      return renderedText || String(note.body || "");
+    }
+
     function findNoteSearchMatch(text, terms) {
       const source = String(text || "");
       const normalized = source.toLowerCase();
@@ -8285,9 +8392,10 @@
           return { label: "path", snippetHtml: snippet };
         }
       }
-      const bodyMatch = findNoteSearchMatch(note.body, terms);
+      const bodyText = getSearchableNoteBodyText(note);
+      const bodyMatch = findNoteSearchMatch(bodyText, terms);
       if (bodyMatch) {
-        const snippet = buildNoteSearchSnippet(note.body, bodyMatch, terms);
+        const snippet = buildNoteSearchSnippet(bodyText, bodyMatch, terms);
         if (snippet) {
           return { label: "body", snippetHtml: snippet };
         }
@@ -8370,6 +8478,10 @@
               node,
               start: match.index,
               end: match.index + token.length,
+              startNode: node,
+              startOffset: match.index,
+              endNode: node,
+              endOffset: match.index + token.length,
               absoluteStart: absoluteOffset + match.index,
               absoluteEnd: absoluteOffset + match.index + token.length
             });
@@ -8391,6 +8503,7 @@
         noteId,
         kind: "clean",
         editor,
+        terms: [...terms],
         matches: collectCleanEditorSearchMatches(editor, terms)
       };
     }
@@ -8429,7 +8542,7 @@
     function buildGlobalNoteSearchMatches(filteredNotes, terms) {
       const globalMatches = [];
       filteredNotes.forEach((note) => {
-        const bodyMatches = collectTextSearchMatches(note.body, terms);
+        const bodyMatches = collectTextSearchMatches(getSearchableNoteBodyText(note), terms);
         bodyMatches.forEach((match, fieldIndex) => {
           globalMatches.push({
             noteId: note.id,
@@ -8536,35 +8649,29 @@
       }
 
       if (targets.kind === "markdown" && targets.input instanceof HTMLTextAreaElement) {
-        if (shouldFocusTarget || preserveSearchFocus) {
-          targets.input.focus({ preventScroll: true });
+        clearMarkdownSearchOverlays(targets.noteId);
+        if (!shouldFocusTarget) {
+          scrollMarkdownMatchIntoView(targets.input, match.start);
+          window.requestAnimationFrame(() => {
+            scrollMarkdownMatchIntoView(targets.input, match.start);
+          });
+          restoreSearchFocus();
+          return true;
         }
+        targets.input.focus({ preventScroll: true });
         targets.input.setSelectionRange(match.start, match.end);
         scrollMarkdownMatchIntoView(targets.input, match.start);
         window.requestAnimationFrame(() => {
           scrollMarkdownMatchIntoView(targets.input, match.start);
         });
-        renderMarkdownSearchOverlay(targets.noteId);
         restoreSearchFocus();
         return true;
       }
 
       if (targets.kind === "clean" && targets.editor instanceof HTMLElement) {
-        const marker = decorateCleanSearchMatch(targets.editor, match);
+        const marker = decorateCleanSearchMatch(targets.editor, targets.terms || [], index);
         if (!(marker instanceof HTMLElement)) return false;
         const anchor = marker.parentElement || marker;
-        if (!shouldFocusTarget) {
-          anchor.scrollIntoView({ block: "center", inline: "nearest" });
-          restoreSearchFocus();
-          return true;
-        }
-        const selection = window.getSelection();
-        if (!selection) return false;
-        const range = document.createRange();
-        range.selectNodeContents(marker);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        targets.editor.focus();
         anchor.scrollIntoView({ block: "center", inline: "nearest" });
         restoreSearchFocus();
         return true;
@@ -8688,7 +8795,7 @@
         notesSearchCount.textContent = `${state.noteSearchNavIndex + 1}/${totalFindings}`;
         notesSearchPrevButton.disabled = totalFindings <= 1;
         notesSearchNextButton.disabled = totalFindings <= 1;
-        renderMarkdownSearchOverlay(state.openNoteId, searchData.query);
+        clearMarkdownSearchOverlays(state.openNoteId);
       } else {
         clearCleanSearchDecorations();
         clearMarkdownSearchOverlays();
@@ -8776,7 +8883,7 @@
     function scoreNoteForSearch(note, terms, fullQuery) {
       const title = String(note.title || "").toLowerCase();
       const path = String(note.sync_path || "").toLowerCase();
-      const body = String(note.body || "").toLowerCase();
+      const body = getSearchableNoteBodyText(note).toLowerCase();
 
       const allTermsMatched = terms.every((term) => (
         title.includes(term) || path.includes(term) || body.includes(term)
@@ -8824,9 +8931,16 @@
 
     function syncNotesSearchInput() {
       if (!notesSearchInput) return;
-      notesSearchInput.disabled = !state.workspace;
+      const hasWorkspace = Boolean(state.workspace);
+      notesSearchInput.disabled = !hasWorkspace;
       if (notesSearchInput.value !== state.notesSearchQuery) {
         notesSearchInput.value = state.notesSearchQuery;
+      }
+      if (notesSearchClearButton instanceof HTMLButtonElement) {
+        const rawQuery = String(state.notesSearchQuery || notesSearchInput.value || "");
+        const showClear = hasWorkspace && rawQuery.length > 0;
+        notesSearchClearButton.hidden = !showClear;
+        notesSearchClearButton.disabled = !showClear;
       }
     }
 
