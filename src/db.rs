@@ -8,6 +8,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
+use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::types::{
     ActivityItem, EntitySnapshot, EntityType, IndexedEntity, NoteDetail, NoteItem, NoteSyncKind,
     NoteSyncStatus, ParsedEntity, ProjectItem, ProjectSourceKind, SearchFilters, SearchResult,
@@ -177,7 +178,7 @@ impl Db {
     pub fn list_tasks(&self, filters: &TaskFilters, default_limit: usize) -> Result<Vec<TaskItem>> {
         let status = filters.status.as_ref().map(TaskStatus::as_str);
         let priority = filters.priority.as_ref().map(TaskPriority::as_str);
-        let limit = filters.limit.unwrap_or(default_limit) as i64;
+        let limit = sqlite_limit(filters.limit.unwrap_or(default_limit));
 
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
@@ -276,7 +277,7 @@ impl Db {
             )?;
 
             let rows = stmt.query_map(
-                params![if include_archived { 1 } else { 0 }, limit as i64],
+                params![if include_archived { 1 } else { 0 }, sqlite_limit(limit)],
                 |row| {
                     let sync_last_inbound_at = row
                         .get::<_, Option<String>>(7)?
@@ -405,7 +406,7 @@ impl Db {
                 params![
                     project_id,
                     if include_archived { 1 } else { 0 },
-                    limit as i64
+                    sqlite_limit(limit)
                 ],
                 |row| {
                     let sync_last_inbound_at = row
@@ -479,7 +480,7 @@ impl Db {
             )?;
 
             let rows = stmt.query_map(
-                params![if include_archived { 1 } else { 0 }, limit as i64],
+                params![if include_archived { 1 } else { 0 }, sqlite_limit(limit)],
                 |row| {
                     let task_sync_last_inbound_at = row
                         .get::<_, Option<String>>(14)?
@@ -1037,6 +1038,14 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
     )?;
 
     Ok(())
+}
+
+fn sqlite_limit(limit: usize) -> i64 {
+    if limit == UNBOUNDED_QUERY_LIMIT {
+        -1
+    } else {
+        limit as i64
+    }
 }
 
 fn insert_activity_tx(

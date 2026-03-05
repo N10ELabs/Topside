@@ -331,6 +331,21 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
     let refreshed = service.load_project_workspace(&project.id)?;
     assert!(refreshed.notes[0].body.contains("Resolved via HTTP."));
 
+    let stale_resolve_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/notes/{}/sync/resolve-file", note.id))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!(
+                    "{{\"expected_revision\":\"{}\"}}",
+                    note.revision
+                )))?,
+        )
+        .await?;
+    assert_eq!(stale_resolve_response.status(), StatusCode::CONFLICT);
+
     Ok(())
 }
 
@@ -446,6 +461,13 @@ async fn create_local_project_succeeds_when_bootstrap_fails() -> Result<()> {
         PathBuf::from(stored_locator).canonicalize()?,
         repo_path.canonicalize()?
     );
+
+    #[cfg(unix)]
+    {
+        assert!(projects[0].task_sync_enabled);
+        assert_eq!(projects[0].task_sync_status, Some(TaskSyncStatus::Paused));
+        assert!(projects[0].task_sync_conflict_summary.is_some());
+    }
 
     Ok(())
 }

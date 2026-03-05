@@ -12,6 +12,7 @@ use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
 use crate::config::AppConfig;
+use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::db::{Db, StoredEntityRecord};
 use crate::git::{GitContext, read_git_context};
 use crate::indexer::{Indexer, WatcherRuntime};
@@ -161,11 +162,7 @@ impl AppService {
     }
 
     pub fn load_project_workspace(&self, project_id: &str) -> Result<ProjectWorkspace> {
-        let project = self
-            .list_projects(200, false)?
-            .into_iter()
-            .find(|item| item.id == project_id)
-            .with_context(|| format!("project {project_id} not found"))?;
+        let project = self.get_project_item(project_id)?;
 
         let mut tasks = self.list_tasks(&TaskFilters {
             status: None,
@@ -173,7 +170,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(500),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
 
         let mut active_tasks = Vec::new();
@@ -197,9 +194,9 @@ impl AppService {
                 .then(right.updated_at.cmp(&left.updated_at))
         });
 
-        let note_details = self
-            .db
-            .list_note_details_for_project(project_id, 200, false)?;
+        let note_details =
+            self.db
+                .list_note_details_for_project(project_id, UNBOUNDED_QUERY_LIMIT, false)?;
 
         let suggested_open_note_id = note_details.first().map(|note| note.id.clone());
 
@@ -237,7 +234,7 @@ impl AppService {
                 priority: Some(TaskPriority::P2),
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
-                sort_order: Some((ordered_active_ids.len() + 1) as i64),
+                sort_order: Some(self.next_task_sort_order(project_id)?),
                 sync_kind,
                 sync_path,
                 sync_key,
@@ -821,14 +818,20 @@ impl AppService {
     pub fn resolve_note_sync_from_file(
         &self,
         note_id: &str,
+        expected_revision: &str,
     ) -> Result<EntitySnapshot, ServiceError> {
+        let (_record, _frontmatter, _body, current_revision) = self.load_note_state(note_id)?;
+        self.enforce_current_revision(expected_revision, &current_revision)?;
         self.import_note_sync_from_disk(note_id, true)
     }
 
     pub fn resolve_note_sync_from_local(
         &self,
         note_id: &str,
+        expected_revision: &str,
     ) -> Result<EntitySnapshot, ServiceError> {
+        let (_record, _frontmatter, _body, current_revision) = self.load_note_state(note_id)?;
+        self.enforce_current_revision(expected_revision, &current_revision)?;
         self.clear_note_sync_dirty(note_id);
         self.write_note_sync_file_from_local(note_id, false)
     }
@@ -880,7 +883,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
         tasks.sort_by(|left, right| {
             effective_task_sort_order(left)
@@ -1204,8 +1207,9 @@ impl AppService {
                 && project.task_sync_mode == Some(TaskSyncMode::ManagedTodoFile)
                 && project.task_sync_status == Some(TaskSyncStatus::Live)
             {
-                if self.ensure_managed_task_sync_watcher(&project).is_err() {
+                if let Err(err) = self.ensure_managed_task_sync_watcher(&project) {
                     self.clear_managed_task_sync_watcher(id);
+                    let _ = self.pause_managed_task_sync_for_error(id, &err.to_string());
                 }
             } else {
                 self.clear_managed_task_sync_watcher(id);
@@ -1223,11 +1227,7 @@ impl AppService {
         project_id: &str,
         actor: Actor,
     ) -> Result<ProjectSyncReport, ServiceError> {
-        let project = self
-            .list_projects(200, false)?
-            .into_iter()
-            .find(|item| item.id == project_id)
-            .with_context(|| format!("project {project_id} not found"))?;
+        let project = self.get_project_item(project_id)?;
 
         let source_kind = project
             .source_kind
@@ -1257,7 +1257,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
 
         let mut existing_by_sync = std::collections::HashMap::new();
@@ -1390,8 +1390,8 @@ impl AppService {
         project_id: &str,
         expected_revision: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
-        let _ = expected_revision;
         let project = self.get_project_item(project_id)?;
+        self.enforce_current_revision(expected_revision, &project.revision)?;
         if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
             return Err(ServiceError::Other(anyhow::anyhow!(
                 "managed task sync requires a linked local source folder"
@@ -1419,7 +1419,7 @@ impl AppService {
                     task_sync_mode: Some(Some(TaskSyncMode::ManagedTodoFile)),
                     task_sync_file: Some(Some(sync_file.clone())),
                     task_sync_enabled: Some(true),
-                    task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                    task_sync_status: Some(Some(TaskSyncStatus::Paused)),
                     task_sync_conflict_summary: Some(None),
                     task_sync_conflict_at: Some(None),
                     ..ProjectPatch::default()
@@ -1429,23 +1429,31 @@ impl AppService {
             )
             .and_then(|_| self.get_project_item(project_id))?;
 
-        self.ensure_tasks_marked_for_managed_sync(project_id, &sync_file)?;
-        let sync_path = self.managed_task_sync_file_path(&updated)?;
-        if sync_path.exists() {
-            self.import_managed_task_sync_from_disk(project_id, false)?;
-        } else {
+        let setup_result = (|| -> Result<crate::types::ProjectItem, ServiceError> {
+            self.ensure_tasks_marked_for_managed_sync(project_id, &sync_file)?;
+            let sync_path = self.managed_task_sync_file_path(&updated)?;
+            if sync_path.exists() {
+                self.import_managed_task_sync_from_disk(project_id, false)?;
+            } else {
+                let live_project = self.get_project_item(project_id)?;
+                self.write_managed_task_sync_file_from_local(&live_project, false)?;
+            }
             let live_project = self.get_project_item(project_id)?;
-            self.write_managed_task_sync_file_from_local(&live_project, false)?;
+            self.ensure_managed_task_sync_watcher(&live_project)?;
+            self.record_project_sync_activity(
+                Actor::human("operator"),
+                project_id,
+                "enable_task_sync",
+                "Enabled managed task sync",
+            )?;
+            self.get_project_item(project_id)
+        })();
+
+        if let Err(err) = &setup_result {
+            let _ = self.pause_managed_task_sync_for_error(project_id, &err.to_string());
         }
-        let live_project = self.get_project_item(project_id)?;
-        self.ensure_managed_task_sync_watcher(&live_project)?;
-        self.record_project_sync_activity(
-            Actor::human("operator"),
-            project_id,
-            "enable_task_sync",
-            "Enabled managed task sync",
-        )?;
-        self.get_project_item(project_id)
+
+        setup_result
     }
 
     pub fn pause_managed_task_sync(
@@ -1454,17 +1462,14 @@ impl AppService {
         expected_revision: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
         let project = self.get_project_item(project_id)?;
+        self.enforce_current_revision(expected_revision, &project.revision)?;
         self.update_project(
             project_id,
             ProjectPatch {
                 task_sync_status: Some(Some(TaskSyncStatus::Paused)),
                 ..ProjectPatch::default()
             },
-            if project.revision == expected_revision {
-                expected_revision
-            } else {
-                &project.revision
-            },
+            expected_revision,
             Actor::human("operator"),
         )?;
         self.clear_managed_task_sync_dirty(project_id);
@@ -1483,6 +1488,7 @@ impl AppService {
         expected_revision: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
         let project = self.get_project_item(project_id)?;
+        self.enforce_current_revision(expected_revision, &project.revision)?;
 
         self.clear_managed_task_sync_dirty(project_id);
         let sync_path = self.managed_task_sync_file_path(&project)?;
@@ -1490,29 +1496,47 @@ impl AppService {
         self.update_project(
             project_id,
             ProjectPatch {
-                task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                task_sync_status: Some(Some(TaskSyncStatus::Paused)),
                 task_sync_last_seen_hash: Some(current_hash),
                 task_sync_conflict_summary: Some(None),
                 task_sync_conflict_at: Some(None),
                 ..ProjectPatch::default()
             },
-            if project.revision == expected_revision {
-                expected_revision
-            } else {
-                &project.revision
-            },
+            expected_revision,
             Actor::human("operator"),
         )?;
-        let live_project = self.get_project_item(project_id)?;
-        self.ensure_managed_task_sync_watcher(&live_project)?;
-        self.import_managed_task_sync_from_disk(project_id, false)?;
-        self.record_project_sync_activity(
-            Actor::human("operator"),
-            project_id,
-            "resume_task_sync",
-            "Resumed managed task sync",
-        )?;
-        self.get_project_item(project_id)
+        let resume_result = (|| -> Result<crate::types::ProjectItem, ServiceError> {
+            let live_project = self.get_project_item(project_id)?;
+            self.ensure_managed_task_sync_watcher(&live_project)?;
+            self.import_managed_task_sync_from_disk(project_id, false)?;
+            let current_project = self.get_project_item(project_id)?;
+            if current_project.task_sync_status != Some(TaskSyncStatus::Live) {
+                self.update_project(
+                    project_id,
+                    ProjectPatch {
+                        task_sync_status: Some(Some(TaskSyncStatus::Live)),
+                        task_sync_conflict_summary: Some(None),
+                        task_sync_conflict_at: Some(None),
+                        ..ProjectPatch::default()
+                    },
+                    &current_project.revision,
+                    Actor::human("operator"),
+                )?;
+            }
+            self.record_project_sync_activity(
+                Actor::human("operator"),
+                project_id,
+                "resume_task_sync",
+                "Resumed managed task sync",
+            )?;
+            self.get_project_item(project_id)
+        })();
+
+        if let Err(err) = &resume_result {
+            let _ = self.pause_managed_task_sync_for_error(project_id, &err.to_string());
+        }
+
+        resume_result
     }
 
     pub fn resolve_managed_task_sync_from_file(
@@ -1520,8 +1544,8 @@ impl AppService {
         project_id: &str,
         expected_revision: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
-        let _ = expected_revision;
-        let _project = self.get_project_item(project_id)?;
+        let project = self.get_project_item(project_id)?;
+        self.enforce_current_revision(expected_revision, &project.revision)?;
 
         self.clear_managed_task_sync_dirty(project_id);
         self.import_managed_task_sync_from_disk(project_id, true)?;
@@ -1539,8 +1563,8 @@ impl AppService {
         project_id: &str,
         expected_revision: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
-        let _ = expected_revision;
         let project = self.get_project_item(project_id)?;
+        self.enforce_current_revision(expected_revision, &project.revision)?;
 
         self.clear_managed_task_sync_dirty(project_id);
         self.write_managed_task_sync_file_from_local(&project, false)?;
@@ -1679,11 +1703,11 @@ impl AppService {
             project_id: Some(record.id.clone()),
             assignee: None,
             include_archived: false,
-            limit: Some(10_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
         let notes = self
             .db
-            .list_note_details_for_project(&record.id, 10_000, false)
+            .list_note_details_for_project(&record.id, UNBOUNDED_QUERY_LIMIT, false)
             .map_err(ServiceError::Other)?;
 
         let mut requests = Vec::with_capacity(1 + tasks.len() + notes.len());
@@ -1729,14 +1753,14 @@ impl AppService {
                 project_id: Some(record.id.clone()),
                 assignee: None,
                 include_archived: true,
-                limit: Some(10_000),
+                limit: Some(UNBOUNDED_QUERY_LIMIT),
             })?
             .into_iter()
             .filter(|task| task.archived)
             .collect::<Vec<_>>();
         let notes = self
             .db
-            .list_note_details_for_project(&record.id, 10_000, true)
+            .list_note_details_for_project(&record.id, UNBOUNDED_QUERY_LIMIT, true)
             .map_err(ServiceError::Other)?
             .into_iter()
             .filter(|note| note.archived)
@@ -1973,7 +1997,7 @@ impl AppService {
 
     pub fn empty_archive(&self) -> Result<usize, ServiceError> {
         let archived_projects = self
-            .list_projects(10_000, true)?
+            .list_projects(UNBOUNDED_QUERY_LIMIT, true)?
             .into_iter()
             .filter(|project| project.archived)
             .map(|project| PathBuf::from(project.path));
@@ -1984,13 +2008,13 @@ impl AppService {
                 project_id: None,
                 assignee: None,
                 include_archived: true,
-                limit: Some(10_000),
+                limit: Some(UNBOUNDED_QUERY_LIMIT),
             })?
             .into_iter()
             .filter(|task| task.archived)
             .map(|task| PathBuf::from(task.path));
         let archived_notes = self
-            .list_notes(10_000, true)?
+            .list_notes(UNBOUNDED_QUERY_LIMIT, true)?
             .into_iter()
             .filter(|note| note.archived)
             .map(|note| PathBuf::from(note.path));
@@ -2022,7 +2046,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
         let next = tasks
             .iter()
@@ -2104,7 +2128,7 @@ impl AppService {
         &self,
         project_id: &str,
     ) -> Result<crate::types::ProjectItem, ServiceError> {
-        self.list_projects(500, false)?
+        self.list_projects(UNBOUNDED_QUERY_LIMIT, false)?
             .into_iter()
             .find(|item| item.id == project_id)
             .with_context(|| format!("project {project_id} not found"))
@@ -2195,7 +2219,7 @@ impl AppService {
         anyhow::Error,
     > {
         let project = self
-            .list_projects(500, false)?
+            .list_projects(UNBOUNDED_QUERY_LIMIT, false)?
             .into_iter()
             .find(|item| item.id == project_id);
         let Some(project) = project else {
@@ -2397,7 +2421,7 @@ impl AppService {
     }
 
     fn restore_note_sync_watchers(&self) -> Result<()> {
-        for note in self.list_notes(5_000, false)? {
+        for note in self.list_notes(UNBOUNDED_QUERY_LIMIT, false)? {
             if note.sync_kind == Some(NoteSyncKind::RepoMarkdown)
                 && note.sync_status == Some(NoteSyncStatus::Live)
             {
@@ -2774,7 +2798,7 @@ impl AppService {
     }
 
     fn restore_managed_task_sync_watchers(&self) -> Result<()> {
-        for project in self.list_projects(500, false)? {
+        for project in self.list_projects(UNBOUNDED_QUERY_LIMIT, false)? {
             if project.task_sync_enabled
                 && project.task_sync_mode == Some(TaskSyncMode::ManagedTodoFile)
                 && project.task_sync_status == Some(TaskSyncStatus::Live)
@@ -2789,7 +2813,7 @@ impl AppService {
     }
 
     fn reconcile_managed_task_sync_project_defaults(&self) -> Result<()> {
-        for project in self.list_projects(500, false)? {
+        for project in self.list_projects(UNBOUNDED_QUERY_LIMIT, false)? {
             if !project.task_sync_enabled
                 || project.task_sync_mode != Some(TaskSyncMode::ManagedTodoFile)
             {
@@ -3031,7 +3055,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
 
         let mut paths = Vec::new();
@@ -3127,7 +3151,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
         tasks.retain(|task| {
             task.sync_managed
@@ -3367,7 +3391,7 @@ impl AppService {
             project_id: Some(project_id.to_string()),
             assignee: None,
             include_archived: false,
-            limit: Some(5_000),
+            limit: Some(UNBOUNDED_QUERY_LIMIT),
         })?;
 
         let mut existing_by_key = HashMap::new();
@@ -3541,6 +3565,17 @@ impl AppService {
         Err(ServiceError::Conflict {
             expected: expected.to_string(),
             current: parsed.revision.clone(),
+        })
+    }
+
+    fn enforce_current_revision(&self, expected: &str, current: &str) -> Result<(), ServiceError> {
+        if current == expected {
+            return Ok(());
+        }
+
+        Err(ServiceError::Conflict {
+            expected: expected.to_string(),
+            current: current.to_string(),
         })
     }
 

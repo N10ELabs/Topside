@@ -11,6 +11,7 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::markdown::render_markdown_html;
 use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ArchiveEntityRequest, ServiceError};
@@ -332,7 +333,7 @@ async fn dashboard(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let projects = state
         .service
-        .list_projects(200, false)
+        .list_projects(UNBOUNDED_QUERY_LIMIT, false)
         .map_err(internal_err)?;
     let selected_project = resolve_selected_project(&projects, query.project_id.as_deref());
     let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
@@ -382,7 +383,7 @@ async fn reindex_now(
 async fn api_projects(State(state): State<Arc<WebState>>) -> ApiResult<Vec<ProjectSummary>> {
     let projects = state
         .service
-        .list_projects(200, false)
+        .list_projects(UNBOUNDED_QUERY_LIMIT, false)
         .map_err(internal_api_err)?;
     Ok(Json(
         projects.into_iter().map(map_project_summary).collect(),
@@ -534,7 +535,7 @@ async fn api_sync_project(
         .sync_project_from_source(&id, Actor::human("operator"))
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -549,7 +550,7 @@ async fn api_enable_task_sync(
         .enable_managed_task_sync(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -564,7 +565,7 @@ async fn api_pause_task_sync(
         .pause_managed_task_sync(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -579,7 +580,7 @@ async fn api_resume_task_sync(
         .resume_managed_task_sync(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -594,7 +595,7 @@ async fn api_resolve_task_sync_file(
         .resolve_managed_task_sync_from_file(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -609,7 +610,7 @@ async fn api_resolve_task_sync_local(
         .resolve_managed_task_sync_from_local(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
 
-    let selected = request.current_project_id.or_else(|| Some(id));
+    let selected = request.current_project_id.or(Some(id));
     let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -882,11 +883,11 @@ async fn api_update_note(
 async fn api_resolve_note_sync_file(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
-    Json(_request): Json<ExpectedRevisionRequest>,
+    Json(request): Json<ExpectedRevisionRequest>,
 ) -> ApiResult<NoteMutationResponse> {
     let updated = state
         .service
-        .resolve_note_sync_from_file(&id)
+        .resolve_note_sync_from_file(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
     let project_id = updated
         .frontmatter
@@ -907,11 +908,11 @@ async fn api_resolve_note_sync_file(
 async fn api_resolve_note_sync_local(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
-    Json(_request): Json<ExpectedRevisionRequest>,
+    Json(request): Json<ExpectedRevisionRequest>,
 ) -> ApiResult<NoteMutationResponse> {
     let updated = state
         .service
-        .resolve_note_sync_from_local(&id)
+        .resolve_note_sync_from_local(&id, &request.expected_revision)
         .map_err(map_service_err_json)?;
     let project_id = updated
         .frontmatter
@@ -1074,16 +1075,16 @@ fn resolve_selected_project(
 }
 
 fn build_archive_payload(service: &AppService) -> Result<ArchiveContentsPayload, anyhow::Error> {
-    let projects = service.list_projects(5_000, true)?;
+    let projects = service.list_projects(UNBOUNDED_QUERY_LIMIT, true)?;
     let tasks = service.list_tasks(&TaskFilters {
         status: None,
         priority: None,
         project_id: None,
         assignee: None,
         include_archived: true,
-        limit: Some(10_000),
+        limit: Some(UNBOUNDED_QUERY_LIMIT),
     })?;
-    let notes = service.list_notes(10_000, true)?;
+    let notes = service.list_notes(UNBOUNDED_QUERY_LIMIT, true)?;
 
     let archived_projects = projects
         .iter()
@@ -1248,7 +1249,7 @@ fn build_ui_state_payload(
     service: &AppService,
     requested_project_id: Option<String>,
 ) -> Result<UiStatePayload, anyhow::Error> {
-    let projects = service.list_projects(200, false)?;
+    let projects = service.list_projects(UNBOUNDED_QUERY_LIMIT, false)?;
     let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
     let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
     let workspace = match selected_project_id.as_deref() {

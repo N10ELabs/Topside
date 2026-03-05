@@ -7,6 +7,7 @@ use std::time::Instant;
 use anyhow::Result;
 use rusqlite::params;
 
+use topside::constants::UNBOUNDED_QUERY_LIMIT;
 use topside::db::Db;
 use topside::service::ServiceError;
 use topside::types::{
@@ -33,7 +34,7 @@ fn project_by_id(
     project_id: &str,
 ) -> Result<topside::types::ProjectItem> {
     service
-        .list_projects(20, false)?
+        .list_projects(UNBOUNDED_QUERY_LIMIT, false)?
         .into_iter()
         .find(|item| item.id == project_id)
         .ok_or_else(|| anyhow::anyhow!("project {project_id} not found"))
@@ -751,6 +752,139 @@ fn managed_task_sync_resolve_from_local_rewrites_file() -> Result<()> {
 }
 
 #[test]
+fn managed_task_sync_operations_enforce_revision_conflicts() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = tempfile::TempDir::new()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Managed Revision Guard Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    assert!(matches!(
+        service.enable_managed_task_sync(&project.id, "stale-revision"),
+        Err(ServiceError::Conflict { .. })
+    ));
+
+    let enabled = service.enable_managed_task_sync(&project.id, &project.revision)?;
+    assert_eq!(enabled.task_sync_status, Some(TaskSyncStatus::Live));
+
+    assert!(matches!(
+        service.pause_managed_task_sync(&project.id, "stale-revision"),
+        Err(ServiceError::Conflict { .. })
+    ));
+
+    let paused = service.pause_managed_task_sync(&project.id, &enabled.revision)?;
+    assert_eq!(paused.task_sync_status, Some(TaskSyncStatus::Paused));
+
+    assert!(matches!(
+        service.resume_managed_task_sync(&project.id, "stale-revision"),
+        Err(ServiceError::Conflict { .. })
+    ));
+
+    let resumed = service.resume_managed_task_sync(&project.id, &paused.revision)?;
+    assert_eq!(resumed.task_sync_status, Some(TaskSyncStatus::Live));
+
+    assert!(matches!(
+        service.resolve_managed_task_sync_from_file(&project.id, "stale-revision"),
+        Err(ServiceError::Conflict { .. })
+    ));
+    assert!(matches!(
+        service.resolve_managed_task_sync_from_local(&project.id, "stale-revision"),
+        Err(ServiceError::Conflict { .. })
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn load_project_workspace_returns_all_project_items() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Large Workspace Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    for index in 0..501 {
+        let _task = service.create_task(
+            CreateTaskPayload {
+                title: format!("Task {index}"),
+                project_id: project.id.clone(),
+                status: Some(TaskStatus::Todo),
+                priority: None,
+                assignee: None,
+                due_at: None,
+                sort_order: None,
+                sync_kind: None,
+                sync_path: None,
+                sync_key: None,
+                sync_managed: None,
+                tags: None,
+                body: None,
+            },
+            Actor::human("tester"),
+        )?;
+    }
+
+    for index in 0..201 {
+        let _note = service.create_note(
+            CreateNotePayload {
+                title: format!("Note {index}"),
+                project_id: Some(project.id.clone()),
+                tags: None,
+                body: Some(String::new()),
+            },
+            Actor::human("tester"),
+        )?;
+    }
+
+    let workspace = service.load_project_workspace(&project.id)?;
+    assert_eq!(workspace.active_tasks.len(), 501);
+    assert_eq!(workspace.notes.len(), 201);
+
+    let (_workspace, created_task_id) = service.create_task_after(
+        &project.id,
+        "Final task".to_string(),
+        None,
+        Actor::human("tester"),
+    )?;
+
+    let refreshed = service.load_project_workspace(&project.id)?;
+    assert_eq!(refreshed.active_tasks.len(), 502);
+    let created_task = refreshed
+        .active_tasks
+        .iter()
+        .find(|task| task.id == created_task_id)
+        .expect("created task should exist");
+    let max_sort_order = refreshed
+        .active_tasks
+        .iter()
+        .map(|task| task.sort_order)
+        .max()
+        .expect("workspace should contain tasks");
+
+    assert_eq!(created_task.sort_order, max_sort_order);
+    assert_eq!(max_sort_order, 502);
+
+    Ok(())
+}
+
+#[test]
 fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root = tempfile::TempDir::new()?;
@@ -819,7 +953,13 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     })?;
 
     std::fs::write(&doc_path, "# Architecture\n\nExternal revision.\n")?;
-    let imported = service.resolve_note_sync_from_file(&linked.id)?;
+    let note_before_import = service
+        .load_project_workspace(&project.id)?
+        .notes
+        .into_iter()
+        .find(|item| item.id == linked.id)
+        .expect("linked note should exist");
+    let imported = service.resolve_note_sync_from_file(&linked.id, &note_before_import.revision)?;
     assert!(imported.body.contains("External revision."));
 
     let note_after_import = service
@@ -852,7 +992,14 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
         Ok(note.sync_status == Some(NoteSyncStatus::Conflict))
     })?;
 
-    let resolved_from_file = service.resolve_note_sync_from_file(&linked.id)?;
+    let conflicted_note = service
+        .load_project_workspace(&project.id)?
+        .notes
+        .into_iter()
+        .find(|item| item.id == linked.id)
+        .expect("linked note should exist");
+    let resolved_from_file =
+        service.resolve_note_sync_from_file(&linked.id, &conflicted_note.revision)?;
     match resolved_from_file.frontmatter {
         topside::types::EntityFrontmatter::Note(note) => {
             assert_eq!(note.sync_status, Some(NoteSyncStatus::Live));
@@ -891,7 +1038,14 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
         Ok(note.sync_status == Some(NoteSyncStatus::Conflict))
     })?;
 
-    let resolved_from_local = service.resolve_note_sync_from_local(&linked.id)?;
+    let conflicted_note = service
+        .load_project_workspace(&project.id)?
+        .notes
+        .into_iter()
+        .find(|item| item.id == linked.id)
+        .expect("linked note should exist");
+    let resolved_from_local =
+        service.resolve_note_sync_from_local(&linked.id, &conflicted_note.revision)?;
     assert!(resolved_from_local.body.contains("Topside wins."));
     let resolved_file = std::fs::read_to_string(&doc_path)?;
     assert!(resolved_file.contains("Topside wins."));
