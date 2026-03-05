@@ -2,6 +2,47 @@
   "version": 1,
   "entries": [
     {
+      "title": "Section: Phase 3 - Sync Animation Test",
+      "kind": "Section",
+      "sync_key": "sec_01KJXNGGSE1729M1C4QQ0FVHB5"
+    },
+    {
+      "title": "Sample task: verify new task sync animation appears in to-do pane",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJVE81MYK9R8V046ZG6HYC0K"
+    },
+    {
+      "title": "Sample task: create a task from agent prompt and confirm row animation timing",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXNGGSJ984H353J1WFZNT5V"
+    },
+    {
+      "title": "Sample task: test multiple synced tasks arriving together",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJVE9GRET0XZMN4JQX7E33KC"
+    },
+    {
+      "title": "Sample task: confirm section collapse/expand animation runs at 150ms",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXJW074FPX1Q88RKWFH6EYX"
+    },
+    {
       "title": "Section: Phase 4 - Agentic Task Assignments",
       "kind": "Section",
       "sync_key": "sec_01KJP6SVQCJPX24VA908CQDQNT"
@@ -16,15 +57,6 @@
       "sync_key": "tsk_01KJNG52W4XFGKHBPEJQRENYX5"
     },
     {
-      "title": "Add explicit task assignment controls for agent ownership",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJNG52W4NGYSWWMH06MXHFHE"
-    },
-    {
       "title": "Enable claim, assign, and release flows in MCP task operations",
       "kind": {
         "Task": {
@@ -32,6 +64,15 @@
         }
       },
       "sync_key": "tsk_01KJNG52W4WZ3Z7VR88F9Q08H0"
+    },
+    {
+      "title": "Add explicit task assignment controls for agent ownership",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJNG52W4NGYSWWMH06MXHFHE"
     },
     {
       "title": "Surface assignment state and unassigned queues in the UI",
@@ -52,72 +93,45 @@
       "sync_key": "tsk_01KJNG52W4QBTYG3NC4VJSQJXK"
     },
     {
+      "title": "Add ability to copy rich html or markdown",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXK6Y72PSTDWMHE89DCSBS2"
+    },
+    {
       "title": "Section: Phase 6 - Visual Polish and Functionality",
       "kind": "Section",
-      "sync_key": "sec_01KJNG52W41TH0WBYYMY8F1RVC"
-    },
-    {
-      "title": "Visual animation when tasks are created or destroyed by agent in todo.md",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJNGYCGA0P52HZB7MEC0TQ1X"
-    },
-    {
-      "title": "Perform rename to \"Topside\"",
-      "kind": {
-        "Task": {
-          "completed": true
-        }
-      },
-      "sync_key": "tsk_01KJV44EKDREWAP1Q37Q591WDF"
-    },
-    {
-      "title": "Make an app icon",
-      "kind": {
-        "Task": {
-          "completed": true
-        }
-      },
-      "sync_key": "tsk_01KJV7F1Q1KVSRAMVVER9RC9WH"
+      "sync_key": "sec_01KJXNQDFY1XXAFBNEV4RQS841"
     },
     {
       "title": "to-do pane, collapse all expand all toggle",
       "kind": {
         "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJVEB2T872GNQKJ01R8Y5G66"
-    },
-    {
-      "title": "Implement archive feature in changelog",
-      "kind": {
-        "Task": {
           "completed": true
         }
       },
-      "sync_key": "tsk_01KJP9Y748DW8MAQ6X1V904DJ0"
+      "sync_key": "tsk_01KJXK6Y72ETJPWGJTC4XRJYPD"
     },
     {
       "title": "Update task placeholder text",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
-      "sync_key": "tsk_01KJVB9N6EP1T7WCVCM6MJMT1H"
+      "sync_key": "tsk_01KJXK6Y729WYHRKJ15F5RNM2E"
     },
     {
-      "title": "Ensure copied changelog are in document",
+      "title": "Ensure copied changelog is in document view",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
-      "sync_key": "tsk_01KJVCGTSB2SAG3QZCZ6EBYVZS"
+      "sync_key": "tsk_01KJXNQDG4W1B1X9D9R12MS2FX"
     },
     {
       "title": "Add polished search bar in docs pane",
@@ -126,16 +140,25 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVDT3TXNT2FW4BDQ6AHP859"
+      "sync_key": "tsk_01KJXN9R6SFP4J2JF0AQAA6HWN"
     },
     {
       "title": "Add tasking priority",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
-      "sync_key": "tsk_01KJVDTZ4MW6X4PG9CRHCC66TD"
+      "sync_key": "tsk_01KJXN9R6SE0JE19GFP26GWKXE"
+    },
+    {
+      "title": "Visual animation when tasks are created or destroyed by agent in todo.md",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXN9R6SD7530V2S0Z3VHZM5"
     },
     {
       "title": "Ensure launch restores latest project tab and position",
@@ -144,21 +167,48 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVEG5VG76DQGQVT5NC5VTE2"
+      "sync_key": "tsk_01KJXN9R6SHKPAHA5S159ECY0M"
     },
     {
       "title": "Phase 7 - Hub as Interactive Codebase",
       "kind": "Section",
-      "sync_key": "sec_01KJNG52W4EKX7B2D175RQP4NW"
+      "sync_key": "sec_01KJXNQDGDJ7W1EV5WV4YRYDHE"
     },
     {
-      "title": "Project selection should initilaize todo.md in project workspace",
+      "title": "Perform rename to \"Topside\"",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXNGGS2YCH4Z92M775KKCFJ"
+    },
+    {
+      "title": "Project selection should initialize to-do.md in project workspace",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJNG52W4H6XJYEX9X9VPJ4GA"
+      "sync_key": "tsk_01KJXNGGS2M1T26BA12D1XAZWR"
+    },
+    {
+      "title": "Make an app icon",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXNGGS282GZWJHJA1BSVN8S"
+    },
+    {
+      "title": "Implement archive feature in changelog",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXNGGS25GYN5ED82KSW1JXV"
     },
     {
       "title": "Scan the linked repo for TODO:, FIXME:, and HACK: comments and surface them as suggested tasks. This is high-impact because it turns hidden code debt into visible, actionable planning in one click.",
@@ -167,7 +217,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVDY7VAN604FKYJ3XSARX3J"
+      "sync_key": "tsk_01KJXNGGS2MWT3A9DHAYYMNCFR"
     },
     {
       "title": "Add port viewer/killer",
@@ -176,7 +226,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVE81MYK9R8V046ZG6HYC0K"
+      "sync_key": "tsk_01KJXNQDEYHT7E8X4EPXJ843CG"
     },
     {
       "title": "Add agent usage meter",
@@ -185,7 +235,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVE88CKN1RYGB01WJTXC8TK"
+      "sync_key": "tsk_01KJXNQDEYRQDFRVE14AG3NFFF"
     },
     {
       "title": "Add focus mode/timer",
@@ -194,7 +244,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVE9GRET0XZMN4JQX7E33KC"
+      "sync_key": "tsk_01KJXNQDEY7EC2MB6F7CEPPKPH"
     },
     {
       "title": "Project baseball card",
@@ -203,7 +253,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVEBM5PW13ZZYT0FVGTAKSG"
+      "sync_key": "tsk_01KJXNQDEYRKPNK29WXBGQ1GTN"
     },
     {
       "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
@@ -212,7 +262,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJVECK59HR77C7T7HAA2CFYT"
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     }
   ]
 }

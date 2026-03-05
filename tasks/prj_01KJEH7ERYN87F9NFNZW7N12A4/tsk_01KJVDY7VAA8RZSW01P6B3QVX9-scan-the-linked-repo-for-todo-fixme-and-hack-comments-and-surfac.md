@@ -1,18 +1,19 @@
 ---
 id: tsk_01KJVDY7VAA8RZSW01P6B3QVX9
 type: task
-title: 'Scan the linked repo for TODO:, FIXME:, and HACK: comments and surface them as suggested tasks. This is high-impact because it turns hidden code debt into visible, actionable planning in one click.'
+title: '## Section: Phase 3 - Sync Animation Test'
 project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
-status: todo
+status: done
 priority: P2
 assignee: agent:unassigned
-sort_order: 17
+sort_order: 1
+completed_at: 2026-03-05T01:40:27.106423+00:00
 sync_kind: managed_todo_file
 sync_path: docs/to-do.md
-sync_key: tsk_01KJVDY7VAN604FKYJ3XSARX3J
+sync_key: sec_01KJXNGGSE1729M1C4QQ0FVHB5
 sync_managed: true
 created_at: 2026-03-04T03:23:21.834662+00:00
-updated_at: 2026-03-04T03:33:09.647482+00:00
-revision: db01a48e60d30e3e1d5711cf0212d6085c1879626c7ab58887ec01d488584542
+updated_at: 2026-03-05T01:40:27.106426+00:00
+revision: 00b7fe30f08ffe21e756ac62f4ca4b3073d760a7f08be1bca746638659f68f7a
 ---
 

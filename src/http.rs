@@ -16,7 +16,7 @@ use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ArchiveEntityRequest, ServiceError};
 use crate::types::{
     Actor, CreateNotePayload, CreateProjectPayload, NotePatch, ProjectItem, ProjectPatch,
-    ProjectSourceKind, ProjectWorkspace, TaskFilters, TaskPatch, TaskStatus,
+    ProjectSourceKind, ProjectWorkspace, TaskFilters, TaskPatch, TaskPriority, TaskStatus,
 };
 
 #[derive(Clone)]
@@ -173,6 +173,7 @@ struct WorkspacePayload {
 struct TaskPayload {
     id: String,
     title: String,
+    priority: String,
     revision: String,
     completed_at_iso: Option<String>,
     completed_at_label: Option<String>,
@@ -235,6 +236,7 @@ struct UpdateTaskRequest {
     expected_revision: String,
     title: Option<String>,
     status: Option<String>,
+    priority: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -669,7 +671,7 @@ async fn api_update_task(
     let patch = TaskPatch {
         title: request.title,
         status: parse_task_status(request.status.as_deref()).map_err(bad_request_json)?,
-        priority: None,
+        priority: parse_task_priority(request.priority.as_deref()).map_err(bad_request_json)?,
         assignee: None,
         due_at: None,
         sort_order: None,
@@ -962,6 +964,16 @@ fn parse_task_status(value: Option<&str>) -> Result<Option<TaskStatus>, String> 
         .map_err(|_| format!("invalid task status: {value}"))
 }
 
+fn parse_task_priority(value: Option<&str>) -> Result<Option<TaskPriority>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let encoded = format!("\"{value}\"");
+    serde_json::from_str::<TaskPriority>(&encoded)
+        .map(Some)
+        .map_err(|_| format!("invalid task priority: {value}"))
+}
+
 fn project_payload_parts(
     request: &CreateProjectRequest,
 ) -> Result<(String, Option<ProjectSourceKind>, Option<String>), String> {
@@ -1248,6 +1260,7 @@ fn map_task_payload(task: crate::types::TaskItem) -> TaskPayload {
     TaskPayload {
         id: task.id,
         title: task.title,
+        priority: task.priority.as_str().to_string(),
         revision: task.revision,
         completed_at_iso,
         completed_at_label,

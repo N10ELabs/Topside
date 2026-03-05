@@ -28,6 +28,10 @@
       --warm: #f59e0b;
       --success: #34d399;
       --danger: #f87171;
+      --task-priority-none: #7f8ea0;
+      --task-priority-p3: #3b82f6;
+      --task-priority-p2: #f59e0b;
+      --task-priority-p1: #ef4444;
       --shadow: 0 18px 48px rgba(2, 8, 14, 0.38);
       --glass-shell: rgba(8, 16, 23, 0.2);
       --glass-panel: rgba(16, 27, 36, 0.66);
@@ -41,6 +45,11 @@
       --task-row-min-height: 44px;
       --changelog-list-height: min(38vh, 340px);
       --changelog-pane-height: min(calc(38vh + var(--pane-head-height) + 25px), 427px);
+      --todo-animation-duration: 150ms;
+      --todo-animation-step: 40ms;
+      --todo-animation-distance: 12px;
+      --todo-animation-distance-half: 6px;
+      --todo-animation-distance-out: -12px;
     }
 
     @supports (height: 100dvh) {
@@ -436,6 +445,69 @@
       line-height: 1;
     }
 
+    .pane-notes .pane-head {
+      gap: 10px;
+    }
+
+    .pane-notes .pane-head-actions {
+      margin-left: auto;
+    }
+
+    .pane-search {
+      height: var(--pane-control-size);
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: 420px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 0 10px;
+      background: rgba(8, 15, 21, 0.9);
+    }
+
+    .pane-search svg {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 auto;
+      color: var(--muted);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pane-search:focus-within {
+      border-color: rgba(56, 189, 248, 0.58);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
+      background: rgba(10, 20, 28, 0.98);
+    }
+
+    .pane-search-input {
+      width: 100%;
+      min-width: 0;
+      border: none;
+      padding: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1;
+      outline: none;
+    }
+
+    .pane-search-input::placeholder {
+      color: var(--muted);
+      opacity: 0.9;
+    }
+
+    .pane-search-input:disabled {
+      cursor: default;
+      opacity: 0.52;
+    }
+
     .pane-body {
       min-height: 0;
       overflow: auto;
@@ -501,6 +573,21 @@
       stroke-width: 1.7;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    #todo-toggle-sections svg {
+      transition: transform 160ms ease;
+    }
+
+    #todo-toggle-sections[aria-pressed="true"] svg {
+      transform: rotate(180deg);
+    }
+
+    #todo-sort-priority[aria-pressed="true"] {
+      color: var(--text);
+      border-color: rgba(77, 159, 255, 0.58);
+      background: rgba(17, 34, 47, 0.94);
+      box-shadow: inset 0 0 0 1px rgba(77, 159, 255, 0.22);
     }
 
     .icon-btn.subtle {
@@ -984,6 +1071,132 @@
       overflow-y: auto;
       padding-right: var(--scrollbar-clearance);
       scrollbar-gutter: auto;
+      view-transition-name: todo-active-task-list;
+    }
+
+    .task-list.priority-sorted .task-row {
+      cursor: default;
+    }
+
+    .task-list.bulk-toggle-animating > .task-row,
+    .task-list.bulk-toggle-animating > .task-draft {
+      animation-name: todo-bulk-row-in;
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      animation-delay: calc(var(--bulk-row-index, 0) * var(--todo-animation-step));
+      animation-fill-mode: both;
+      will-change: transform, opacity;
+    }
+
+    .task-list.bulk-toggle-animating {
+      animation-name: todo-task-list-surface-in;
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      animation-fill-mode: both;
+    }
+
+    .task-row.sync-in-animating {
+      animation-name: todo-bulk-row-in;
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      animation-delay: calc(var(--bulk-row-index, 0) * var(--todo-animation-step));
+      animation-fill-mode: both;
+      will-change: transform, opacity;
+    }
+
+    ::view-transition-old(todo-active-task-list),
+    ::view-transition-new(todo-active-task-list) {
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      mix-blend-mode: normal;
+    }
+
+    ::view-transition-old(todo-active-task-list) {
+      animation-name: todo-task-list-fade-out;
+    }
+
+    ::view-transition-new(todo-active-task-list) {
+      animation-name: todo-task-list-fade-in;
+    }
+
+    @keyframes todo-task-list-fade-out {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(var(--todo-animation-distance-out));
+      }
+    }
+
+    @keyframes todo-task-list-fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(var(--todo-animation-distance));
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes todo-bulk-row-in {
+      from {
+        opacity: 0;
+        transform: translateY(var(--todo-animation-distance));
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes todo-task-list-surface-in {
+      from {
+        opacity: 0.52;
+        transform: translateY(var(--todo-animation-distance-half));
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes todo-task-row-exit {
+      from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(var(--todo-animation-distance-out)) scale(0.985);
+      }
+    }
+
+    @keyframes todo-task-row-exit-collapse {
+      from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.95);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .task-list.bulk-toggle-animating,
+      .task-row.sync-in-animating,
+      .task-row.task-row-ghost-exit,
+      .task-row.task-row-reflow-animating,
+      .task-list.bulk-toggle-animating > .task-row,
+      .task-list.bulk-toggle-animating > .task-draft,
+      ::view-transition-old(todo-active-task-list),
+      ::view-transition-new(todo-active-task-list) {
+        animation-duration: 1ms;
+        transition-duration: 1ms;
+      }
     }
 
     .done-list {
@@ -996,13 +1209,36 @@
     }
 
     .task-row {
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
       cursor: grab;
+    }
+
+    .task-row[draggable="false"] {
+      cursor: default;
     }
 
     .task-row.dragging {
       opacity: 0.5;
       cursor: grabbing;
+    }
+
+    .task-row.task-row-ghost-exit {
+      position: fixed;
+      margin: 0;
+      pointer-events: none;
+      z-index: 9999;
+      animation-name: todo-task-row-exit;
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      animation-fill-mode: both;
+    }
+
+    .task-row.task-row-ghost-exit.is-collapse-exit {
+      animation-name: todo-task-row-exit-collapse;
+    }
+
+    .task-row.task-row-reflow-animating {
+      transition: transform var(--todo-animation-duration) cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .task-row.drop-before::before,
@@ -1091,18 +1327,17 @@
       margin-top: 2px;
     }
 
-    .task-heading-marker {
+    .task-draft-check {
       width: 20px;
-      color: var(--accent);
-      font-size: 11px;
-      font-family: "IBM Plex Mono", monospace;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      text-align: center;
-    }
-
-    .task-heading-marker.empty {
-      opacity: 0;
+      height: 20px;
+      border: 1px solid var(--checkbox-border);
+      border-radius: 6px;
+      background-color: var(--checkbox-surface);
+      box-shadow: inset 0 1px 0 rgba(248, 251, 255, 0.04);
+      align-self: start;
+      margin-top: 2px;
+      opacity: 0.76;
+      pointer-events: none;
     }
 
     .task-input {
@@ -1347,6 +1582,65 @@
     .task-copy-btn:focus-visible {
       color: var(--text);
       background: rgba(16, 33, 46, 0.84);
+      outline: none;
+    }
+
+    .task-priority-btn {
+      width: 28px;
+      height: 22px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: rgba(11, 22, 30, 0.48);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      opacity: 0;
+      pointer-events: none;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--task-priority-none);
+      transition: opacity 120ms ease, background-color 120ms ease, transform 120ms ease;
+    }
+
+    .task-priority-btn.priority-none {
+      color: var(--task-priority-none);
+      border-color: rgba(127, 142, 160, 0.4);
+    }
+
+    .task-priority-btn.priority-p3 {
+      color: var(--task-priority-p3);
+      border-color: rgba(59, 130, 246, 0.46);
+    }
+
+    .task-priority-btn.priority-p2 {
+      color: var(--task-priority-p2);
+      border-color: rgba(245, 158, 11, 0.46);
+    }
+
+    .task-priority-btn.priority-p1 {
+      color: var(--task-priority-p1);
+      border-color: rgba(239, 68, 68, 0.46);
+    }
+
+    .task-priority-btn.priority-p1,
+    .task-priority-btn.priority-p2,
+    .task-priority-btn.priority-p3 {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-row:hover .task-priority-btn.priority-none {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-priority-btn:hover,
+    .task-priority-btn:focus-visible {
+      background: rgba(16, 33, 46, 0.84);
+      transform: translateY(-1px);
       outline: none;
     }
 
@@ -2221,6 +2515,19 @@
                   <path d="M8 12h8"></path>
                 </svg>
               </button>
+              <button class="icon-btn" id="todo-toggle-sections" type="button" aria-label="Collapse all headers" title="Collapse all headers" aria-pressed="false" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m7 9 5-5 5 5"></path>
+                  <path d="m7 15 5 5 5-5"></path>
+                </svg>
+              </button>
+              <button class="icon-btn" id="todo-sort-priority" type="button" aria-label="Sort by priority" title="Sort by priority" aria-pressed="false" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 6h10"></path>
+                  <path d="M7 12h7"></path>
+                  <path d="M7 18h4"></path>
+                </svg>
+              </button>
               <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy to-do.md" title="Copy to-do.md" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
@@ -2272,6 +2579,21 @@
       <section class="pane pane-notes">
         <div class="pane-head">
           <span class="pane-title">/docs</span>
+          <label class="pane-search" for="notes-search-input">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m20 20-3.4-3.4"></path>
+            </svg>
+            <input
+              id="notes-search-input"
+              class="pane-search-input"
+              type="search"
+              placeholder="Search imported docs..."
+              aria-label="Search imported docs in notes"
+              autocomplete="off"
+              spellcheck="false"
+            >
+          </label>
           <div class="pane-head-actions">
             <span class="muted" id="note-status"></span>
             <div class="mode-toggle" aria-label="Notes view mode">
@@ -2366,7 +2688,14 @@
     const legacyTaskSectionCollapseKey = "n10e-task-sections-collapsed";
     const doneTaskSectionCollapseKey = "topside-done-task-sections-collapsed";
     const legacyDoneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
+    const taskPrioritySortKey = "topside-task-priority-sort";
+    const legacyTaskPrioritySortKey = "n10e-task-priority-sort";
+    const sessionStateKey = "topside-last-session";
+    const legacySessionStateKey = "n10e-last-session";
+    const sessionStateVersion = 1;
+    const sessionPersistDelayMs = 160;
     const isDesktopShell = document.documentElement.dataset.topsideDesktop === "true";
+    const initialUrlProjectId = new URL(window.location.href).searchParams.get("project_id");
     const layoutModeBreakpoints = Object.freeze({
       oneColumn: 960,
       twoColumn: 1360,
@@ -2380,6 +2709,7 @@
       changelogCollapsed: readStorageItem(changelogCollapseKey, legacyChangelogCollapseKey) === "true",
       collapsedTaskSections: loadCollapsedTaskSections(),
       collapsedDoneTaskSections: loadCollapsedDoneTaskSections(),
+      sortTasksByPriority: readStorageItem(taskPrioritySortKey, legacyTaskPrioritySortKey) === "true",
       openNoteId: initialState.workspace?.suggested_open_note_id || null,
       projectTrayMode: null,
       projectInput: "",
@@ -2388,6 +2718,7 @@
       projectMessage: "",
       taskMessage: "",
       noteMessage: "",
+      notesSearchQuery: "",
       taskDrafts: [],
       taskEdits: {},
       noteFilePickerOpen: false,
@@ -2425,6 +2756,9 @@
       uiRefreshTimer: null,
       uiRefreshInFlight: false,
       pendingRemoteUiState: null,
+      pendingActiveTaskAnimation: null,
+      pendingSessionScrollState: null,
+      sessionPersistTimer: null,
     };
 
     function readStorageItem(key, legacyKey) {
@@ -2454,10 +2788,13 @@
     const todoStatus = document.getElementById("todo-status");
     const changelogStatus = document.getElementById("changelog-status");
     const noteStatus = document.getElementById("note-status");
+    const notesSearchInput = document.getElementById("notes-search-input");
     const notesLinkButton = document.getElementById("notes-link");
     const noteLinkPickerWrap = document.getElementById("note-link-picker-wrap");
     const noteLinkPicker = document.getElementById("note-link-picker");
     const todoHeaderToggleButton = document.getElementById("todo-toggle-header");
+    const todoSectionToggleButton = document.getElementById("todo-toggle-sections");
+    const todoPrioritySortButton = document.getElementById("todo-sort-priority");
     const todoCopySelectedButton = document.getElementById("todo-copy-selected");
     const changelogPane = document.getElementById("changelog-pane");
     const changelogToggleButton = document.getElementById("changelog-toggle");
@@ -2472,6 +2809,13 @@
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
     const changelogBody = document.getElementById("changelog-body");
     const notesPaneBody = document.querySelector(".pane-notes .pane-body");
+    const shellScrollPaneNodes = Object.freeze({
+      projects: projectsPaneBody,
+      activeTasks: activeTaskList,
+      changelog: changelogBody,
+      doneTasks: doneTaskList,
+      notes: notesPaneBody,
+    });
     let taskRowSyncFrame = null;
     if (typeof ResizeObserver !== "undefined") {
       const taskListResizeObserver = new ResizeObserver(() => {
@@ -2504,6 +2848,18 @@
         minute: "2-digit"
       })
       : null;
+    const todoListAnimationDurationMs = 150;
+    const todoListAnimationStepMs = 40;
+    const todoListAnimationDistancePx = 12;
+    const todoListAnimationMaxIndex = 8;
+    const todoListAnimationCleanupMs = todoListAnimationDurationMs + (todoListAnimationStepMs * todoListAnimationMaxIndex) + 80;
+    document.documentElement.style.setProperty("--todo-animation-duration", `${todoListAnimationDurationMs}ms`);
+    document.documentElement.style.setProperty("--todo-animation-step", `${todoListAnimationStepMs}ms`);
+    document.documentElement.style.setProperty("--todo-animation-distance", `${todoListAnimationDistancePx}px`);
+    document.documentElement.style.setProperty("--todo-animation-distance-half", `${todoListAnimationDistancePx / 2}px`);
+    document.documentElement.style.setProperty("--todo-animation-distance-out", `${-todoListAnimationDistancePx}px`);
+    let todoListFallbackTimer = null;
+    let syncedTaskAnimationTimer = null;
     const scrollRevealTimers = new WeakMap();
     const scrollIndicators = new WeakMap();
     const uiRefreshIntervalMs = 1400;
@@ -2525,6 +2881,30 @@
       const taskId = getSelectedActiveTaskId();
       if (!taskId) return;
       toggleTaskHeading(taskId);
+    });
+
+    todoSectionToggleButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+
+    todoSectionToggleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggleAllTaskSections();
+    });
+
+    todoPrioritySortButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+
+    todoPrioritySortButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      state.sortTasksByPriority = !state.sortTasksByPriority;
+      try {
+        localStorage.setItem(taskPrioritySortKey, String(state.sortTasksByPriority));
+      } catch (_error) {
+        // Ignore storage failures and keep the in-memory state active.
+      }
+      render({ preserveShellScroll: true });
     });
 
     todoCopySelectedButton.addEventListener("pointerdown", (event) => {
@@ -2559,6 +2939,19 @@
       applyWorkspace(response.workspace, response.created_note_id);
       state.focusNoteId = response.created_note_id;
       render();
+    });
+
+    notesSearchInput.addEventListener("input", () => {
+      state.notesSearchQuery = notesSearchInput.value || "";
+      renderNotes();
+    });
+
+    notesSearchInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !state.notesSearchQuery) return;
+      event.preventDefault();
+      state.notesSearchQuery = "";
+      notesSearchInput.value = "";
+      renderNotes();
     });
 
     notesLinkButton.addEventListener("click", async (event) => {
@@ -2603,7 +2996,17 @@
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         scheduleUiRefresh(50);
+      } else {
+        persistSessionStateNow();
       }
+    });
+
+    window.addEventListener("pagehide", () => {
+      persistSessionStateNow();
+    });
+
+    window.addEventListener("beforeunload", () => {
+      persistSessionStateNow();
     });
 
     document.addEventListener("focusout", () => {
@@ -2727,6 +3130,14 @@
         event.preventDefault();
         event.stopPropagation();
         await deleteTask(taskDeleteButton.dataset.taskDeleteId);
+        return;
+      }
+
+      const taskPriorityButton = event.target.closest("[data-task-priority-id]");
+      if (taskPriorityButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await cycleTaskPriority(taskPriorityButton.dataset.taskPriorityId);
         return;
       }
 
@@ -2987,7 +3398,7 @@
         return;
       }
 
-      if (!event.target.closest("#todo-toggle-header, #todo-copy-selected")) {
+      if (!event.target.closest("#todo-toggle-header, #todo-toggle-sections, #todo-sort-priority, #todo-copy-selected")) {
         setSelectedTaskId(null);
       }
 
@@ -3020,21 +3431,32 @@
       const taskInput = event.target.closest("[data-task-id]");
       if (taskInput && taskInput.tagName === "TEXTAREA") {
         const taskId = taskInput.dataset.taskId;
+        const currentTitle = state.taskEdits[taskId] ?? findTask(taskId)?.title ?? "";
+        const wasHeading = isMarkdownTaskHeading(currentTitle);
         const title = normalizeTaskEditorValue(taskInput.value);
         if (taskInput.value !== title) taskInput.value = title;
         syncTaskRowFromInput(taskInput);
         state.taskEdits[taskId] = title;
         debounceTaskSave(taskId);
+        if (wasHeading !== isMarkdownTaskHeading(title)) {
+          state.focusTaskId = taskId;
+          render();
+        }
         return;
       }
 
       const draftInput = event.target.closest("[data-task-draft-key]");
       if (draftInput && draftInput.tagName === "TEXTAREA") {
         const draft = getDraft(draftInput.dataset.taskDraftKey);
+        const wasHeading = isMarkdownTaskHeading(draft?.title ?? draftInput.value);
         const title = normalizeTaskEditorValue(draftInput.value);
         if (draftInput.value !== title) draftInput.value = title;
         syncTaskRowFromInput(draftInput);
         if (draft) draft.title = title;
+        if (draft && wasHeading !== isMarkdownTaskHeading(title)) {
+          state.focusDraftKey = draft.key;
+          render();
+        }
         return;
       }
 
@@ -3201,9 +3623,13 @@
     });
 
     document.addEventListener("dragstart", (event) => {
+      if (state.sortTasksByPriority) {
+        event.preventDefault();
+        return;
+      }
       const dragOrigin = event.target instanceof Element ? event.target : null;
       if (!dragOrigin) return;
-      const dragHandle = dragOrigin.closest(".task-input, .task-check, .task-delete-btn, .task-copy-btn, .task-section-toggle, .task-heading-complete-btn");
+      const dragHandle = dragOrigin.closest(".task-input, .task-check, .task-priority-btn, .task-delete-btn, .task-copy-btn, .task-section-toggle, .task-heading-complete-btn");
       if (dragHandle) {
         event.preventDefault();
         return;
@@ -3225,6 +3651,7 @@
     });
 
     document.addEventListener("dragover", (event) => {
+      if (state.sortTasksByPriority) return;
       if (!state.draggedTaskId) return;
       const taskList = event.target.closest("#active-task-list");
       if (!taskList) {
@@ -3246,6 +3673,7 @@
     });
 
     document.addEventListener("drop", async (event) => {
+      if (state.sortTasksByPriority) return;
       const taskList = event.target.closest("#active-task-list");
       if (!taskList || !state.draggedTaskId || !state.workspace) return;
       event.preventDefault();
@@ -3512,6 +3940,21 @@
         body: JSON.stringify({
           expected_revision: task.revision,
           status
+        })
+      }, "task");
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      render({ preserveShellScroll: true });
+    }
+
+    async function cycleTaskPriority(taskId) {
+      const task = findTask(taskId);
+      if (!task) return;
+      const response = await fetchJson(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: task.revision,
+          priority: nextTaskPriority(task.priority)
         })
       }, "task");
       if (!response) return;
@@ -3952,6 +4395,42 @@
       render({ preserveShellScroll: true });
     }
 
+    function computeActiveTaskAnimation(previousWorkspace, nextWorkspace) {
+      const previousProjectId = previousWorkspace?.project?.id || null;
+      const nextProjectId = nextWorkspace?.project?.id || null;
+      if (!previousProjectId || !nextProjectId || previousProjectId !== nextProjectId) {
+        return null;
+      }
+
+      const previousActiveTasks = Array.isArray(previousWorkspace?.active_tasks)
+        ? previousWorkspace.active_tasks
+        : [];
+      const nextActiveTasks = Array.isArray(nextWorkspace?.active_tasks)
+        ? nextWorkspace.active_tasks
+        : [];
+      if (!previousActiveTasks.length && !nextActiveTasks.length) {
+        return null;
+      }
+
+      const previousIds = new Set(previousActiveTasks.map((task) => task.id));
+      const nextIds = new Set(nextActiveTasks.map((task) => task.id));
+      const addedTaskIds = nextActiveTasks
+        .map((task) => task.id)
+        .filter((taskId) => !previousIds.has(taskId));
+      const removedTaskIds = previousActiveTasks
+        .map((task) => task.id)
+        .filter((taskId) => !nextIds.has(taskId));
+
+      if (!addedTaskIds.length && !removedTaskIds.length) {
+        return null;
+      }
+
+      return {
+        addedTaskIds,
+        removedTaskIds
+      };
+    }
+
     function scheduleUiRefresh(delay = uiRefreshIntervalMs) {
       clearTimeout(state.uiRefreshTimer);
       state.uiRefreshTimer = window.setTimeout(() => {
@@ -4016,13 +4495,9 @@
     }
 
     function captureShellScrollState() {
-      return [
-        captureNodeScrollState(projectsPaneBody),
-        captureNodeScrollState(activeTaskList),
-        captureNodeScrollState(changelogBody),
-        captureNodeScrollState(doneTaskList),
-        captureNodeScrollState(notesPaneBody),
-      ].filter(Boolean);
+      return Object.values(shellScrollPaneNodes)
+        .map((node) => captureNodeScrollState(node))
+        .filter(Boolean);
     }
 
     function restoreShellScrollState(scrollState) {
@@ -4049,6 +4524,220 @@
       });
     }
 
+    function normalizeSessionId(value) {
+      const normalized = typeof value === "string" ? value.trim() : "";
+      return normalized || null;
+    }
+
+    function normalizeScrollTop(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return 0;
+      return Math.round(numeric);
+    }
+
+    function normalizeScrollRatio(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 0;
+      return Math.max(0, Math.min(1, numeric));
+    }
+
+    function loadSessionSnapshot() {
+      const rawValue = readStorageItem(sessionStateKey, legacySessionStateKey);
+      if (!rawValue) return null;
+
+      try {
+        const parsed = JSON.parse(rawValue);
+        if (!parsed || typeof parsed !== "object") return null;
+
+        const selectedProjectId = normalizeSessionId(parsed.selectedProjectId);
+        if (!selectedProjectId) return null;
+
+        const openNoteId = normalizeSessionId(parsed.openNoteId);
+        const selectedTaskId = normalizeSessionId(parsed.selectedTaskId);
+        const shellScroll = Array.isArray(parsed.shellScroll)
+          ? parsed.shellScroll.map((entry) => {
+            const pane = normalizeSessionId(entry?.pane);
+            if (!pane || !Object.prototype.hasOwnProperty.call(shellScrollPaneNodes, pane)) {
+              return null;
+            }
+
+            return {
+              pane,
+              top: normalizeScrollTop(entry.top),
+              ratio: normalizeScrollRatio(entry.ratio),
+            };
+          }).filter(Boolean)
+          : [];
+
+        return {
+          version: Number(parsed.version) || sessionStateVersion,
+          selectedProjectId,
+          openNoteId,
+          selectedTaskId,
+          shellScroll,
+        };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function buildPersistedShellScrollSnapshot() {
+      return Object.entries(shellScrollPaneNodes).map(([pane, node]) => {
+        const entry = captureNodeScrollState(node);
+        if (!entry) return null;
+
+        return {
+          pane,
+          top: normalizeScrollTop(entry.top),
+          ratio: normalizeScrollRatio(entry.ratio),
+        };
+      }).filter(Boolean);
+    }
+
+    function buildRuntimeShellScrollState(snapshot) {
+      if (!Array.isArray(snapshot) || !snapshot.length) return null;
+
+      const runtimeState = snapshot.map((entry) => {
+        const pane = normalizeSessionId(entry?.pane);
+        if (!pane || !Object.prototype.hasOwnProperty.call(shellScrollPaneNodes, pane)) {
+          return null;
+        }
+
+        const node = shellScrollPaneNodes[pane];
+        if (!(node instanceof HTMLElement)) return null;
+
+        return {
+          node,
+          top: normalizeScrollTop(entry.top),
+          ratio: normalizeScrollRatio(entry.ratio),
+        };
+      }).filter(Boolean);
+
+      return runtimeState.length ? runtimeState : null;
+    }
+
+    function buildSessionSnapshot() {
+      const selectedProjectId = normalizeSessionId(state.selectedProjectId);
+      if (!selectedProjectId) return null;
+
+      const openNoteId = state.workspace?.notes?.some((note) => note.id === state.openNoteId)
+        ? state.openNoteId
+        : null;
+      const selectedTaskId = state.workspace?.active_tasks?.some((task) => task.id === state.selectedTaskId)
+        ? state.selectedTaskId
+        : null;
+
+      return {
+        version: sessionStateVersion,
+        selectedProjectId,
+        openNoteId: normalizeSessionId(openNoteId),
+        selectedTaskId: normalizeSessionId(selectedTaskId),
+        shellScroll: buildPersistedShellScrollSnapshot(),
+      };
+    }
+
+    function persistSessionStateNow() {
+      if (state.sessionPersistTimer !== null) {
+        window.clearTimeout(state.sessionPersistTimer);
+        state.sessionPersistTimer = null;
+      }
+
+      const snapshot = buildSessionSnapshot();
+      try {
+        if (!snapshot) {
+          localStorage.removeItem(sessionStateKey);
+          return;
+        }
+
+        localStorage.setItem(sessionStateKey, JSON.stringify(snapshot));
+      } catch (_error) {
+        // Ignore storage failures and continue with in-memory state.
+      }
+    }
+
+    function scheduleSessionPersist(delay = sessionPersistDelayMs) {
+      if (state.sessionPersistTimer !== null) {
+        window.clearTimeout(state.sessionPersistTimer);
+      }
+
+      state.sessionPersistTimer = window.setTimeout(() => {
+        state.sessionPersistTimer = null;
+        persistSessionStateNow();
+      }, delay);
+    }
+
+    function bindSessionScrollPersistence() {
+      Object.values(shellScrollPaneNodes).forEach((node) => {
+        if (!(node instanceof HTMLElement)) return;
+        node.addEventListener("scroll", () => {
+          scheduleSessionPersist();
+        }, { passive: true });
+      });
+    }
+
+    function applySessionSnapshotToWorkspace(snapshot) {
+      if (!snapshot || !state.workspace) return;
+      if (snapshot.selectedProjectId !== state.selectedProjectId) return;
+
+      if (
+        snapshot.openNoteId
+        && state.workspace.notes.some((note) => note.id === snapshot.openNoteId)
+      ) {
+        state.openNoteId = snapshot.openNoteId;
+      }
+
+      if (
+        snapshot.selectedTaskId
+        && state.workspace.active_tasks.some((task) => task.id === snapshot.selectedTaskId)
+      ) {
+        state.selectedTaskId = snapshot.selectedTaskId;
+      } else {
+        state.selectedTaskId = null;
+      }
+
+      state.pendingSessionScrollState = buildRuntimeShellScrollState(snapshot.shellScroll);
+    }
+
+    function restorePendingSessionScrollState() {
+      if (!state.pendingSessionScrollState) return;
+      restoreShellScrollState(state.pendingSessionScrollState);
+      state.pendingSessionScrollState = null;
+    }
+
+    async function fetchWorkspaceSilently(projectId) {
+      const normalizedProjectId = normalizeSessionId(projectId);
+      if (!normalizedProjectId) return null;
+
+      try {
+        const response = await fetch(
+          `/api/projects/${encodeURIComponent(normalizedProjectId)}/workspace`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) return null;
+        return response.json();
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    async function restoreSessionOnLaunch() {
+      const snapshot = loadSessionSnapshot();
+      if (!snapshot) return;
+
+      const shouldSwitchProject = !initialUrlProjectId
+        && snapshot.selectedProjectId !== state.selectedProjectId;
+
+      if (shouldSwitchProject) {
+        const workspace = await fetchWorkspaceSilently(snapshot.selectedProjectId);
+        if (workspace) {
+          state.selectedProjectId = snapshot.selectedProjectId;
+          applyWorkspace(workspace, snapshot.openNoteId || workspace?.suggested_open_note_id || null);
+        }
+      }
+
+      applySessionSnapshotToWorkspace(snapshot);
+    }
+
     function workspaceHasBackgroundNoteSync(workspace) {
       const notes = Array.isArray(workspace?.notes) ? workspace.notes : [];
       return notes.some((note) => note.sync_kind && (
@@ -4057,6 +4746,17 @@
     }
 
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
+      const pendingAnimation = computeActiveTaskAnimation(state.workspace, workspace);
+      if (pendingAnimation) {
+        pendingAnimation.beforeTaskRowSnapshot = captureTaskRowSnapshot();
+      }
+      if (pendingAnimation?.removedTaskIds?.length && pendingAnimation.beforeTaskRowSnapshot) {
+        pendingAnimation.removedTaskGhosts = buildRemovedTaskGhostEntriesFromSnapshot(
+          pendingAnimation.beforeTaskRowSnapshot,
+          pendingAnimation.removedTaskIds
+        );
+      }
+      state.pendingActiveTaskAnimation = pendingAnimation;
       state.workspace = workspace;
       if (!workspace) {
         setSelectedTaskId(null);
@@ -4064,6 +4764,7 @@
         state.taskDrafts = [];
         state.noteRevisionConflict = null;
         state.pendingRemoteUiState = null;
+        state.pendingActiveTaskAnimation = null;
         syncLocation();
         scheduleUiRefresh();
         return;
@@ -4099,6 +4800,7 @@
         state.noteLinkableFilesLoaded = false;
         state.noteFilePickerLoading = false;
         state.noteFilePickerOpen = false;
+        state.notesSearchQuery = "";
       }
       applyWorkspace(payload.workspace || null, payload.workspace?.suggested_open_note_id || null);
     }
@@ -4240,6 +4942,273 @@
       render();
     }
 
+    function buildTaskDraftsByAfterMap() {
+      const draftsByAfter = new Map();
+      state.taskDrafts.forEach((draft) => {
+        const key = draft.afterTaskId ?? "__top__";
+        if (!draftsByAfter.has(key)) draftsByAfter.set(key, []);
+        draftsByAfter.get(key).push(draft);
+      });
+      return draftsByAfter;
+    }
+
+    function getCollapsibleTaskSectionIds() {
+      if (!state.workspace) return [];
+      const draftsByAfter = buildTaskDraftsByAfterMap();
+      const taskSectionState = buildActiveTaskSectionState(state.workspace, draftsByAfter);
+      return Array.from(taskSectionState.sections.entries())
+        .filter(([, section]) => section.itemCount > 0)
+        .map(([taskId]) => taskId);
+    }
+
+    function areAllTaskSectionsCollapsed(sectionIds = getCollapsibleTaskSectionIds()) {
+      if (!sectionIds.length) return false;
+      return sectionIds.every((taskId) => isTaskSectionCollapsed(taskId));
+    }
+
+    function toggleAllTaskSections() {
+      const sectionIds = getCollapsibleTaskSectionIds();
+      if (!sectionIds.length) return;
+      const shouldCollapse = !areAllTaskSectionsCollapsed(sectionIds);
+      const beforeSnapshot = captureTaskRowSnapshot();
+      sectionIds.forEach((taskId) => {
+        setTaskSectionCollapsed(taskId, shouldCollapse);
+      });
+      render();
+      animateTaskListMutationFromSnapshot(beforeSnapshot, {
+        mode: shouldCollapse ? "collapse" : "expand"
+      });
+    }
+
+    function renderWithTodoListTransition(renderOptions = {}) {
+      const supportsViewTransition = typeof document.startViewTransition === "function";
+      const prefersReducedMotion = typeof window.matchMedia === "function"
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const shouldUseViewTransition = !isDesktopShell && supportsViewTransition && !prefersReducedMotion;
+
+      if (!shouldUseViewTransition) {
+        render(renderOptions);
+        if (!prefersReducedMotion) {
+          animateTodoListFallback();
+        }
+        return;
+      }
+
+      try {
+        document.startViewTransition(() => {
+          render(renderOptions);
+        });
+      } catch (_error) {
+        render(renderOptions);
+        if (!prefersReducedMotion) {
+          animateTodoListFallback();
+        }
+      }
+    }
+
+    function animateTodoListFallback() {
+      if (!(activeTaskList instanceof HTMLElement)) {
+        return;
+      }
+
+      const rows = Array.from(activeTaskList.querySelectorAll(".task-row, .task-draft"));
+
+      if (todoListFallbackTimer) {
+        window.clearTimeout(todoListFallbackTimer);
+        todoListFallbackTimer = null;
+      }
+
+      activeTaskList.classList.remove("bulk-toggle-animating");
+      rows.forEach((row, index) => {
+        row.style.setProperty("--bulk-row-index", String(Math.min(index, todoListAnimationMaxIndex)));
+      });
+      void activeTaskList.offsetHeight;
+      activeTaskList.classList.add("bulk-toggle-animating");
+
+      todoListFallbackTimer = window.setTimeout(() => {
+        activeTaskList.classList.remove("bulk-toggle-animating");
+        rows.forEach((row) => {
+          row.style.removeProperty("--bulk-row-index");
+        });
+        todoListFallbackTimer = null;
+      }, todoListAnimationCleanupMs);
+    }
+
+    function animateSyncedTaskRows(taskIds = []) {
+      if (!(activeTaskList instanceof HTMLElement) || !Array.isArray(taskIds) || !taskIds.length) {
+        return;
+      }
+
+      const taskIdSet = new Set(taskIds.filter(Boolean));
+      if (!taskIdSet.size) return;
+
+      const rows = Array.from(activeTaskList.querySelectorAll(".task-row"))
+        .filter((row) => taskIdSet.has(row.dataset.draggableTaskId));
+      if (!rows.length) return;
+
+      if (syncedTaskAnimationTimer) {
+        window.clearTimeout(syncedTaskAnimationTimer);
+        syncedTaskAnimationTimer = null;
+      }
+
+      rows.forEach((row, index) => {
+        row.classList.remove("sync-in-animating");
+        row.style.setProperty("--bulk-row-index", String(Math.min(index, todoListAnimationMaxIndex)));
+      });
+      void activeTaskList.offsetHeight;
+      rows.forEach((row) => {
+        row.classList.add("sync-in-animating");
+      });
+
+      syncedTaskAnimationTimer = window.setTimeout(() => {
+        rows.forEach((row) => {
+          row.classList.remove("sync-in-animating");
+          row.style.removeProperty("--bulk-row-index");
+        });
+        syncedTaskAnimationTimer = null;
+      }, todoListAnimationCleanupMs);
+    }
+
+    function captureTaskRowSnapshot() {
+      if (!(activeTaskList instanceof HTMLElement)) {
+        return new Map();
+      }
+
+      const snapshot = new Map();
+      activeTaskList.querySelectorAll(".task-row").forEach((row) => {
+        const taskId = row.dataset.draggableTaskId;
+        if (!taskId || !(row instanceof HTMLElement)) return;
+        const rect = row.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        snapshot.set(taskId, {
+          rect,
+          ghost: row.cloneNode(true)
+        });
+      });
+      return snapshot;
+    }
+
+    function buildRemovedTaskGhostEntriesFromSnapshot(snapshot, taskIds = []) {
+      if (!(snapshot instanceof Map) || !snapshot.size || !Array.isArray(taskIds) || !taskIds.length) {
+        return [];
+      }
+
+      return taskIds.map((taskId) => snapshot.get(taskId) || null).filter(Boolean);
+    }
+
+    function animateTaskRowReflowFromSnapshot(snapshot) {
+      if (!(activeTaskList instanceof HTMLElement) || !(snapshot instanceof Map) || !snapshot.size) {
+        return;
+      }
+
+      const movedRows = [];
+      snapshot.forEach((entry, taskId) => {
+        const row = activeTaskList.querySelector(`[data-draggable-task-id="${taskId}"]`);
+        if (!(row instanceof HTMLElement) || !entry?.rect) return;
+
+        const nextRect = row.getBoundingClientRect();
+        const deltaX = entry.rect.left - nextRect.left;
+        const deltaY = entry.rect.top - nextRect.top;
+        if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+
+        row.classList.remove("task-row-reflow-animating");
+        row.style.transition = "none";
+        row.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+        row.style.willChange = "transform";
+        movedRows.push(row);
+      });
+
+      if (!movedRows.length) return;
+      void activeTaskList.offsetHeight;
+      movedRows.forEach((row) => {
+        row.classList.add("task-row-reflow-animating");
+        row.style.transition = "";
+        row.style.transform = "";
+      });
+
+      window.setTimeout(() => {
+        movedRows.forEach((row) => {
+          row.classList.remove("task-row-reflow-animating");
+          row.style.willChange = "";
+        });
+      }, todoListAnimationCleanupMs);
+    }
+
+    function animateTaskListMutationFromSnapshot(beforeSnapshot, options = {}) {
+      if (!(beforeSnapshot instanceof Map) || !beforeSnapshot.size || !(activeTaskList instanceof HTMLElement)) {
+        return;
+      }
+
+      const prefersReducedMotion = typeof window.matchMedia === "function"
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReducedMotion) return;
+
+      const nextTaskIds = new Set(
+        Array.from(activeTaskList.querySelectorAll(".task-row"))
+          .map((row) => row.dataset.draggableTaskId)
+          .filter(Boolean)
+      );
+      const previousTaskIds = Array.from(beforeSnapshot.keys());
+      const removedTaskIds = previousTaskIds.filter((taskId) => !nextTaskIds.has(taskId));
+      const addedTaskIds = Array.from(nextTaskIds).filter((taskId) => !beforeSnapshot.has(taskId));
+
+      animateTaskRowReflowFromSnapshot(beforeSnapshot);
+      if (removedTaskIds.length) {
+        const removedGhosts = buildRemovedTaskGhostEntriesFromSnapshot(beforeSnapshot, removedTaskIds);
+        animateRemovedTaskGhosts(removedGhosts, options.mode === "collapse" ? "collapse" : "default");
+      }
+      if (addedTaskIds.length) {
+        animateSyncedTaskRows(addedTaskIds);
+      }
+    }
+
+    function animateRemovedTaskGhosts(ghostEntries = [], mode = "default") {
+      if (!Array.isArray(ghostEntries) || !ghostEntries.length) return;
+
+      ghostEntries.forEach((entry) => {
+        const ghost = entry?.ghost;
+        const rect = entry?.rect;
+        if (!(ghost instanceof HTMLElement) || !rect) return;
+
+        ghost.classList.add("task-row-ghost-exit");
+        if (mode === "collapse") {
+          ghost.classList.add("is-collapse-exit");
+        }
+        ghost.removeAttribute("draggable");
+        ghost.style.left = `${Math.round(rect.left)}px`;
+        ghost.style.top = `${Math.round(rect.top)}px`;
+        ghost.style.width = `${Math.round(rect.width)}px`;
+        ghost.style.height = `${Math.round(rect.height)}px`;
+        document.body.appendChild(ghost);
+
+        window.setTimeout(() => {
+          ghost.remove();
+        }, todoListAnimationCleanupMs);
+      });
+    }
+
+    function applyPendingActiveTaskAnimation() {
+      const pendingAnimation = state.pendingActiveTaskAnimation;
+      state.pendingActiveTaskAnimation = null;
+      if (!pendingAnimation) return;
+
+      const prefersReducedMotion = typeof window.matchMedia === "function"
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReducedMotion) return;
+
+      if (pendingAnimation.beforeTaskRowSnapshot) {
+        animateTaskRowReflowFromSnapshot(pendingAnimation.beforeTaskRowSnapshot);
+      }
+
+      if (pendingAnimation.removedTaskGhosts?.length) {
+        animateRemovedTaskGhosts(pendingAnimation.removedTaskGhosts);
+      }
+
+      if (pendingAnimation.addedTaskIds.length > 0) {
+        animateSyncedTaskRows(pendingAnimation.addedTaskIds);
+      }
+    }
+
     function getDraft(key) {
       return state.taskDrafts.find((draft) => draft.key === key);
     }
@@ -4249,6 +5218,89 @@
       return state.workspace.active_tasks.find((task) => task.id === taskId)
         || state.workspace.done_tasks.find((task) => task.id === taskId)
         || null;
+    }
+
+    function normalizeTaskPriority(priorityValue) {
+      const value = String(priorityValue || "").toUpperCase();
+      if (value === "P1" || value === "P2" || value === "P3") {
+        return value;
+      }
+      return "P0";
+    }
+
+    function nextTaskPriority(priorityValue) {
+      const normalized = normalizeTaskPriority(priorityValue);
+      if (normalized === "P0") return "P3";
+      if (normalized === "P3") return "P2";
+      if (normalized === "P2") return "P1";
+      return "P0";
+    }
+
+    function taskPriorityToneFromValue(priorityValue) {
+      const normalized = normalizeTaskPriority(priorityValue);
+      if (normalized === "P1") return "p1";
+      if (normalized === "P2") return "p2";
+      if (normalized === "P3") return "p3";
+      return "none";
+    }
+
+    function taskPriorityTone(task) {
+      return taskPriorityToneFromValue(task?.priority);
+    }
+
+    function taskPriorityRank(task) {
+      const priority = normalizeTaskPriority(task?.priority);
+      if (priority === "P1") return 0;
+      if (priority === "P2") return 1;
+      if (priority === "P3") return 2;
+      return 3;
+    }
+
+    function compareTasksByPriority(left, right) {
+      const leftRank = taskPriorityRank(left);
+      const rightRank = taskPriorityRank(right);
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+      return left.sort_order - right.sort_order || left.id.localeCompare(right.id);
+    }
+
+    function sortActiveTasksByPriority(activeTasks) {
+      if (!Array.isArray(activeTasks) || !activeTasks.length) return [];
+
+      const rows = [];
+      let segment = [];
+      activeTasks.forEach((task) => {
+        const title = state.taskEdits[task.id] ?? task.title;
+        if (isMarkdownTaskHeading(title)) {
+          if (segment.length) {
+            rows.push(...segment.sort(compareTasksByPriority));
+            segment = [];
+          }
+          rows.push(task);
+          return;
+        }
+        segment.push(task);
+      });
+
+      if (segment.length) {
+        rows.push(...segment.sort(compareTasksByPriority));
+      }
+
+      return rows;
+    }
+
+    function activePriorityCounts(tasks = []) {
+      const counts = { P1: 0, P2: 0, P3: 0 };
+      tasks.forEach((task) => {
+        const title = state.taskEdits[task.id] ?? task.title;
+        if (isMarkdownTaskHeading(title)) return;
+        const priority = normalizeTaskPriority(task.priority);
+        if (priority === "P1" || priority === "P2" || priority === "P3") {
+          counts[priority] += 1;
+        }
+      });
+      return counts;
     }
 
     function isHeaderShortcut(event) {
@@ -4289,6 +5341,7 @@
       if (state.selectedTaskId === nextTaskId) return;
       state.selectedTaskId = nextTaskId;
       renderTodoTaskActionButtons();
+      scheduleSessionPersist();
     }
 
     function getSelectedActiveTask() {
@@ -4703,6 +5756,15 @@
     function renderActiveTaskRow(task, sectionState = null) {
       const title = state.taskEdits[task.id] ?? task.title;
       const isHeading = isMarkdownTaskHeading(title);
+      const priorityTone = isHeading ? "none" : taskPriorityTone(task);
+      const priorityLabel = priorityTone === "p1"
+        ? "P1"
+        : priorityTone === "p2"
+          ? "P2"
+          : priorityTone === "p3"
+            ? "P3"
+            : "P0";
+      const priorityBadge = priorityLabel;
       const visibleTitle = getVisibleTaskTitle(title);
       const canCollapse = isHeading && sectionState?.itemCount > 0;
       const canCompleteSection = isHeading
@@ -4735,6 +5797,21 @@
           </button>
         `
         : "";
+      const priorityControl = isHeading
+        ? ""
+        : `
+          <button
+            class="task-priority-btn priority-${priorityTone}"
+            type="button"
+            tabindex="-1"
+            draggable="false"
+            data-task-priority-id="${task.id}"
+            aria-label="Priority ${priorityLabel}; click to change"
+            title="Priority ${priorityLabel}; click to change"
+          >
+            <span aria-hidden="true">${priorityBadge}</span>
+          </button>
+        `;
       const leadingControl = isHeading
         ? (canCollapse
           ? `
@@ -4757,8 +5834,8 @@
 
       return `
         <div
-          class="task-row${isHeading ? " is-heading" : ""}${isCollapsed ? " is-collapsed" : ""}"
-          draggable="true"
+          class="task-row${isHeading ? " is-heading" : ""}${isCollapsed ? " is-collapsed" : ""}${isHeading ? "" : ` task-priority-${priorityTone}`}"
+          draggable="${state.sortTasksByPriority ? "false" : "true"}"
           data-draggable-task-id="${task.id}"
         >
           ${leadingControl}
@@ -4767,11 +5844,12 @@
             rows="1"
             spellcheck="false"
             draggable="false"
-            placeholder="new task or ## section"
+            placeholder="New task, or type ## for a section"
             data-task-id="${task.id}"
           >${escapeHtml(visibleTitle)}</textarea>
           ${completeControl}
           ${copyControl}
+          ${priorityControl}
           <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
         </div>
       `;
@@ -4838,12 +5916,18 @@
         todoStatus.textContent = "";
       } else if (!state.workspace) {
         todoStatus.textContent = "idle";
-      } else if (state.workspace.project?.task_sync_status === "conflict") {
-        todoStatus.textContent = "sync conflict";
-      } else if (state.workspace.project?.task_sync_status === "paused" && state.workspace.project?.task_sync_enabled) {
-        todoStatus.textContent = "sync paused";
       } else {
-        todoStatus.textContent = `${state.workspace.active_tasks.length} active`;
+        const counts = activePriorityCounts(state.workspace.active_tasks);
+        const baseLabel = `${state.workspace.active_tasks.length} active · P1 ${counts.P1} · P2 ${counts.P2} · P3 ${counts.P3}`;
+        if (state.workspace.project?.task_sync_status === "conflict") {
+          todoStatus.textContent = `sync conflict · ${baseLabel}`;
+          return;
+        }
+        if (state.workspace.project?.task_sync_status === "paused" && state.workspace.project?.task_sync_enabled) {
+          todoStatus.textContent = `sync paused · ${baseLabel}`;
+          return;
+        }
+        todoStatus.textContent = baseLabel;
       }
     }
 
@@ -4879,39 +5963,66 @@
       flashStatusLabel(noteStatus, "noteStatusTimer", label, duration);
     }
 
-    function buildChangelogExportText() {
-      if (!state.workspace || !state.workspace.done_tasks.length) return "";
+    function buildChangelogExportDocument() {
+      if (!state.workspace || !state.workspace.done_tasks.length) return null;
 
       const sectionMap = buildTaskSectionMap(state.workspace);
       const exportStamp = formatLocalTimestamp(new Date().toISOString(), new Date().toLocaleString());
-      let hasVisibleTasks = false;
-      const lines = [
-        `# ${state.workspace.project.title} changelog`,
+      const title = `${state.workspace.project.title} changelog`;
+      const plainLines = [
+        title,
         `Exported ${exportStamp}`,
         ""
       ];
-
+      const htmlParts = [
+        `<h1>${escapeHtml(title)}</h1>`,
+        `<p>Exported ${escapeHtml(exportStamp)}</p>`
+      ];
+      let hasVisibleTasks = false;
+      let listOpen = false;
+      let sectionInitialized = false;
       let lastSection = null;
+
+      function closeHtmlList() {
+        if (!listOpen) return;
+        htmlParts.push("</ul>");
+        listOpen = false;
+      }
+
       state.workspace.done_tasks.forEach((task) => {
         if (isMarkdownTaskHeading(task.title)) return;
 
         const sectionLabel = sectionMap.get(task.id) || null;
-        if (sectionLabel !== lastSection) {
-          if (lines[lines.length - 1] !== "") {
-            lines.push("");
+        if (!sectionInitialized || sectionLabel !== lastSection) {
+          closeHtmlList();
+          if (hasVisibleTasks && plainLines[plainLines.length - 1] !== "") {
+            plainLines.push("");
           }
           if (sectionLabel) {
-            lines.push(`## ${sectionLabel}`);
+            plainLines.push(sectionLabel);
+            htmlParts.push(`<h2>${escapeHtml(sectionLabel)}</h2>`);
           }
           lastSection = sectionLabel;
+          sectionInitialized = true;
         }
 
+        const visibleTitle = getVisibleTaskTitle(task.title || "Untitled task");
         hasVisibleTasks = true;
-        lines.push(`- [x] ${getVisibleTaskTitle(task.title || "Untitled task")}`);
+        plainLines.push(`- ${visibleTitle}`);
+        if (!listOpen) {
+          htmlParts.push("<ul>");
+          listOpen = true;
+        }
+        htmlParts.push(`<li>${escapeHtml(visibleTitle)}</li>`);
       });
 
-      if (!hasVisibleTasks) return "";
-      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      closeHtmlList();
+      if (!hasVisibleTasks) return null;
+
+      return {
+        plainText: plainLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+        html: htmlParts.join("")
+      };
     }
 
     async function copyTextWithFallback(copyLabel, exportText, successLabel, fallbackLabel, flashStatus = flashTodoStatus) {
@@ -4929,6 +6040,42 @@
 
       if (!copied) {
         const manualCopy = window.prompt(copyLabel, exportText);
+        if (manualCopy === null) return false;
+      }
+
+      flashStatus(copied ? successLabel : fallbackLabel);
+      return true;
+    }
+
+    async function copyRichTextWithFallback(copyLabel, plainText, htmlText, successLabel, fallbackLabel, flashStatus = flashChangelogStatus) {
+      if (!plainText) return false;
+
+      let copied = false;
+      if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined" && htmlText) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/plain": new Blob([plainText], { type: "text/plain" }),
+              "text/html": new Blob([htmlText], { type: "text/html" })
+            })
+          ]);
+          copied = true;
+        } catch (_error) {
+          copied = false;
+        }
+      }
+
+      if (!copied && navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(plainText);
+          copied = true;
+        } catch (_error) {
+          copied = false;
+        }
+      }
+
+      if (!copied) {
+        const manualCopy = window.prompt(copyLabel, plainText);
         if (manualCopy === null) return false;
       }
 
@@ -4986,39 +6133,93 @@
       );
     }
 
-    function buildNoteCopyText(noteId) {
-      if (!state.workspace) return "";
+    function buildNoteCopyPayload(noteId) {
+      if (!state.workspace) return null;
       const note = state.workspace.notes.find((item) => item.id === noteId);
-      if (!note) return "";
+      if (!note) return null;
 
-      const title = Object.prototype.hasOwnProperty.call(state.noteTitleEdits, noteId)
-        ? state.noteTitleEdits[noteId]
-        : note.title;
-      const body = state.noteMode === "clean"
-        ? cleanHtmlToMarkdown(state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
-        : (Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)
-          ? state.noteBodyEdits[noteId]
-          : note.body);
-
+      const title = getDraftNoteTitle(noteId, note);
       const trimmedTitle = String(title || "").trim();
+
+      if (state.noteMode === "clean") {
+        const cleanBodyHtml = normalizeCleanHtml(
+          state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html
+        );
+        const markdownBody = cleanHtmlToMarkdown(cleanBodyHtml);
+        const trimmedBody = String(markdownBody || "").trim();
+        const trimmedBodyHtml = String(cleanBodyHtml || "").trim();
+        let plainText = "";
+        let html = "";
+
+        if (trimmedTitle && trimmedBody) {
+          plainText = `# ${trimmedTitle}\n\n${trimmedBody}`;
+        } else if (trimmedTitle) {
+          plainText = `# ${trimmedTitle}`;
+        } else {
+          plainText = trimmedBody;
+        }
+
+        if (trimmedTitle) {
+          html += `<h1>${escapeHtml(trimmedTitle)}</h1>`;
+        }
+        if (trimmedBodyHtml) {
+          html += trimmedBodyHtml;
+        }
+
+        if (!plainText && !html) return null;
+        return {
+          plainText,
+          html: html || null
+        };
+      }
+
+      const body = getDraftNoteBody(noteId, note);
       const trimmedBody = String(body || "").trim();
-      if (trimmedTitle && trimmedBody) return `# ${trimmedTitle}\n\n${trimmedBody}`;
-      if (trimmedTitle) return `# ${trimmedTitle}`;
-      return trimmedBody;
+      if (trimmedTitle && trimmedBody) {
+        return {
+          plainText: `# ${trimmedTitle}\n\n${trimmedBody}`,
+          html: null
+        };
+      }
+      if (trimmedTitle) {
+        return {
+          plainText: `# ${trimmedTitle}`,
+          html: null
+        };
+      }
+      if (!trimmedBody) return null;
+      return {
+        plainText: trimmedBody,
+        html: null
+      };
     }
 
     async function copyNote(noteId) {
-      const copyText = buildNoteCopyText(noteId);
-      if (!copyText) return;
+      const copyPayload = buildNoteCopyPayload(noteId);
+      if (!copyPayload?.plainText && !copyPayload?.html) return;
 
-      await copyTextWithFallback("Copy note", copyText, "note copied", "note ready", flashNoteStatus);
+      await copyRichTextWithFallback(
+        "Copy note",
+        copyPayload.plainText,
+        copyPayload.html,
+        "note copied",
+        "note ready",
+        flashNoteStatus
+      );
     }
 
     async function exportChangelog() {
-      const exportText = buildChangelogExportText();
-      if (!exportText) return;
+      const exportDocument = buildChangelogExportDocument();
+      if (!exportDocument) return;
 
-      await copyTextWithFallback("Copy changelog", exportText, "changelog copied", "changelog ready", flashChangelogStatus);
+      await copyRichTextWithFallback(
+        "Copy changelog",
+        exportDocument.plainText,
+        exportDocument.html,
+        "changelog copied",
+        "changelog ready",
+        flashChangelogStatus
+      );
     }
 
     async function archiveChangelog() {
@@ -5129,22 +6330,37 @@
       scheduleTaskRowSync();
       applyFocus();
       restoreShellScrollState(scrollState);
+      restorePendingSessionScrollState();
+      scheduleSessionPersist();
     }
 
     function renderTodoTaskActionButtons() {
       const showProjectStarter = state.projectTrayMode === "chooser";
       const selectedTask = showProjectStarter ? null : getSelectedActiveTask();
       const hasActiveTasks = !showProjectStarter && Boolean(state.workspace?.active_tasks?.length);
+      const collapsibleSectionIds = showProjectStarter ? [] : getCollapsibleTaskSectionIds();
+      const hasCollapsibleSections = collapsibleSectionIds.length > 0;
+      const allSectionsCollapsed = hasCollapsibleSections && areAllTaskSectionsCollapsed(collapsibleSectionIds);
       const headerLabel = selectedTask
         ? (isMarkdownTaskHeading(state.taskEdits[selectedTask.id] ?? selectedTask.title)
           ? "Convert selected header to task"
           : "Convert selected row to header")
         : "Convert selected row to header";
+      const sectionLabel = allSectionsCollapsed ? "Expand all headers" : "Collapse all headers";
+      const sortLabel = state.sortTasksByPriority ? "Turn off priority sort" : "Sort by priority";
       const copyLabel = "Copy to-do.md";
       const title = `${headerLabel} (⇧⌘H)`;
       todoHeaderToggleButton.disabled = !selectedTask;
       todoHeaderToggleButton.setAttribute("aria-label", headerLabel);
       todoHeaderToggleButton.title = title;
+      todoSectionToggleButton.disabled = !hasCollapsibleSections;
+      todoSectionToggleButton.setAttribute("aria-label", sectionLabel);
+      todoSectionToggleButton.title = sectionLabel;
+      todoSectionToggleButton.setAttribute("aria-pressed", allSectionsCollapsed ? "true" : "false");
+      todoPrioritySortButton.disabled = !hasActiveTasks;
+      todoPrioritySortButton.setAttribute("aria-label", sortLabel);
+      todoPrioritySortButton.title = sortLabel;
+      todoPrioritySortButton.setAttribute("aria-pressed", state.sortTasksByPriority ? "true" : "false");
       todoCopySelectedButton.disabled = !hasActiveTasks;
       todoCopySelectedButton.setAttribute("aria-label", copyLabel);
       todoCopySelectedButton.title = copyLabel;
@@ -5977,18 +7193,21 @@
       taskMessage.innerHTML = state.taskMessage ? `<div class="message error">${escapeHtml(state.taskMessage)}</div>` : "";
       if (!state.projects.length) {
         activeTaskList.innerHTML = renderEmptyAppState();
+        activeTaskList.classList.remove("priority-sorted");
         resetTodoStatusLabel();
         return;
       }
 
       if (state.projectTrayMode === "chooser") {
         activeTaskList.innerHTML = renderEmptyAppState();
+        activeTaskList.classList.remove("priority-sorted");
         todoStatus.textContent = "";
         return;
       }
 
       if (!state.workspace) {
         activeTaskList.innerHTML = `<div class="empty-state">Select or create a project to start a to-do list.</div>`;
+        activeTaskList.classList.remove("priority-sorted");
         resetTodoStatusLabel();
         return;
       }
@@ -5996,19 +7215,17 @@
       ensureDraftRow();
 
       const activeRows = [];
-      const draftsByAfter = new Map();
-      state.taskDrafts.forEach((draft) => {
-        const key = draft.afterTaskId ?? "__top__";
-        if (!draftsByAfter.has(key)) draftsByAfter.set(key, []);
-        draftsByAfter.get(key).push(draft);
-      });
+      const draftsByAfter = buildTaskDraftsByAfterMap();
 
       if (draftsByAfter.has("__top__")) {
         draftsByAfter.get("__top__").forEach((draft) => activeRows.push(renderDraftRow(draft)));
       }
 
       const taskSectionState = buildActiveTaskSectionState(state.workspace, draftsByAfter);
-      state.workspace.active_tasks.forEach((task) => {
+      const activeTasks = state.sortTasksByPriority
+        ? sortActiveTasksByPriority(state.workspace.active_tasks)
+        : state.workspace.active_tasks;
+      activeTasks.forEach((task) => {
         if (taskSectionState.hiddenTaskIds.has(task.id)) return;
 
         const sectionState = taskSectionState.sections.get(task.id) || null;
@@ -6022,7 +7239,9 @@
       });
 
       activeTaskList.innerHTML = activeRows.join("");
+      activeTaskList.classList.toggle("priority-sorted", state.sortTasksByPriority);
       resetTodoStatusLabel();
+      applyPendingActiveTaskAnimation();
     }
 
     function renderChangelogPane() {
@@ -6098,7 +7317,7 @@
       const visibleTitle = getVisibleTaskTitle(draft.title);
       const leadingControl = isHeading
         ? ""
-        : '<span class="task-heading-marker empty" aria-hidden="true"></span>';
+        : '<span class="task-draft-check" aria-hidden="true"></span>';
 
       return `
         <div class="task-draft${isHeading ? " is-heading" : ""}">
@@ -6108,14 +7327,76 @@
             rows="1"
             spellcheck="false"
             draggable="false"
-            placeholder="new task or ## section"
+            placeholder="New task, or type ## for a section"
             data-task-draft-key="${draft.key}"
           >${escapeHtml(visibleTitle)}</textarea>
         </div>
       `;
     }
 
+    function getNormalizedNotesSearchQuery(query) {
+      return String(query || "").trim().toLowerCase();
+    }
+
+    function scoreNoteForSearch(note, terms, fullQuery) {
+      const title = String(note.title || "").toLowerCase();
+      const path = String(note.sync_path || "").toLowerCase();
+      const body = String(note.body || "").toLowerCase();
+
+      const allTermsMatched = terms.every((term) => (
+        title.includes(term) || path.includes(term) || body.includes(term)
+      ));
+      if (!allTermsMatched) {
+        return null;
+      }
+
+      let score = 0;
+      if (fullQuery && title.includes(fullQuery)) score += 80;
+      if (fullQuery && path.includes(fullQuery)) score += 45;
+      if (fullQuery && body.includes(fullQuery)) score += 28;
+
+      terms.forEach((term) => {
+        if (title.startsWith(term)) score += 16;
+        if (title.includes(term)) score += 10;
+        if (path.includes(term)) score += 6;
+        if (body.includes(term)) score += 3;
+      });
+
+      return score;
+    }
+
+    function filterNotesForSearch(notes, query) {
+      const normalizedQuery = getNormalizedNotesSearchQuery(query);
+      if (!normalizedQuery) {
+        return notes;
+      }
+
+      const terms = normalizedQuery.split(/\s+/).filter(Boolean).slice(0, 8);
+      if (!terms.length) {
+        return notes;
+      }
+
+      return notes
+        .map((note, index) => {
+          const score = scoreNoteForSearch(note, terms, normalizedQuery);
+          if (score === null) return null;
+          return { note, score, index };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+        .map((entry) => entry.note);
+    }
+
+    function syncNotesSearchInput() {
+      if (!notesSearchInput) return;
+      notesSearchInput.disabled = !state.workspace;
+      if (notesSearchInput.value !== state.notesSearchQuery) {
+        notesSearchInput.value = state.notesSearchQuery;
+      }
+    }
+
     function renderNotes() {
+      syncNotesSearchInput();
       noteMessage.innerHTML = state.noteMessage ? `<div class="message error">${escapeHtml(state.noteMessage)}</div>` : "";
       if (!state.projects.length) {
         resetTransientStatusLabel(noteStatus);
@@ -6129,13 +7410,21 @@
         return;
       }
 
-      if (!state.workspace.notes.length) {
+      const workspaceNotes = Array.isArray(state.workspace.notes) ? state.workspace.notes : [];
+      if (!workspaceNotes.length) {
         resetTransientStatusLabel(noteStatus);
         notesList.innerHTML = `<div class="empty-state">Use the plus button to create the first project note.</div>`;
         return;
       }
 
-      notesList.innerHTML = state.workspace.notes.map((note) => {
+      const activeQuery = getNormalizedNotesSearchQuery(state.notesSearchQuery);
+      const filteredNotes = filterNotesForSearch(workspaceNotes, activeQuery);
+      if (activeQuery && !filteredNotes.length) {
+        notesList.innerHTML = `<div class="empty-state">No docs matched "${escapeHtml(state.notesSearchQuery.trim())}".</div>`;
+        return;
+      }
+
+      notesList.innerHTML = filteredNotes.map((note) => {
         const isOpen = state.openNoteId === note.id;
         const title = state.noteTitleEdits[note.id] ?? note.title;
         const isSynced = Boolean(note.sync_kind);
@@ -6345,6 +7634,7 @@
         url.searchParams.delete("project_id");
       }
       history.replaceState({}, "", url.toString());
+      scheduleSessionPersist();
     }
 
     function handleRichCommand(command) {
@@ -6517,9 +7807,16 @@
       return escapeHtml(value);
     }
 
-    applyResponsiveLayoutMode();
-    scheduleUiRefresh(50);
-    render();
+    async function bootstrapApp() {
+      await restoreSessionOnLaunch();
+      bindSessionScrollPersistence();
+      applyResponsiveLayoutMode();
+      scheduleUiRefresh(50);
+      render();
+      persistSessionStateNow();
+    }
+
+    bootstrapApp();
   </script>
 </body>
 </html>

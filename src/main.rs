@@ -305,7 +305,10 @@ fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
     })
 }
 
-async fn bind_http_listener(host: &str, port: u16) -> Result<(SocketAddr, tokio::net::TcpListener)> {
+async fn bind_http_listener(
+    host: &str,
+    port: u16,
+) -> Result<(SocketAddr, tokio::net::TcpListener)> {
     let requested_addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .context("invalid server host/port configuration")?;

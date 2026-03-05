@@ -12,7 +12,7 @@ use objc2::{AllocAnyThread, MainThreadMarker};
 use objc2::rc::Retained;
 
 #[cfg(target_os = "macos")]
-use objc2_app_kit::{NSApplication, NSImage, NSEventModifierFlags, NSMenu, NSMenuItem};
+use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSImage, NSMenu, NSMenuItem};
 
 #[cfg(target_os = "macos")]
 use objc2_foundation::{NSData, NSProcessInfo, NSString};
