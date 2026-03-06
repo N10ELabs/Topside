@@ -39,13 +39,9 @@
       "sync_key": "tsk_01KJXNGGSJ984H353J1WFZNT5V"
     },
     {
-      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
+      "title": "UI Polish",
+      "kind": "Section",
+      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Sample task: test multiple synced tasks arriving together",
@@ -75,10 +71,19 @@
       "sync_key": "tsk_01KJXZ0XEH6VD9Q9VFR33NT6MB"
     },
     {
-      "title": "When a task is dragged out of Topside, ensure the task content is pasted and not the taskID",
+      "title": "Review YT Script #1",
       "kind": {
         "Task": {
           "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
+    },
+    {
+      "title": "When a task is dragged out of Topside, ensure the task content is pasted and not the taskID",
+      "kind": {
+        "Task": {
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK0J4J5C2M4WCH05HFCQJCV8"
@@ -91,11 +96,6 @@
         }
       },
       "sync_key": "tsk_01KJXJW074FPX1Q88RKWFH6EYX"
-    },
-    {
-      "title": "UI Polish",
-      "kind": "Section",
-      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Allow custom icons per project",
@@ -125,10 +125,24 @@
       "sync_key": "tsk_01KJY222MBPN805X9GDHDZHA7W"
     },
     {
-      "title": "Do a pass on pane headers and buttons for consistent typecase",
+      "title": "Features for Later",
+      "kind": "Section",
+      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
+    },
+    {
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
       "kind": {
         "Task": {
           "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
+    },
+    {
+      "title": "Do a pass on pane headers and buttons for consistent typecase",
+      "kind": {
+        "Task": {
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK07R6HSP7KAYJHAQGKJX559"
@@ -141,15 +155,6 @@
         }
       },
       "sync_key": "tsk_01KK07S6DXNW3FNW1QWW3K6V29"
-    },
-    {
-      "title": "Review YT Script #1",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
     },
     {
       "title": "Center headers in their borders",

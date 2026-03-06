@@ -387,7 +387,7 @@
 
     .pane-title {
       font-family: "IBM Plex Mono", monospace;
-      font-size: 14px;
+      font-size: 13px;
       line-height: 1;
       display: inline-flex;
       align-items: center;
@@ -1759,6 +1759,7 @@
       resize: none;
       white-space: pre-wrap;
       overflow-wrap: break-word;
+      font-size: 14px;
       line-height: 1.4;
     }
 
@@ -1782,7 +1783,7 @@
 
     .task-heading-input {
       font-weight: 700;
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1.2;
       letter-spacing: -0.01em;
       color: #82b1ff;
@@ -2136,7 +2137,7 @@
       transform: translateY(1px);
       min-width: 0;
       min-height: 20px;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       line-height: 1.2;
       letter-spacing: -0.01em;
@@ -2148,6 +2149,7 @@
     .task-row:not(.is-heading) .task-input,
     .task-draft:not(.is-heading) .task-input,
     .done-title {
+      font-size: 14px;
       width: min(100%, 60ch);
       max-width: 60ch;
     }
@@ -4432,6 +4434,12 @@
         return;
       }
 
+      if (maybeInsertDraftFromTaskListClick(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       const portViewerClose = event.target.closest("[data-port-viewer-close]");
       const portViewerBackdrop = event.target instanceof HTMLElement
         ? event.target.dataset.portViewerBackdrop === "true"
@@ -4973,7 +4981,11 @@
       state.draggedTaskId = row.dataset.draggableTaskId;
       row.classList.add("dragging");
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", state.draggedTaskId);
+      const taskInput = row.querySelector(".task-input");
+      const taskContent = taskInput instanceof HTMLTextAreaElement
+        ? normalizeTaskEditorValue(taskInput.value)
+        : "";
+      event.dataTransfer.setData("text/plain", taskContent || state.draggedTaskId);
     });
 
     document.addEventListener("dragend", (event) => {
@@ -6472,6 +6484,77 @@
       state.taskDrafts = state.taskDrafts.filter((draft) => draft.afterTaskId !== afterTaskId || draft.title);
       state.taskDrafts.push({ key, afterTaskId, title: "" });
       state.focusDraftKey = key;
+    }
+
+    function isTaskBackgroundInsertTarget(target) {
+      if (!(target instanceof Element)) return false;
+      return !target.closest([
+        "[data-task-id]",
+        "[data-task-check-id]",
+        "[data-task-priority-id]",
+        "[data-task-delete-id]",
+        "[data-task-section-toggle-id]",
+        "[data-task-section-copy-id]",
+        "[data-task-group-complete-id]",
+        "[data-task-draft-key]"
+      ].join(", "));
+    }
+
+    function isTaskRowBackgroundInsertZone(row, clientY) {
+      if (!(row instanceof HTMLElement)) return false;
+      const textElement = row.querySelector(".task-input");
+      if (!(textElement instanceof HTMLElement)) return false;
+
+      const rowRect = row.getBoundingClientRect();
+      const textRect = textElement.getBoundingClientRect();
+      const insertZoneTop = Math.min(rowRect.bottom - 2, textRect.bottom + 3);
+      return clientY >= insertZoneTop && clientY <= rowRect.bottom;
+    }
+
+    function findVisibleTaskRowBeforePoint(clientY) {
+      const rows = Array.from(activeTaskList.querySelectorAll("[data-draggable-task-id]"));
+      let anchorRow = null;
+      rows.forEach((row) => {
+        if (!(row instanceof HTMLElement)) return;
+        if (clientY >= row.getBoundingClientRect().top - 2) {
+          anchorRow = row;
+        }
+      });
+      return anchorRow;
+    }
+
+    function maybeInsertDraftFromTaskListClick(event) {
+      if (!(event instanceof MouseEvent) || event.button !== 0) return false;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+      if (!state.workspace || !state.selectedProjectId) return false;
+
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return false;
+      if (target.closest("#active-task-list") !== activeTaskList) return false;
+      if (!isTaskBackgroundInsertTarget(target)) return false;
+      if (target.closest(".task-draft")) return false;
+
+      const clickedRow = target.closest("[data-draggable-task-id]");
+      let afterTaskId = null;
+
+      if (clickedRow instanceof HTMLElement) {
+        if (target !== clickedRow) return false;
+        if (!isTaskRowBackgroundInsertZone(clickedRow, event.clientY)) return false;
+        afterTaskId = clickedRow.dataset.draggableTaskId || null;
+      } else {
+        const anchorRow = findVisibleTaskRowBeforePoint(event.clientY);
+        if (!(anchorRow instanceof HTMLElement)) return false;
+        if (event.clientY < anchorRow.getBoundingClientRect().bottom - 2) return false;
+        afterTaskId = anchorRow.dataset.draggableTaskId || null;
+      }
+
+      if (!afterTaskId) return false;
+      if (isTaskSectionCollapsed(afterTaskId)) {
+        setTaskSectionCollapsed(afterTaskId, false);
+      }
+      insertDraftAfter(afterTaskId);
+      render({ preserveShellScroll: true });
+      return true;
     }
 
     function removeDraft(key, options = {}) {
