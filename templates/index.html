@@ -10,8 +10,8 @@
       --bg: #0b1218;
       --panel: #101b24;
       --panel-soft: #13212b;
-      --line: rgba(147, 184, 207, 0.28);
-      --line-strong: rgba(147, 184, 207, 0.42);
+      --line: rgba(147, 184, 207, 0.2);
+      --line-strong: rgba(147, 184, 207, 0.34);
       --text: #e8f0f5;
       --muted: #8fa4b5;
       --accent: #38bdf8;
@@ -32,17 +32,18 @@
       --task-priority-p3: #3b82f6;
       --task-priority-p2: #f59e0b;
       --task-priority-p1: #ef4444;
-      --shadow: 0 18px 48px rgba(2, 8, 14, 0.38);
+      --shadow: 0 24px 56px rgba(2, 8, 14, 0.34);
       --glass-shell: rgba(8, 16, 23, 0.2);
-      --glass-panel: rgba(16, 27, 36, 0.66);
+      --glass-panel: rgba(14, 23, 31, 0.78);
       --glass-blur: 14px;
       --glass-shell-blur: 24px;
-      --glass-shell-radius: 18px;
-      --pane-head-height: 62px;
-      --pane-head-pad-y: 10px;
+      --glass-shell-radius: 20px;
+      --pane-head-height: 58px;
+      --pane-head-pad-y: 11px;
       --pane-control-size: 34px;
+      --pane-control-size-compact: 30px;
       --disclosure-slot: 18px;
-      --task-row-min-height: 44px;
+      --task-row-min-height: 42px;
       --changelog-list-height: min(38vh, 340px);
       --changelog-pane-height: min(calc(38vh + var(--pane-head-height) + 25px), 427px);
       --todo-animation-duration: 150ms;
@@ -213,7 +214,7 @@
 
     .shell {
       height: var(--app-height);
-      padding: 14px;
+      padding: 12px;
       display: flex;
       overflow: hidden;
     }
@@ -223,15 +224,15 @@
       min-height: 0;
       height: 100%;
       display: grid;
-      gap: 12px;
-      grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      grid-template-columns: 192px minmax(0, 1fr) minmax(0, 1fr);
     }
 
     .todo-stack {
       min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .layout.empty-app .todo-stack {
@@ -310,7 +311,7 @@
       min-height: 0;
       display: grid;
       grid-template-rows: auto 1fr;
-      border: 1px solid var(--line);
+      border: 1px solid rgba(147, 184, 207, 0.24);
       border-radius: 20px;
       background: var(--glass-panel);
       box-shadow: var(--shadow);
@@ -352,16 +353,31 @@
     .pane-head {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 12px;
-      height: var(--pane-head-height);
-      padding: var(--pane-head-pad-y) 16px;
+      min-height: var(--pane-head-height);
+      padding: var(--pane-head-pad-y) 14px;
       border-bottom: 1px solid var(--line);
     }
 
+    .pane-head-main,
+    .pane-head-context {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pane-head-main {
+      flex: 0 0 auto;
+    }
+
+    .pane-head-context {
+      flex: 1 1 auto;
+    }
+
     .pane-projects .pane-head {
-      padding-left: 12px;
-      padding-right: 12px;
+      padding-left: 10px;
+      padding-right: 10px;
       border-bottom: none;
     }
 
@@ -371,13 +387,13 @@
 
     .pane-title {
       font-family: "IBM Plex Mono", monospace;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1;
-      text-transform: lowercase;
       display: inline-flex;
       align-items: center;
       min-height: var(--pane-control-size);
       padding-left: var(--disclosure-slot);
+      letter-spacing: 0.02em;
     }
 
     .pane-title-collapsible {
@@ -435,42 +451,90 @@
       align-items: center;
       gap: 8px;
       flex-shrink: 0;
-      min-height: var(--pane-control-size);
+      min-height: var(--pane-control-size-compact);
+      margin-left: auto;
     }
 
     .pane-head .muted {
       display: inline-flex;
       align-items: center;
-      min-height: var(--pane-control-size);
+      min-height: var(--pane-control-size-compact);
       line-height: 1;
     }
 
-    .pane-todo .pane-head {
-      justify-content: flex-start;
-      min-width: 0;
+    .pane-head-tools {
+      gap: 10px;
     }
 
-    .pane-todo .pane-title {
-      flex: 0 0 auto;
-      white-space: nowrap;
+    .tool-cluster {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .compact-tools {
+      min-height: var(--pane-control-size-compact);
+      padding: 2px;
+      border: 1px solid rgba(147, 184, 207, 0.14);
+      border-radius: 12px;
+      background: rgba(8, 15, 21, 0.5);
+      box-shadow: inset 0 1px 0 rgba(248, 251, 255, 0.02);
+    }
+
+    .compact-tools .icon-btn {
+      width: var(--pane-control-size-compact);
+      height: var(--pane-control-size-compact);
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .compact-tools .icon-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .compact-tools .icon-btn:hover,
+    .compact-tools .icon-btn:focus-visible {
+      background: rgba(16, 33, 46, 0.72);
+    }
+
+    .compact-tools .mode-toggle {
+      padding: 0;
+      border: none;
+      background: transparent;
+      gap: 2px;
+    }
+
+    .compact-tools .mode-btn {
+      width: var(--pane-control-size-compact);
+      height: var(--pane-control-size-compact);
+      border-radius: 10px;
+    }
+
+    .pane-todo .pane-head-context {
+      justify-content: flex-end;
     }
 
     .pane-todo .pane-head-actions {
-      margin-left: auto;
       min-width: 0;
     }
 
     .todo-status {
       min-width: 0;
-      flex: 1 1 auto;
-      justify-content: flex-end;
+      justify-content: flex-start;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      gap: 10px;
+      gap: 8px;
       font-family: "IBM Plex Mono", monospace;
-      font-size: 12px;
-      letter-spacing: 0.01em;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      padding: 0 10px;
+      border: 1px solid rgba(147, 184, 207, 0.16);
+      border-radius: 999px;
+      background: rgba(8, 15, 21, 0.56);
     }
 
     .todo-status-label {
@@ -484,16 +548,30 @@
     .todo-status-summary {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex: 0 0 auto;
       white-space: nowrap;
+    }
+
+    .todo-status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .todo-status-key {
+      color: var(--muted);
+      font-size: 10px;
     }
 
     .todo-status-priority {
       display: inline-flex;
       align-items: baseline;
       justify-content: center;
-      min-width: 1.25em;
+      min-width: 1.1em;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
@@ -510,7 +588,7 @@
       color: var(--task-priority-p3);
     }
 
-    .todo-status-priority[data-priority="P4"] {
+    .todo-status-priority[data-priority="P0"] {
       color: var(--task-priority-none);
     }
 
@@ -518,23 +596,27 @@
       gap: 10px;
     }
 
+    .pane-notes .pane-head-context {
+      justify-content: center;
+    }
+
     .pane-notes .pane-head-actions {
-      margin-left: auto;
+      margin-left: 0;
     }
 
     .pane-search {
-      height: var(--pane-control-size);
+      height: 36px;
       flex: 1 1 auto;
       min-width: 0;
-      max-width: 420px;
+      max-width: 500px;
       display: inline-flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      padding: 0 10px;
-      background: rgba(8, 15, 21, 0.9);
+      border: 1px solid rgba(147, 184, 207, 0.18);
+      border-radius: 12px;
+      padding: 0 11px;
+      background: rgba(8, 15, 21, 0.92);
       overflow: hidden;
     }
 
@@ -559,7 +641,7 @@
     }
 
     .pane-search:focus-within {
-      border-color: rgba(56, 189, 248, 0.58);
+      border-color: rgba(56, 189, 248, 0.5);
       box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
       background: rgba(10, 20, 28, 0.98);
     }
@@ -699,17 +781,17 @@
     .pane-body {
       min-height: 0;
       overflow: auto;
-      padding: 12px;
+      padding: 14px;
       display: grid;
       gap: 10px;
       align-content: start;
     }
 
     .pane-projects .pane-body {
-      padding: 0 12px 12px 12px;
+      padding: 0 10px 10px 10px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       overflow: auto;
     }
 
@@ -736,9 +818,9 @@
 
     .icon-btn,
     .text-btn {
-      border: 1px solid var(--line);
+      border: 1px solid rgba(147, 184, 207, 0.16);
       border-radius: 10px;
-      background: rgba(9, 18, 25, 0.9);
+      background: rgba(9, 18, 25, 0.78);
       color: var(--text);
       padding: 8px 10px;
     }
@@ -939,7 +1021,7 @@
 
     .task-list,
     .done-list {
-      gap: 4px;
+      gap: 2px;
     }
 
     .project-row {
@@ -960,26 +1042,29 @@
     }
 
     .pane-projects .project-card {
-      border: 1px solid rgba(147, 184, 207, 0.36);
+      position: relative;
+      border: 1px solid rgba(147, 184, 207, 0.16);
       border-radius: 12px;
-      background: rgba(8, 16, 23, 0.4);
+      background: rgba(8, 16, 23, 0.32);
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 9px 42px 9px 10px;
-      box-shadow: inset 0 0 0 1px rgba(3, 9, 14, 0.16);
-      transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+      gap: 10px;
+      padding: 8px 38px 8px 12px;
+      box-shadow: none;
+      transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
     }
 
     .pane-projects .project-card:hover {
-      border-color: rgba(147, 184, 207, 0.52);
-      background: rgba(16, 33, 46, 0.56);
+      border-color: rgba(147, 184, 207, 0.28);
+      background: rgba(16, 33, 46, 0.48);
+      transform: translateY(-1px);
     }
 
     .pane-projects .project-card.active {
-      border-color: rgba(56, 189, 248, 0.58);
-      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
-      background: rgba(16, 33, 46, 0.9);
+      border-width: 2px;
+      border-color: rgba(56, 189, 248, 0.52);
+      box-shadow: none;
+      background: rgba(15, 32, 45, 0.88);
     }
 
     .project-select {
@@ -987,8 +1072,8 @@
     }
 
     .project-actions-btn {
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       border: none;
       border-radius: 8px;
       background: transparent;
@@ -1029,7 +1114,7 @@
     .pane-projects .empty-state,
     .pane-projects .message {
       border-radius: 10px;
-      background: rgba(10, 18, 25, 0.46);
+      background: rgba(10, 18, 25, 0.34);
     }
 
     .project-card-title {
@@ -1039,12 +1124,14 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-size: 14px;
+      font-weight: 600;
     }
 
     .project-card-icon {
-      width: 26px;
-      height: 26px;
-      border-radius: 9px;
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
       flex: 0 0 auto;
       display: inline-grid;
       place-items: center;
@@ -1072,7 +1159,7 @@
     .project-add-card {
       width: 100%;
       justify-content: flex-start;
-      gap: 12px;
+      gap: 10px;
       padding-right: 12px;
     }
 
@@ -1098,20 +1185,20 @@
 
     .project-pane-footer {
       margin-top: auto;
-      padding-top: 0;
+      padding-top: 12px;
       position: sticky;
       bottom: 0;
       z-index: 2;
       background: transparent;
+      border-top: 1px solid rgba(147, 184, 207, 0.12);
     }
 
     .project-pane-footer-actions,
     .archive-menu {
       position: relative;
-      display: inline-flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
+      display: grid;
+      gap: 6px;
+      width: 100%;
       max-width: 100%;
     }
 
@@ -1120,16 +1207,18 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      min-height: var(--pane-control-size);
-      padding: 0;
-      border: none;
-      border-radius: 0;
-      background: transparent;
-      color: #f8fbff;
-      font-size: 15px;
+      justify-content: flex-start;
+      width: 100%;
+      min-height: 32px;
+      padding: 0 10px;
+      border: 1px solid rgba(147, 184, 207, 0.14);
+      border-radius: 10px;
+      background: rgba(8, 15, 21, 0.3);
+      color: var(--muted);
+      font-size: 12px;
       line-height: 1;
       font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
+      transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
     }
 
     .sidebar-footer-btn svg,
@@ -1146,8 +1235,8 @@
 
     .sidebar-footer-btn.active,
     .archive-launch-btn.active {
-      border: none;
-      background: transparent;
+      border-color: rgba(56, 189, 248, 0.24);
+      background: rgba(16, 33, 46, 0.52);
       color: #f8fbff;
     }
 
@@ -1155,7 +1244,8 @@
     .sidebar-footer-btn:focus-visible,
     .archive-launch-btn:hover,
     .archive-launch-btn:focus-visible {
-      background: transparent;
+      border-color: rgba(147, 184, 207, 0.26);
+      background: rgba(16, 33, 46, 0.42);
       color: #ffffff;
       outline: none;
     }
@@ -1176,7 +1266,6 @@
     .archive-menu-title {
       font-size: 12px;
       font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
       color: var(--muted);
     }
 
@@ -1195,8 +1284,7 @@
     .archive-menu-section-label {
       font-size: 10px;
       font-family: "IBM Plex Mono", monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.03em;
       color: var(--muted);
       padding: 0 2px;
     }
@@ -1240,7 +1328,6 @@
     .archive-item .text-btn {
       padding: 7px 10px;
       font-size: 11px;
-      text-transform: lowercase;
       font-family: "IBM Plex Mono", monospace;
     }
 
@@ -1289,8 +1376,7 @@
     .small-label {
       color: var(--muted);
       font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      letter-spacing: 0.03em;
       font-family: "IBM Plex Mono", monospace;
     }
 
@@ -1301,13 +1387,16 @@
     .task-row,
     .task-draft {
       --task-row-floor: var(--task-row-min-height);
-      --task-row-vertical-chrome: 22px;
+      --task-row-vertical-chrome: 20px;
       display: grid;
       gap: 10px;
       align-items: start;
       min-height: var(--task-row-floor);
-      padding: 8px 12px;
+      padding: 7px 12px;
       position: relative;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      transition: border-color 120ms ease, background-color 120ms ease;
     }
 
     .task-row,
@@ -1574,18 +1663,24 @@
 
     .task-row.is-heading,
     .task-draft.is-heading {
-      --task-row-floor: 36px;
-      --task-row-vertical-chrome: 16px;
+      --task-row-floor: 40px;
+      --task-row-vertical-chrome: 14px;
       align-items: center;
-      border: 1px solid var(--line);
-      background: rgba(12, 20, 28, 0.55);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      background: linear-gradient(90deg, rgba(14, 26, 37, 0.88), rgba(12, 20, 28, 0.54));
       border-radius: 14px;
       min-height: var(--task-row-floor);
-      padding-left: calc(var(--disclosure-slot) + 4px);
-      padding-top: 8px;
-      padding-bottom: 8px;
-      margin-bottom: 6px;
+      padding-left: calc(var(--disclosure-slot) + 8px);
+      padding-top: 7px;
+      padding-bottom: 7px;
+      margin-top: 14px;
+      margin-bottom: 4px;
       z-index: 0;
+    }
+
+    .task-list > .task-row.is-heading:first-child,
+    .task-list > .task-draft.is-heading:first-child {
+      margin-top: 2px;
     }
 
     .task-row.is-heading {
@@ -1664,7 +1759,7 @@
       resize: none;
       white-space: pre-wrap;
       overflow-wrap: break-word;
-      line-height: 1.45;
+      line-height: 1.4;
     }
 
     .task-input-measure {
@@ -1687,8 +1782,8 @@
 
     .task-heading-input {
       font-weight: 700;
-      font-size: 16px;
-      line-height: 1.25;
+      font-size: 15px;
+      line-height: 1.2;
       letter-spacing: -0.01em;
       color: #82b1ff;
     }
@@ -1762,7 +1857,7 @@
     .done-section-heading .task-section-toggle {
       position: absolute;
       top: 50%;
-      left: 4px;
+      left: 6px;
       z-index: 1;
       transform: translateY(-50%) scale(0.92);
     }
@@ -1903,7 +1998,7 @@
       height: 22px;
       border: 1px solid transparent;
       border-radius: 999px;
-      background: rgba(11, 22, 30, 0.48);
+      background: rgba(11, 22, 30, 0.4);
       display: inline-grid;
       place-items: center;
       padding: 0;
@@ -1974,24 +2069,35 @@
 
     .done-row {
       --task-row-floor: var(--task-row-min-height);
-      --task-row-vertical-chrome: 22px;
+      --task-row-vertical-chrome: 20px;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
       align-items: start;
       column-gap: 10px;
       min-height: var(--task-row-floor);
-      padding: 8px 12px;
+      padding: 7px 12px;
       cursor: pointer;
+      border-radius: 12px;
     }
 
     .task-row:not(.is-heading),
     .task-draft:not(.is-heading),
     .done-row {
-      margin-left: 12px;
-      padding-left: 10px;
-      border: none;
-      border-radius: 0;
-      background: transparent;
+      margin-left: 18px;
+      padding-left: 12px;
+      padding-right: 12px;
+      border: 1px solid rgba(147, 184, 207, 0.08);
+      border-radius: 12px;
+      background: rgba(10, 18, 25, 0.22);
+    }
+
+    .task-row:not(.is-heading):hover,
+    .task-row:not(.is-heading):focus-within,
+    .task-draft:not(.is-heading):focus-within,
+    .done-row:hover,
+    .done-row:focus-within {
+      border-color: rgba(147, 184, 207, 0.16);
+      background: rgba(15, 28, 38, 0.34);
     }
 
     .done-check {
@@ -2008,18 +2114,19 @@
     }
 
     .done-section-heading {
-      --task-row-floor: 36px;
-      --task-row-vertical-chrome: 16px;
+      --task-row-floor: 40px;
+      --task-row-vertical-chrome: 14px;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       align-items: center;
       column-gap: 10px;
       min-height: var(--task-row-floor);
-      border: 1px solid var(--line);
+      border: 1px solid rgba(56, 189, 248, 0.18);
       border-radius: 14px;
-      background: rgba(12, 20, 28, 0.55);
-      padding: 8px 12px 8px calc(var(--disclosure-slot) + 4px);
-      margin-bottom: 6px;
+      background: linear-gradient(90deg, rgba(13, 24, 33, 0.8), rgba(12, 20, 28, 0.48));
+      padding: 7px 12px 7px calc(var(--disclosure-slot) + 8px);
+      margin-top: 12px;
+      margin-bottom: 4px;
       position: relative;
     }
 
@@ -2029,13 +2136,20 @@
       transform: translateY(1px);
       min-width: 0;
       min-height: 20px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
-      line-height: 1.25;
+      line-height: 1.2;
       letter-spacing: -0.01em;
       color: #82b1ff;
       overflow-wrap: break-word;
       word-break: break-word;
+    }
+
+    .task-row:not(.is-heading) .task-input,
+    .task-draft:not(.is-heading) .task-input,
+    .done-title {
+      width: min(100%, 60ch);
+      max-width: 60ch;
     }
 
     .task-row.is-heading .task-input:focus,
@@ -2105,6 +2219,15 @@
 
     .note-card {
       overflow: hidden;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      background: rgba(9, 16, 22, 0.34);
+      transition: border-color 120ms ease, background-color 120ms ease, box-shadow 140ms ease;
+    }
+
+    .note-card.open {
+      border-color: rgba(147, 184, 207, 0.26);
+      background: linear-gradient(180deg, rgba(10, 19, 26, 0.92), rgba(9, 16, 22, 0.82));
+      box-shadow: 0 16px 34px rgba(2, 8, 14, 0.18);
     }
 
     .note-toggle {
@@ -2113,17 +2236,17 @@
       border-bottom: 1px solid transparent;
       background: transparent;
       color: var(--text);
-      padding: 12px;
+      padding: 10px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 12px;
       text-align: left;
     }
 
     .note-toggle-main {
       display: grid;
-      gap: 3px;
+      gap: 4px;
       min-width: 0;
       flex: 1 1 auto;
     }
@@ -2140,6 +2263,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-size: 14px;
+      font-weight: 600;
     }
 
     .note-search-snippet {
@@ -2154,7 +2279,6 @@
 
     .note-search-snippet-label {
       color: #93a7b8;
-      text-transform: lowercase;
     }
 
     .note-search-hit {
@@ -2188,17 +2312,53 @@
 
     .note-head-open {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 16px 16px 10px;
+      border-bottom: 1px solid rgba(147, 184, 207, 0.12);
+    }
+
+    .note-open-heading {
+      display: flex;
+      align-items: flex-start;
       gap: 12px;
-      padding: 12px;
-      padding-bottom: 6px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .note-open-title-block {
+      min-width: 0;
+      flex: 1 1 auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .note-open-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1.4;
+    }
+
+    .note-open-updated {
+      white-space: nowrap;
     }
 
     .note-head-actions {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
       flex: 0 0 auto;
+      padding: 2px;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      border-radius: 12px;
+      background: rgba(8, 15, 21, 0.46);
     }
 
     .note-picker {
@@ -2298,10 +2458,15 @@
     }
 
     .note-editor {
-      padding: 0 12px 12px;
+      padding: 0 16px 18px;
       display: grid;
-      gap: 10px;
+      gap: 12px;
       background: transparent;
+      align-content: start;
+    }
+
+    .note-editor > * {
+      width: min(100%, 72ch);
     }
 
     .note-title-input {
@@ -2316,8 +2481,10 @@
       border-radius: 0;
       background: transparent;
       padding: 0;
-      font-size: 20px;
-      line-height: 1.3;
+      font-size: 18px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
 
     .note-title-inline::placeholder {
@@ -2332,19 +2499,19 @@
     .note-title-readonly {
       flex: 1;
       min-width: 0;
-      font-size: 20px;
-      line-height: 1.3;
-      font-weight: 600;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 18px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      overflow-wrap: anywhere;
     }
 
     .note-path-inline {
-      margin-top: 2px;
       color: var(--muted);
       font-size: 11px;
       font-family: "IBM Plex Mono", monospace;
+      min-width: 0;
+      max-width: 100%;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2361,12 +2528,11 @@
     .note-sync-pill {
       border: 1px solid rgba(56, 189, 248, 0.34);
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       color: #bae6fd;
       background: rgba(14, 116, 144, 0.16);
       font-size: 10px;
       font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
       flex: 0 0 auto;
     }
 
@@ -2395,6 +2561,13 @@
       flex-wrap: wrap;
     }
 
+    .note-editor-meta {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1.5;
+    }
+
     .note-toggle-caret,
     .note-collapse {
       width: 18px;
@@ -2415,6 +2588,11 @@
 
     .note-toggle-caret {
       pointer-events: none;
+    }
+
+    .note-collapse {
+      opacity: 0.72;
+      transform: translateX(0);
     }
 
     .note-toggle-caret svg,
@@ -2499,7 +2677,7 @@
       resize: vertical;
       font-family: "IBM Plex Sans", sans-serif;
       font-size: 15px;
-      line-height: 1.75;
+      line-height: 1.82;
     }
 
     .markdown-input.note-body-input::placeholder {
@@ -2535,7 +2713,7 @@
       word-break: break-word;
       font-family: "IBM Plex Sans", sans-serif;
       font-size: 15px;
-      line-height: 1.75;
+      line-height: 1.82;
     }
 
     .markdown-search-overlay[hidden] {
@@ -2577,7 +2755,7 @@
       background: transparent;
       padding: 4px 0 0;
       overflow: auto;
-      line-height: 1.75;
+      line-height: 1.82;
       font-size: 15px;
     }
 
@@ -2968,7 +3146,6 @@
       color: #d9e7f4;
       font-size: 11px;
       font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
     }
 
     .port-session-command {
@@ -2995,7 +3172,7 @@
     }
 
     html[data-layout-mode="two"] .layout {
-      grid-template-columns: 240px 1fr;
+      grid-template-columns: 192px 1fr;
       grid-template-areas:
         "projects todo"
         "notes notes";
@@ -3053,7 +3230,9 @@
     <main class="layout">
       <section class="pane pane-projects">
         <div class="pane-head">
-          <span class="pane-title">projects</span>
+          <div class="pane-head-main">
+            <span class="pane-title">Projects</span>
+          </div>
         </div>
         <div class="pane-body">
           <div id="project-tray"></div>
@@ -3067,7 +3246,7 @@
                   <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
                   <path d="M10 12h4"></path>
                 </svg>
-                <span>archive</span>
+                <span>Archive</span>
               </button>
               <button class="text-btn sidebar-footer-btn" id="ports-menu-toggle" type="button" aria-label="Open ports" title="Open ports">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3077,14 +3256,14 @@
                   <path d="M5 4h14"></path>
                   <path d="M5 20h14"></path>
                 </svg>
-                <span>ports</span>
+                <span>Ports</span>
               </button>
               <button class="text-btn archive-launch-btn" id="settings-menu-toggle" type="button" aria-label="Open settings" title="Open settings">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="3"></circle>
                   <path d="M19.5 12a1.4 1.4 0 0 0 .02.26l1.54 1.2a1 1 0 0 1 .2 1.32l-1.45 2.5a1 1 0 0 1-1.26.43l-1.82-.73a7.8 7.8 0 0 1-1.35.78l-.28 1.93a1 1 0 0 1-.99.86h-2.9a1 1 0 0 1-.99-.86l-.28-1.93a7.8 7.8 0 0 1-1.35-.78l-1.82.73a1 1 0 0 1-1.26-.43l-1.45-2.5a1 1 0 0 1 .2-1.32l1.54-1.2a1.4 1.4 0 0 0 0-.52L2.94 11.06a1 1 0 0 1-.2-1.32l1.45-2.5a1 1 0 0 1 1.26-.43l1.82.73c.42-.32.88-.58 1.35-.78l.28-1.93a1 1 0 0 1 .99-.86h2.9a1 1 0 0 1 .99.86l.28 1.93c.47.2.93.46 1.35.78l1.82-.73a1 1 0 0 1 1.26.43l1.45 2.5a1 1 0 0 1-.2 1.32l-1.54 1.2a1.4 1.4 0 0 0-.02.26z"></path>
                 </svg>
-                <span>settings</span>
+                <span>Settings</span>
               </button>
             </div>
           </div>
@@ -3094,35 +3273,41 @@
       <div class="todo-stack">
         <section class="pane pane-todo">
           <div class="pane-head">
-            <span class="pane-title">to-do</span>
-            <div class="pane-head-actions">
-              <span class="muted todo-status" id="todo-status">ready</span>
-              <button class="icon-btn" id="todo-sort-priority" type="button" aria-label="Sort by priority" title="Sort by priority" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 6h10"></path>
-                  <path d="M7 12h7"></path>
-                  <path d="M7 18h4"></path>
-                </svg>
-              </button>
-              <button class="icon-btn" id="todo-toggle-header" type="button" aria-label="Convert selected row to header" title="Convert selected row to header (⇧⌘H)" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 6v12"></path>
-                  <path d="M16 6v12"></path>
-                  <path d="M8 12h8"></path>
-                </svg>
-              </button>
-              <button class="icon-btn" id="todo-toggle-sections" type="button" aria-label="Collapse all headers" title="Collapse all headers" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m7 9 5-5 5 5"></path>
-                  <path d="m7 15 5 5 5-5"></path>
-                </svg>
-              </button>
-              <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy to-do.md" title="Copy to-do.md" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
-                  <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
-                </svg>
-              </button>
+            <div class="pane-head-main">
+              <span class="pane-title">To-do</span>
+            </div>
+            <div class="pane-head-context">
+              <span class="muted todo-status" id="todo-status">Ready</span>
+            </div>
+            <div class="pane-head-actions pane-head-tools">
+              <div class="tool-cluster compact-tools">
+                <button class="icon-btn" id="todo-sort-priority" type="button" aria-label="Sort by priority" title="Sort by priority" aria-pressed="false" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 6h10"></path>
+                    <path d="M7 12h7"></path>
+                    <path d="M7 18h4"></path>
+                  </svg>
+                </button>
+                <button class="icon-btn" id="todo-toggle-header" type="button" aria-label="Convert selected row to header" title="Convert selected row to header (⇧⌘H)" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6v12"></path>
+                    <path d="M16 6v12"></path>
+                    <path d="M8 12h8"></path>
+                  </svg>
+                </button>
+                <button class="icon-btn" id="todo-toggle-sections" type="button" aria-label="Collapse all headers" title="Collapse all headers" aria-pressed="false" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 9 5-5 5 5"></path>
+                    <path d="m7 15 5 5 5-5"></path>
+                  </svg>
+                </button>
+                <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy to-do.md" title="Copy to-do.md" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+                    <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <div class="pane-body">
@@ -3133,30 +3318,36 @@
 
         <section class="pane pane-changelog" id="changelog-pane">
           <div class="pane-head">
-            <div class="pane-title pane-title-collapsible">
-              <button class="pane-title-toggle" id="changelog-toggle" type="button" aria-expanded="true" aria-controls="changelog-body" aria-label="Collapse changelog" title="Collapse changelog">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m7 10 5 5 5-5"></path>
-                </svg>
-              </button>
-              <span>changelog</span>
+            <div class="pane-head-main">
+              <div class="pane-title pane-title-collapsible">
+                <button class="pane-title-toggle" id="changelog-toggle" type="button" aria-expanded="true" aria-controls="changelog-body" aria-label="Collapse changelog" title="Collapse changelog">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 10 5 5 5-5"></path>
+                  </svg>
+                </button>
+                <span>Changelog</span>
+              </div>
             </div>
-            <div class="pane-head-actions">
+            <div class="pane-head-context">
               <span class="muted" id="changelog-status"></span>
-              <button class="icon-btn" id="changelog-archive" type="button" aria-label="Archive completed tasks" title="Archive completed tasks">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 8h16"></path>
-                  <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
-                  <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
-                  <path d="M10 12h4"></path>
-                </svg>
-              </button>
-              <button class="icon-btn todo-export-btn" id="changelog-export" type="button" aria-label="Copy changelog" title="Copy changelog">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
-                  <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
-                </svg>
-              </button>
+            </div>
+            <div class="pane-head-actions pane-head-tools">
+              <div class="tool-cluster compact-tools">
+                <button class="icon-btn" id="changelog-archive" type="button" aria-label="Archive completed tasks" title="Archive completed tasks">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 8h16"></path>
+                    <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
+                    <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
+                    <path d="M10 12h4"></path>
+                  </svg>
+                </button>
+                <button class="icon-btn todo-export-btn" id="changelog-export" type="button" aria-label="Copy changelog" title="Copy changelog">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10" rx="2.5"></rect>
+                    <rect x="11" y="11" width="10" height="10" rx="2.5"></rect>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
           <div class="pane-body" id="changelog-body">
@@ -3167,72 +3358,78 @@
 
       <section class="pane pane-notes">
         <div class="pane-head">
-          <span class="pane-title">notes</span>
-          <label class="pane-search" for="notes-search-input">
-            <span class="pane-search-field">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"></circle>
-                <path d="m20 20-3.4-3.4"></path>
-              </svg>
-              <input
-                id="notes-search-input"
-                class="pane-search-input"
-                type="text"
-                placeholder="Search imported docs..."
-                aria-label="Search imported docs in notes"
-                autocomplete="off"
-                spellcheck="false"
-              >
-              <button class="pane-search-clear" id="notes-search-clear" type="button" aria-label="Clear search" title="Clear search" hidden>
+          <div class="pane-head-main">
+            <span class="pane-title">Notes</span>
+          </div>
+          <div class="pane-head-context">
+            <label class="pane-search" for="notes-search-input">
+              <span class="pane-search-field">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m7 7 10 10"></path>
-                  <path d="m17 7-10 10"></path>
+                  <circle cx="11" cy="11" r="7"></circle>
+                  <path d="m20 20-3.4-3.4"></path>
                 </svg>
-              </button>
-            </span>
-            <div class="pane-search-nav" id="notes-search-nav" hidden>
-              <span class="pane-search-count" id="notes-search-count"></span>
-              <button class="pane-search-nav-btn" id="notes-search-prev" type="button" aria-label="Previous match" title="Previous match">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m15 6-6 6 6 6"></path>
-                </svg>
-              </button>
-              <button class="pane-search-nav-btn" id="notes-search-next" type="button" aria-label="Next match" title="Next match">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m9 6 6 6-6 6"></path>
-                </svg>
-              </button>
-            </div>
-          </label>
-          <div class="pane-head-actions">
+                <input
+                  id="notes-search-input"
+                  class="pane-search-input"
+                  type="text"
+                  placeholder="Search imported docs..."
+                  aria-label="Search imported docs in notes"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <button class="pane-search-clear" id="notes-search-clear" type="button" aria-label="Clear search" title="Clear search" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 7 10 10"></path>
+                    <path d="m17 7-10 10"></path>
+                  </svg>
+                </button>
+              </span>
+              <div class="pane-search-nav" id="notes-search-nav" hidden>
+                <span class="pane-search-count" id="notes-search-count"></span>
+                <button class="pane-search-nav-btn" id="notes-search-prev" type="button" aria-label="Previous match" title="Previous match">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m15 6-6 6 6 6"></path>
+                  </svg>
+                </button>
+                <button class="pane-search-nav-btn" id="notes-search-next" type="button" aria-label="Next match" title="Next match">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 6 6 6-6 6"></path>
+                  </svg>
+                </button>
+              </div>
+            </label>
+          </div>
+          <div class="pane-head-actions pane-head-tools">
             <span class="muted" id="note-status"></span>
-            <div class="mode-toggle" aria-label="Notes view mode">
-              <button class="mode-btn" type="button" data-note-mode="clean" aria-label="Clean view" title="Clean view">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 3h6l5 5v13H8z"></path>
-                  <path d="M14 3v5h5"></path>
-                  <path d="M10 13h7"></path>
-                  <path d="M10 17h7"></path>
-                </svg>
-              </button>
-              <button class="mode-btn" type="button" data-note-mode="markdown" aria-label="Markdown view" title="Markdown view">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m8 8-4 4 4 4"></path>
-                  <path d="m16 8 4 4-4 4"></path>
-                  <path d="m13 6-2 12"></path>
-                </svg>
-              </button>
+            <div class="tool-cluster compact-tools">
+              <div class="mode-toggle" aria-label="Notes view mode">
+                <button class="mode-btn" type="button" data-note-mode="clean" aria-label="Clean view" title="Clean view">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 3h6l5 5v13H8z"></path>
+                    <path d="M14 3v5h5"></path>
+                    <path d="M10 13h7"></path>
+                    <path d="M10 17h7"></path>
+                  </svg>
+                </button>
+                <button class="mode-btn" type="button" data-note-mode="markdown" aria-label="Markdown view" title="Markdown view">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m8 8-4 4 4 4"></path>
+                    <path d="m16 8 4 4-4 4"></path>
+                    <path d="m13 6-2 12"></path>
+                  </svg>
+                </button>
+              </div>
+              <div class="note-picker" id="note-link-picker-wrap">
+                <button class="icon-btn" id="notes-link" type="button" aria-label="Link markdown file" title="Link markdown file">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07L12 5"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07L12 19"></path>
+                  </svg>
+                </button>
+                <div class="note-picker-panel" id="note-link-picker"></div>
+              </div>
+              <button class="icon-btn" id="notes-add" type="button">+</button>
             </div>
-            <div class="note-picker" id="note-link-picker-wrap">
-              <button class="icon-btn" id="notes-link" type="button" aria-label="Link markdown file" title="Link markdown file">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07L12 5"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07L12 19"></path>
-                </svg>
-              </button>
-              <div class="note-picker-panel" id="note-link-picker"></div>
-            </div>
-            <button class="icon-btn" id="notes-add" type="button">+</button>
           </div>
         </div>
         <div class="pane-body">
@@ -3243,7 +3440,10 @@
 
       <section class="pane pane-archive" id="archive-pane">
         <div class="pane-head">
-          <span class="pane-title">settings</span>
+          <div class="pane-head-main">
+            <span class="pane-title">Settings</span>
+          </div>
+          <div class="pane-head-context"></div>
           <div class="pane-head-actions">
             <span class="muted" id="archive-status"></span>
           </div>
@@ -5049,7 +5249,7 @@
           ? `${allItems.length} total ${allItems.length === 1 ? "port" : "ports"}`
           : `${items.length} likely dev ${items.length === 1 ? "port" : "ports"}`;
       const filterNote = !state.portViewerShowAll && hiddenCount > 0
-        ? `<div class="overlay-muted">${escapeHtml(String(hiddenCount))} other ${hiddenCount === 1 ? "port is" : "ports are"} hidden. Use show all to inspect them.</div>`
+        ? `<div class="overlay-muted">${escapeHtml(String(hiddenCount))} other ${hiddenCount === 1 ? "port is" : "ports are"} hidden. Use Show all to inspect them.</div>`
         : "";
       const rowsMarkup = items.map((item) => {
         const pid = Number(item.pid);
@@ -5070,7 +5270,7 @@
           <section class="overlay-section port-session-card">
             <div class="port-session-head">
               <div class="port-session-title">
-                <div class="small-label">port ${escapeHtml(String(port))}</div>
+                <div class="small-label">Port ${escapeHtml(String(port))}</div>
                 <h3>${escapeHtml(item.process_name || "Unknown process")}</h3>
               </div>
               <button
@@ -5081,13 +5281,13 @@
                 data-port-viewer-kill-port="${escapeAttribute(String(port))}"
                 ${!item.can_terminate || isBusy ? "disabled" : ""}
               >
-                ${isBusy ? "ending..." : (item.can_terminate ? "end session" : "protected")}
+                ${isBusy ? "Ending..." : (item.can_terminate ? "End session" : "Protected")}
               </button>
             </div>
             <div class="port-session-meta">
-              <span class="port-session-pill">pid ${escapeHtml(String(pid))}</span>
-              <span class="port-session-pill">${escapeHtml(item.user || "unknown user")}</span>
-              <span class="port-session-pill">${item.is_likely_dev ? "likely dev" : "other"}</span>
+              <span class="port-session-pill">PID ${escapeHtml(String(pid))}</span>
+              <span class="port-session-pill">${escapeHtml(item.user || "Unknown user")}</span>
+              <span class="port-session-pill">${item.is_likely_dev ? "Likely dev" : "Other"}</span>
               ${bindings.map((binding) => `<span class="port-session-pill">${escapeHtml(binding)}</span>`).join("")}
             </div>
             <div class="overlay-value port-session-command">${escapeHtml(item.command_line || item.process_name || "Unknown command")}</div>
@@ -5101,7 +5301,7 @@
         : `
           <section class="overlay-section">
             <div class="overlay-value">${state.portViewerLoading ? "Loading active ports..." : (state.portViewerShowAll ? "No listening TCP ports found." : "No likely dev ports found.")}</div>
-            <div class="overlay-muted">${state.portViewerShowAll ? "Topside shows listening TCP ports on this Mac and can end the owning process." : "Showing likely development ports only. Use show all if you need to inspect the rest."}</div>
+            <div class="overlay-muted">${state.portViewerShowAll ? "Topside shows listening TCP ports on this Mac and can end the owning process." : "Showing likely development ports only. Use Show all if you need to inspect the rest."}</div>
           </section>
         `;
 
@@ -5110,12 +5310,12 @@
           <section class="overlay-card port-viewer-overlay-card" role="dialog" aria-modal="true" aria-label="Active ports">
             <div class="overlay-head">
               <div class="overlay-title">
-                <div class="small-label">active ports</div>
+                <div class="small-label">Active ports</div>
                 <h2>${escapeHtml(countLabel)}</h2>
               </div>
               <div class="overlay-head-actions">
-                <button class="text-btn" type="button" data-port-viewer-toggle-all>${state.portViewerShowAll ? "dev only" : "show all"}</button>
-                <button class="text-btn" type="button" data-port-viewer-refresh ${state.portViewerLoading ? "disabled" : ""}>refresh</button>
+                <button class="text-btn" type="button" data-port-viewer-toggle-all>${state.portViewerShowAll ? "Dev only" : "Show all"}</button>
+                <button class="text-btn" type="button" data-port-viewer-refresh ${state.portViewerLoading ? "disabled" : ""}>Refresh</button>
                 <button class="icon-btn" type="button" data-port-viewer-close aria-label="Close ports overlay">×</button>
               </div>
             </div>
@@ -5131,12 +5331,12 @@
       archivePane.setAttribute("aria-hidden", state.archiveMenuOpen ? "false" : "true");
 
       if (!state.archiveMenuOpen) {
-        archivePaneTitle.textContent = "settings";
+        archivePaneTitle.textContent = "Settings";
         archiveStatus.textContent = "";
         archiveBody.innerHTML = "";
         return;
       }
-      archivePaneTitle.textContent = state.archiveMenuMode === "archive" ? "archive" : "settings";
+      archivePaneTitle.textContent = state.archiveMenuMode === "archive" ? "Archive" : "Settings";
       archiveStatus.textContent = "";
 
       if (state.archiveMenuMode === "settings") {
@@ -5144,7 +5344,7 @@
           ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
           <div class="settings-panel">
             <section class="settings-panel-card">
-              <div class="settings-panel-title">settings</div>
+              <div class="settings-panel-title">Settings</div>
               <div class="settings-panel-copy">Placeholder for future settings.</div>
             </section>
           </div>
@@ -5156,7 +5356,7 @@
       if (state.archiveMenuLoading) {
         panelMarkup = `
           <section class="settings-panel-card">
-            <div class="settings-panel-title">archive</div>
+            <div class="settings-panel-title">Archive</div>
             <div class="settings-panel-copy">Loading archived items...</div>
           </section>
         `;
@@ -5166,10 +5366,10 @@
           const showSection = item.entity_type !== previousType;
           previousType = item.entity_type;
           const sectionLabel = item.entity_type === "project"
-            ? "projects"
+            ? "Projects"
             : item.entity_type === "task"
-              ? "tasks"
-              : "notes";
+              ? "Tasks"
+              : "Notes";
           const detailParts = [item.context_label, item.detail_label].filter(Boolean);
 
           return `
@@ -5185,7 +5385,7 @@
                 data-archive-restore-id="${escapeAttribute(item.id)}"
                 data-archive-restore-revision="${escapeAttribute(item.revision)}"
               >
-                restore
+                Restore
               </button>
             </div>
           `;
@@ -5196,7 +5396,7 @@
           : `${state.archiveTotalCount} items`;
         const archiveSectionHeadMarkup = `
           <div class="archive-menu-head">
-            <span class="archive-menu-title">archive</span>
+            <span class="archive-menu-title">Archive</span>
             <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
           </div>
         `;
@@ -5209,13 +5409,13 @@
             ? `
               <div class="archive-empty-confirm">
                 <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
-                <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
-                <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
+                <button class="text-btn" type="button" data-archive-empty-cancel>Cancel</button>
+                <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>Empty archive</button>
               </div>
             `
             : `
               <div class="archive-menu-actions">
-                <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
+                <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>Empty archive</button>
               </div>
             `);
 
@@ -5324,7 +5524,7 @@
       if (!response) return;
       delete state.taskEdits[taskId];
       state.workspace = response.workspace;
-      todoStatus.textContent = "saved";
+      todoStatus.textContent = "Saved";
       const activeElement = document.activeElement instanceof HTMLElement
         ? document.activeElement.closest("[data-task-id]")
         : null;
@@ -5552,7 +5752,7 @@
           const latestNote = state.workspace?.notes?.find((item) => item.id === noteId) || null;
           if (!latestNote) {
             state.noteRevisionConflict = null;
-            state.noteMessage = "note changed in the background and is no longer available";
+        state.noteMessage = "Note changed in the background and is no longer available";
             render();
             return false;
           }
@@ -5656,7 +5856,7 @@
 
     function debounceTaskSave(taskId) {
       clearTimeout(state.taskTimers[taskId]);
-      todoStatus.textContent = "saving…";
+      todoStatus.textContent = "Saving…";
       state.taskTimers[taskId] = setTimeout(() => {
         saveTask(taskId);
       }, 400);
@@ -6787,11 +6987,23 @@
     function todoStatusSummaryMarkup(activeCount, counts) {
       const visibleCount = counts.P1 + counts.P2 + counts.P3 + counts.P0;
       return `
-        <span class="todo-status-summary" aria-label="${visibleCount} active tasks. P1 ${counts.P1}, P2 ${counts.P2}, P3 ${counts.P3}, P4 ${counts.P0}.">
-          <span class="todo-status-priority" data-priority="P1" title="P1 tasks">${counts.P1}</span>
-          <span class="todo-status-priority" data-priority="P2" title="P2 tasks">${counts.P2}</span>
-          <span class="todo-status-priority" data-priority="P3" title="P3 tasks">${counts.P3}</span>
-          <span class="todo-status-priority" data-priority="P4" title="P4 tasks">${counts.P0}</span>
+        <span class="todo-status-summary" aria-label="${visibleCount} active tasks. P1 ${counts.P1}, P2 ${counts.P2}, P3 ${counts.P3}, P0 ${counts.P0}.">
+          <span class="todo-status-chip" title="P1 tasks">
+            <span class="todo-status-key">P1</span>
+            <span class="todo-status-priority" data-priority="P1">${counts.P1}</span>
+          </span>
+          <span class="todo-status-chip" title="P2 tasks">
+            <span class="todo-status-key">P2</span>
+            <span class="todo-status-priority" data-priority="P2">${counts.P2}</span>
+          </span>
+          <span class="todo-status-chip" title="P3 tasks">
+            <span class="todo-status-key">P3</span>
+            <span class="todo-status-priority" data-priority="P3">${counts.P3}</span>
+          </span>
+          <span class="todo-status-chip" title="P0 tasks">
+            <span class="todo-status-key">P0</span>
+            <span class="todo-status-priority" data-priority="P0">${counts.P0}</span>
+          </span>
         </span>
       `;
     }
@@ -7416,16 +7628,16 @@
       if (!state.projects.length) {
         todoStatus.textContent = "";
       } else if (!state.workspace) {
-        todoStatus.textContent = "idle";
+        todoStatus.textContent = "Idle";
       } else {
         const counts = activePriorityCounts(state.workspace.active_tasks);
         const summaryMarkup = todoStatusSummaryMarkup(state.workspace.active_tasks.length, counts);
         if (state.workspace.project?.task_sync_status === "conflict") {
-          todoStatus.innerHTML = `<span class="todo-status-label">sync conflict</span>${summaryMarkup}`;
+          todoStatus.innerHTML = `<span class="todo-status-label">Sync conflict</span>${summaryMarkup}`;
           return;
         }
         if (state.workspace.project?.task_sync_status === "paused" && state.workspace.project?.task_sync_enabled) {
-          todoStatus.innerHTML = `<span class="todo-status-label">sync paused</span>${summaryMarkup}`;
+          todoStatus.innerHTML = `<span class="todo-status-label">Sync paused</span>${summaryMarkup}`;
           return;
         }
         todoStatus.innerHTML = summaryMarkup;
@@ -7588,7 +7800,7 @@
       const sectionText = buildTaskSectionCopyText(taskId);
       if (!sectionText) return;
 
-      await copyTextWithFallback("Copy section", sectionText, "section copied", "section ready");
+      await copyTextWithFallback("Copy section", sectionText, "Section copied", "Section ready");
     }
 
     function buildSelectedTaskCopyText(taskId) {
@@ -7629,8 +7841,8 @@
       await copyTextWithFallback(
         "Copy to-do.md",
         copyText,
-        "to-do copied",
-        "to-do ready"
+        "To-do copied",
+        "To-do ready"
       );
     }
 
@@ -7703,8 +7915,8 @@
         "Copy note",
         copyPayload.plainText,
         copyPayload.html,
-        "note copied",
-        "note ready",
+        "Note copied",
+        "Note ready",
         flashNoteStatus
       );
     }
@@ -7717,8 +7929,8 @@
         "Copy changelog",
         exportDocument.plainText,
         exportDocument.html,
-        "changelog copied",
-        "changelog ready",
+        "Changelog copied",
+        "Changelog ready",
         flashChangelogStatus
       );
     }
@@ -7742,7 +7954,7 @@
       if (!applyArchiveMutation(response) && state.archiveMenuOpen) {
         await loadArchiveMenu();
       }
-      flashChangelogStatus("sent to archive");
+      flashChangelogStatus("Sent to archive");
       render();
     }
 
@@ -7784,7 +7996,7 @@
           <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive completed tasks">
             <div class="overlay-head">
               <div class="overlay-title">
-                <div class="small-label">archive completed tasks</div>
+                <div class="small-label">Archive completed tasks</div>
                 <h2>${escapeHtml(itemLabel)}</h2>
               </div>
               <button class="icon-btn" type="button" data-changelog-archive-close aria-label="Close archive confirmation">×</button>
@@ -7793,8 +8005,8 @@
               <div class="overlay-value">Move these completed tasks into the archive?</div>
               <div class="overlay-muted">They will be removed from the changelog and can be restored later from archive.</div>
               <div class="overlay-inline-actions">
-                <button class="text-btn" type="button" data-changelog-archive-close>cancel</button>
-                <button class="text-btn danger-btn" type="button" data-changelog-archive-confirm>archive tasks</button>
+                <button class="text-btn" type="button" data-changelog-archive-close>Cancel</button>
+                <button class="text-btn danger-btn" type="button" data-changelog-archive-confirm>Archive tasks</button>
               </div>
             </section>
           </section>
@@ -8032,10 +8244,10 @@
       if (state.projectTrayMode === "new") {
         projectTray.innerHTML = `
           <div class="inline-shell">
-            <input class="text-input" type="text" placeholder="project title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
+            <input class="text-input" type="text" placeholder="Project title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
             <div class="inline-row">
-              <button class="text-btn" type="button" data-project-submit="new">create</button>
-              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
+              <button class="text-btn" type="button" data-project-submit="new">Create</button>
+              <button class="text-btn" type="button" data-project-tray-cancel>Cancel</button>
             </div>
           </div>
         `;
@@ -8049,14 +8261,14 @@
         projectTray.innerHTML = `
           <div class="inline-shell">
             <div class="inline-row">
-              <button class="text-btn" type="button" data-pick-local>pick folder</button>
-              <button class="text-btn" type="button" data-project-tray-cancel>cancel</button>
+              <button class="text-btn" type="button" data-pick-local>Pick folder</button>
+              <button class="text-btn" type="button" data-project-tray-cancel>Cancel</button>
             </div>
             ${state.projectPickerFallback ? `
-              <input class="text-input" type="text" placeholder="optional title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
+              <input class="text-input" type="text" placeholder="Optional title" value="${escapeAttribute(state.projectInput)}" data-project-title-input>
               <input class="path-input" type="text" placeholder="/absolute/path/to/project" value="${escapeAttribute(state.projectSourceInput)}" data-project-source-input>
               <div class="inline-row">
-                <button class="text-btn" type="button" data-project-submit="local">connect path</button>
+                <button class="text-btn" type="button" data-project-submit="local">Connect path</button>
               </div>
             ` : ""}
           </div>
@@ -8431,7 +8643,7 @@
               <path d="M5 12h14"></path>
             </svg>
           </span>
-          <span class="project-card-title">Add Project</span>
+          <span class="project-card-title">Add project</span>
         </button>
       `;
 
@@ -8607,7 +8819,7 @@
           <section class="overlay-card" role="dialog" aria-modal="true" aria-label="Project settings">
             <div class="overlay-head">
               <div class="overlay-title">
-                <div class="small-label">project settings</div>
+                <div class="small-label">Project settings</div>
                 <h2>${escapeHtml(project.title)}</h2>
               </div>
               <button class="icon-btn" type="button" data-project-settings-close aria-label="Close project settings">+</button>
@@ -8615,7 +8827,7 @@
             ${state.projectSettingsMessage ? `<div class="overlay-message error">${escapeHtml(state.projectSettingsMessage)}</div>` : ""}
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">icon</div>
+                <div class="small-label">Icon</div>
               </div>
               <div class="project-icon-current">
                 ${renderProjectIconBadge(project.icon, "project-card-icon project-card-icon-large")}
@@ -8630,7 +8842,7 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">source</div>
+                <div class="small-label">Source</div>
               </div>
               <div class="overlay-value">${escapeHtml(sourceLabel)}</div>
               <div class="overlay-muted">${sourceLocator ? escapeHtml(sourceLocator) : "This project is currently local to Topside only."}</div>
@@ -8638,7 +8850,7 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">task sync</div>
+                <div class="small-label">Task sync</div>
               </div>
               <div class="overlay-value">${escapeHtml(taskSyncStatusLabel(project, sourceKind))}</div>
               <div class="overlay-muted">${escapeHtml(taskSyncSummary(project, sourceKind))}</div>
@@ -8646,7 +8858,7 @@
             </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
-                <div class="small-label">danger</div>
+                <div class="small-label">Danger</div>
               </div>
               <div class="settings-action-list">
                 ${renderProjectSettingsActionButton("archive-project", "Archive Project", "archive", "danger-btn")}
@@ -8682,7 +8894,7 @@
           <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive project">
             <div class="overlay-head">
               <div class="overlay-title">
-                <div class="small-label">archive project</div>
+                <div class="small-label">Archive project</div>
                 <h2>${escapeHtml(project.title)}</h2>
               </div>
               <button class="icon-btn" type="button" data-project-archive-close aria-label="Close archive confirmation">×</button>
@@ -8691,8 +8903,8 @@
               <div class="overlay-value">Move this project, its tasks, and its notes into the archive?</div>
               <div class="overlay-muted">The markdown files stay in your workspace under archive/project/, archive/task/, and archive/note/.</div>
               <div class="overlay-inline-actions">
-                <button class="text-btn" type="button" data-project-archive-close>cancel</button>
-                <button class="text-btn danger-btn" type="button" data-project-archive-confirm>archive project</button>
+                <button class="text-btn" type="button" data-project-archive-close>Cancel</button>
+                <button class="text-btn danger-btn" type="button" data-project-archive-confirm>Archive project</button>
               </div>
             </section>
           </section>
@@ -8725,7 +8937,7 @@
           <section class="overlay-card confirm-overlay-card" role="dialog" aria-modal="true" aria-label="Archive note">
             <div class="overlay-head">
               <div class="overlay-title">
-                <div class="small-label">archive note</div>
+                <div class="small-label">Archive note</div>
                 <h2>${escapeHtml(noteTitle)}</h2>
               </div>
               <button class="icon-btn" type="button" data-note-archive-close aria-label="Close archive confirmation">×</button>
@@ -8734,8 +8946,8 @@
               <div class="overlay-value">Move this note into the archive and remove it from the current workspace?</div>
               <div class="overlay-muted">The markdown file stays in your workspace under archive/note/.</div>
               <div class="overlay-inline-actions">
-                <button class="text-btn" type="button" data-note-archive-close>cancel</button>
-                <button class="text-btn danger-btn" type="button" data-note-archive-confirm>archive note</button>
+                <button class="text-btn" type="button" data-note-archive-close>Cancel</button>
+                <button class="text-btn danger-btn" type="button" data-note-archive-confirm>Archive note</button>
               </div>
             </section>
           </section>
@@ -8946,7 +9158,7 @@
       const sourceLocator = (forcedLocator || state.projectSettingsSourceInput || "").trim();
       const title = deriveProjectTitleFromSource(sourceKind, sourceLocator, project.title);
       if (!sourceKind || !sourceLocator) {
-        state.projectSettingsMessage = "source link is incomplete";
+        state.projectSettingsMessage = "Source link is incomplete";
         renderProjectSettings();
         return;
       }
@@ -9371,7 +9583,7 @@
       if (pathMatch) {
         const snippet = buildNoteSearchSnippet(note.sync_path, pathMatch, terms);
         if (snippet) {
-          return { label: "path", snippetHtml: snippet };
+          return { label: "Path", snippetHtml: snippet };
         }
       }
       const bodyText = getSearchableNoteBodyText(note);
@@ -9379,7 +9591,7 @@
       if (bodyMatch) {
         const snippet = buildNoteSearchSnippet(bodyText, bodyMatch, terms);
         if (snippet) {
-          return { label: "body", snippetHtml: snippet };
+          return { label: "Body", snippetHtml: snippet };
         }
       }
       return null;
@@ -9968,29 +10180,33 @@
         const highlightedTitle = highlightNoteSearchText(title, searchTerms);
         const highlightedSyncPath = highlightNoteSearchText(note.sync_path || "", searchTerms);
         const searchMeta = getNoteSearchMeta(note, searchTerms);
+        const updatedLabel = formatLocalTimestamp(note.updated_at_iso, note.updated_at_label);
         const syncPill = isSynced
-          ? `<span class="note-sync-pill ${note.sync_status === "conflict" ? "conflict" : ""}">${escapeHtml(note.sync_status === "conflict" ? "conflict" : "linked")}</span>`
+          ? `<span class="note-sync-pill ${note.sync_status === "conflict" ? "conflict" : ""}">${escapeHtml(note.sync_status === "conflict" ? "Conflict" : "Linked")}</span>`
           : "";
         return `
           <section class="note-card ${isOpen ? "open" : ""}" data-note-card-id="${note.id}">
             ${isOpen ? `
               <div class="note-head-open">
-                <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="true" aria-label="Collapse note" title="Collapse note">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m7 10 5 5 5-5"></path>
-                  </svg>
-                </button>
-                ${isSynced ? `
-                  <div class="note-sync-meta">
-                    <div style="min-width:0; flex:1;">
+                <div class="note-open-heading">
+                  <button class="note-collapse" type="button" data-note-id="${note.id}" data-note-toggle="true" aria-expanded="true" aria-label="Collapse note" title="Collapse note">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7 10 5 5 5-5"></path>
+                    </svg>
+                  </button>
+                  <div class="note-open-title-block">
+                    ${isSynced ? `
                       <div class="note-title-readonly">${highlightedTitle}</div>
-                      <div class="note-path-inline">${highlightedSyncPath}</div>
+                    ` : `
+                      <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
+                    `}
+                    <div class="note-open-meta">
+                      ${isSynced ? `<span class="note-path-inline">${highlightedSyncPath}</span>` : ""}
+                      ${syncPill}
+                      <span class="note-open-updated">${escapeHtml(updatedLabel)}</span>
                     </div>
-                    ${syncPill}
                   </div>
-                ` : `
-                  <input class="note-title-input note-title-inline" type="text" value="${escapeAttribute(title)}" placeholder="Untitled note" data-note-title-id="${note.id}">
-                `}
+                </div>
                 <div class="note-head-actions">
                   <button class="icon-btn subtle" type="button" data-note-action="copy" data-note-action-id="${note.id}" aria-label="Copy note" title="Copy note">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -10015,7 +10231,7 @@
                   </span>
                   ${searchMeta ? `<span class="note-search-snippet"><span class="note-search-snippet-label">${escapeHtml(searchMeta.label)}:</span> ${searchMeta.snippetHtml}</span>` : ""}
                 </span>
-                <span class="muted">${escapeHtml(formatLocalTimestamp(note.updated_at_iso, note.updated_at_label))}</span>
+                <span class="muted">${escapeHtml(updatedLabel)}</span>
               </button>
             `}
             ${isOpen ? renderOpenNote(note) : ""}
@@ -10089,7 +10305,7 @@
           </div>
         </div>
       ` : "";
-      const syncMeta = syncDetails ? `<div class="muted">${escapeHtml(syncDetails)}</div>` : "";
+      const syncMeta = syncDetails ? `<div class="note-editor-meta">${escapeHtml(syncDetails)}</div>` : "";
       const savedBodyHeight = getSavedNoteBodyHeight(note.id);
       const bodyHeightStyle = savedBodyHeight ? ` style="height:${savedBodyHeight}px;"` : "";
 
@@ -10116,12 +10332,12 @@
           ${syncBanner}
           ${syncMeta}
           ${cleanEditorEditable ? `<div class="toolbar note-toolbar">
-            <button type="button" data-rich-command="bold">bold</button>
-            <button type="button" data-rich-command="italic">italic</button>
-            <button type="button" data-rich-command="h2">h2</button>
-            <button type="button" data-rich-command="bullet">list</button>
-            <button type="button" data-rich-command="checklist">check</button>
-            <button type="button" data-rich-command="link">link</button>
+            <button type="button" data-rich-command="bold">Bold</button>
+            <button type="button" data-rich-command="italic">Italic</button>
+            <button type="button" data-rich-command="h2">H2</button>
+            <button type="button" data-rich-command="bullet">List</button>
+            <button type="button" data-rich-command="checklist">Check</button>
+            <button type="button" data-rich-command="link">Link</button>
           </div>` : ""}
           <div class="clean-editor" contenteditable="${cleanEditorEditable ? "true" : "false"}" data-note-clean-id="${note.id}" data-placeholder="Capture context, decisions, links, or a handoff note..." aria-readonly="${cleanEditorEditable ? "false" : "true"}"></div>
         </div>

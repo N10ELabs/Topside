@@ -75,9 +75,13 @@
       "sync_key": "tsk_01KJXZ0XEH6VD9Q9VFR33NT6MB"
     },
     {
-      "title": "UI Polish",
-      "kind": "Section",
-      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
+      "title": "When a task is dragged out of Topside, ensure the task content is pasted and not the taskID",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK0J4J5C2M4WCH05HFCQJCV8"
     },
     {
       "title": "Sample task: confirm section collapse/expand animation runs at 150ms",
@@ -87,6 +91,11 @@
         }
       },
       "sync_key": "tsk_01KJXJW074FPX1Q88RKWFH6EYX"
+    },
+    {
+      "title": "UI Polish",
+      "kind": "Section",
+      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Allow custom icons per project",
@@ -128,7 +137,7 @@
       "title": "Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK07S6DXNW3FNW1QWW3K6V29"
@@ -159,33 +168,6 @@
         }
       },
       "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
-    },
-    {
-      "title": "dwadw",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK0FKJM59438HE3CAE0AH9TB"
-    },
-    {
-      "title": "dwad",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK0FKKEDX2DW550ZY2MR4912"
-    },
-    {
-      "title": "dwadw",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK0FKM4WE4W8KQJXB786QKWG"
     },
     {
       "title": "Add ability to copy rich html or markdown",

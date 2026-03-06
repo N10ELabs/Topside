@@ -7,19 +7,17 @@
 - [x] Sample task: test multiple synced tasks arriving together
 - [x] Add port viewer/killer
 - [x] Move archive into a settings tab. Needs more formatting
-## UI Polish
+- [ ] When a task is dragged out of Topside, ensure the task content is pasted and not the taskID
 - [x] Sample task: confirm section collapse/expand animation runs at 150ms
+## UI Polish
 - [x] Allow custom icons per project
 - [x] Adjust changing section header heights with expand vs collapse
 - [x] Searchbar x is in weird spot, moves around on zoom needs better handling
 - [ ] Do a pass on pane headers and buttons for consistent typecase
-- [ ] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
+- [x] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
 - [ ] Review YT Script #1
 - [x] Center headers in their borders
 - [x] Resolve pane names
-- [ ] dwadw
-- [ ] dwad
-- [ ] dwadw
 - [x] Add ability to copy rich html or markdown
 ## Section: Phase 6 - Visual Polish and Functionality
 - [x] to-do pane, collapse all expand all toggle
