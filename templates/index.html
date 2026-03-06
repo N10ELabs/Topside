@@ -1576,6 +1576,7 @@
     .task-draft.is-heading {
       --task-row-floor: 36px;
       --task-row-vertical-chrome: 16px;
+      align-items: center;
       border: 1px solid var(--line);
       background: rgba(12, 20, 28, 0.55);
       border-radius: 14px;
@@ -1694,7 +1695,9 @@
 
     .task-row.is-heading .task-heading-input,
     .task-draft.is-heading .task-heading-input {
+      align-self: center;
       padding-left: 0;
+      transform: translateY(1px);
     }
 
     .task-section-toggle,
@@ -2009,7 +2012,7 @@
       --task-row-vertical-chrome: 16px;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      align-items: start;
+      align-items: center;
       column-gap: 10px;
       min-height: var(--task-row-floor);
       border: 1px solid var(--line);
@@ -2022,6 +2025,8 @@
 
     .done-section-title {
       display: block;
+      align-self: center;
+      transform: translateY(1px);
       min-width: 0;
       min-height: 20px;
       font-size: 16px;
@@ -4714,7 +4719,7 @@
           const draft = getDraft(draftKey);
           if (!draft) return;
           if (draft.title.trim()) {
-            await commitDraftTask(draft);
+            await commitDraftTask(draft, { insertNextDraft: false });
             return;
           }
           removeDraft(draft.key);
@@ -5251,7 +5256,8 @@
       await submitProjectCreate("local", "", response.path);
     }
 
-    async function commitDraftTask(draft) {
+    async function commitDraftTask(draft, options = {}) {
+      const insertNextDraft = options.insertNextDraft !== false;
       const response = await fetchJson("/api/tasks", {
         method: "POST",
         body: JSON.stringify({
@@ -5263,7 +5269,9 @@
       if (!response) return;
       removeDraft(draft.key, { autoInsertWhenEmpty: false });
       applyWorkspace(response.workspace);
-      insertDraftAfter(response.created_task_id);
+      if (insertNextDraft) {
+        insertDraftAfter(response.created_task_id);
+      }
       render();
     }
 
@@ -6666,7 +6674,9 @@
       const prefersReducedMotion = shouldReduceTodoTaskMotion();
       if (prefersReducedMotion) return;
 
-      if (pendingAnimation.beforeTaskRowSnapshot) {
+      const hasStructuralRowChange = pendingAnimation.addedTaskIds.length > 0 || pendingAnimation.removedTaskGhosts?.length > 0;
+
+      if (pendingAnimation.beforeTaskRowSnapshot && !hasStructuralRowChange) {
         animateTaskRowReflowFromSnapshot(pendingAnimation.beforeTaskRowSnapshot);
       }
 

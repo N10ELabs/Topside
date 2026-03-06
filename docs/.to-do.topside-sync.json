@@ -101,7 +101,7 @@
       "title": "Adjust changing section header heights with expand vs collapse",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJY1HV0T4NBEBKWCD4529PA6"
@@ -125,24 +125,6 @@
       "sync_key": "tsk_01KK07R6HSP7KAYJHAQGKJX559"
     },
     {
-      "title": "Center headers in their borders",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
-    },
-    {
-      "title": "Resolve pane names",
-      "kind": {
-        "Task": {
-          "completed": true
-        }
-      },
-      "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
-    },
-    {
       "title": "Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)",
       "kind": {
         "Task": {
@@ -159,6 +141,51 @@
         }
       },
       "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
+    },
+    {
+      "title": "Center headers in their borders",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
+    },
+    {
+      "title": "Resolve pane names",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
+    },
+    {
+      "title": "dwadw",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK0FKJM59438HE3CAE0AH9TB"
+    },
+    {
+      "title": "dwad",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK0FKKEDX2DW550ZY2MR4912"
+    },
+    {
+      "title": "dwadw",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK0FKM4WE4W8KQJXB786QKWG"
     },
     {
       "title": "Add ability to copy rich html or markdown",

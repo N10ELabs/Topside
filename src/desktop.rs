@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+
+use crate::constants::APP_DIR;
 
 #[cfg(target_os = "macos")]
 use std::process::Command;
@@ -25,10 +28,10 @@ use muda::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu
 
 #[cfg(target_os = "macos")]
 use tao::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 
 #[cfg(target_os = "macos")]
@@ -63,6 +66,74 @@ const ZOOM_STEP: f64 = 0.1;
 
 #[cfg(target_os = "macos")]
 const APP_ICON_BYTES: &[u8] = include_bytes!("../topside.icns");
+
+#[cfg(target_os = "macos")]
+const WINDOW_STATE_FILE_NAME: &str = "window-state.json";
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+struct DesktopWindowState {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    zoom_level: f64,
+}
+
+#[cfg(target_os = "macos")]
+fn window_state_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join(APP_DIR).join(WINDOW_STATE_FILE_NAME)
+}
+
+#[cfg(target_os = "macos")]
+fn load_window_state(workspace_root: &Path) -> Option<DesktopWindowState> {
+    let path = window_state_path(workspace_root);
+    let raw = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+#[cfg(target_os = "macos")]
+fn save_window_state(workspace_root: &Path, state: DesktopWindowState) -> Result<()> {
+    let path = window_state_path(workspace_root);
+    let parent = path
+        .parent()
+        .context("desktop window state path has no parent directory")?;
+    std::fs::create_dir_all(parent)
+        .with_context(|| format!("failed creating desktop state directory {}", parent.display()))?;
+    let raw = serde_json::to_string_pretty(&state).context("failed serializing desktop window state")?;
+    std::fs::write(&path, raw)
+        .with_context(|| format!("failed writing desktop window state {}", path.display()))?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn default_window_state() -> DesktopWindowState {
+    DesktopWindowState {
+        x: 0,
+        y: 0,
+        width: 1440,
+        height: 960,
+        zoom_level: DEFAULT_ZOOM_LEVEL,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn read_live_window_state(window: &Window, zoom_level: f64) -> DesktopWindowState {
+    let position = window.outer_position().ok();
+    let size = window.inner_size();
+    DesktopWindowState {
+        x: position.map(|value| value.x).unwrap_or(0),
+        y: position.map(|value| value.y).unwrap_or(0),
+        width: size.width,
+        height: size.height,
+        zoom_level: normalize_zoom_level(zoom_level),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn persist_window_state(workspace_root: &Path, state: DesktopWindowState) {
+    let _ = save_window_state(workspace_root, state);
+}
 
 #[cfg(target_os = "macos")]
 fn normalize_zoom_level(value: f64) -> f64 {
@@ -159,12 +230,17 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
         }));
 
         let menu = DesktopMenu::install()?;
-        let window = WindowBuilder::new()
+        let initial_window_state = load_window_state(&workspace_root).unwrap_or_else(default_window_state);
+        let initial_window_size = PhysicalSize::new(initial_window_state.width, initial_window_state.height);
+        let mut window_builder = WindowBuilder::new()
             .with_title(title)
-            .with_inner_size(LogicalSize::new(1440.0, 960.0))
+            .with_inner_size(initial_window_size)
             .with_min_inner_size(LogicalSize::new(1100.0, 720.0))
-            .with_transparent(true)
-            .build(&event_loop)?;
+            .with_transparent(true);
+        window_builder = window_builder.with_position(PhysicalPosition::new(initial_window_state.x, initial_window_state.y));
+        let window = window_builder.build(&event_loop)?;
+        window.set_outer_position(PhysicalPosition::new(initial_window_state.x, initial_window_state.y));
+        window.set_inner_size(PhysicalSize::new(initial_window_state.width, initial_window_state.height));
 
         let allowed_origin = app_origin(url);
         let webview = WebViewBuilder::new()
@@ -194,6 +270,9 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
         configure_application_icon();
 
         let mut zoom_level = DEFAULT_ZOOM_LEVEL;
+        let initial_zoom_level = normalize_zoom_level(initial_window_state.zoom_level);
+        apply_zoom_level(&webview, &mut zoom_level, initial_zoom_level);
+        let mut persisted_window_state = read_live_window_state(&window, zoom_level);
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
@@ -203,17 +282,41 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
                     configure_process_name();
                     configure_application_icon();
                 }
-                Event::UserEvent(DesktopEvent::Menu(menu_event)) => menu.handle_event(
-                    &menu_event,
-                    &browser_url,
-                    &workspace_root,
-                    &webview,
-                    &mut zoom_level,
-                ),
+                Event::UserEvent(DesktopEvent::Menu(menu_event)) => {
+                    menu.handle_event(
+                        &menu_event,
+                        &browser_url,
+                        &workspace_root,
+                        &webview,
+                        &mut zoom_level,
+                    );
+                    persisted_window_state.zoom_level = normalize_zoom_level(zoom_level);
+                    persist_window_state(&workspace_root, persisted_window_state);
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::Moved(position),
+                    ..
+                } => {
+                    persisted_window_state.x = position.x;
+                    persisted_window_state.y = position.y;
+                    persisted_window_state.zoom_level = normalize_zoom_level(zoom_level);
+                    persist_window_state(&workspace_root, persisted_window_state);
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::Resized(size),
+                    ..
+                } => {
+                    persisted_window_state.width = size.width;
+                    persisted_window_state.height = size.height;
+                    persisted_window_state.zoom_level = normalize_zoom_level(zoom_level);
+                    persist_window_state(&workspace_root, persisted_window_state);
+                }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     ..
                 } => {
+                    persisted_window_state = read_live_window_state(&window, zoom_level);
+                    persist_window_state(&workspace_root, persisted_window_state);
                     *control_flow = ControlFlow::Exit;
                 }
                 _ => {}
