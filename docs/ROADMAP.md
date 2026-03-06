@@ -14,6 +14,7 @@ Last updated: 2026-02-26
 
 ## Recent Progress (2026-02-26)
 
+
 - [x] Fixed unresponsive dashboard create actions by addressing invalid `project_id` handling in form submits.
 - [x] Added project creation from dashboard so users can create valid project IDs before creating tasks.
 - [x] Added HTTP-layer project existence validation for task and note creation/update paths (returns 400 instead of opaque 500).
