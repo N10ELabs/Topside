@@ -11,9 +11,9 @@ use topside::constants::UNBOUNDED_QUERY_LIMIT;
 use topside::db::Db;
 use topside::service::ServiceError;
 use topside::types::{
-    Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, NotePatch, NoteSyncKind,
-    NoteSyncStatus, ProjectPatch, ProjectSourceKind, SearchFilters, TaskFilters, TaskPatch,
-    TaskStatus, TaskSyncKind, TaskSyncStatus,
+    Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, EntityFrontmatter,
+    NotePatch, NoteSyncKind, NoteSyncStatus, ProjectPatch, ProjectSourceKind, SearchFilters,
+    TaskFilters, TaskPatch, TaskPriority, TaskStatus, TaskSyncKind, TaskSyncStatus,
 };
 
 fn wait_for(label: &str, mut predicate: impl FnMut() -> Result<bool>) -> Result<()> {
@@ -50,6 +50,7 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
             owner: Some("human:anthony".to_string()),
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: Some(vec!["alpha".to_string()]),
             body: Some("Project bootstrap".to_string()),
         },
@@ -90,6 +91,12 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
 
     let workspace = service.load_project_workspace(&project.id)?;
     assert_eq!(workspace.notes.len(), 1);
+    let persisted_task = workspace
+        .active_tasks
+        .iter()
+        .find(|item| item.id == task.id)
+        .expect("created task should be present in workspace");
+    assert_eq!(persisted_task.priority, TaskPriority::P0);
     assert!(workspace.notes[0].body.contains("Reference project"));
 
     let conn = rusqlite::Connection::open(service.config.db_path())?;
@@ -172,6 +179,106 @@ fn service_crud_conflict_archive_and_backlinks() -> Result<()> {
 }
 
 #[test]
+fn service_persists_project_icon_updates() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Icon Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let updated = service.update_project(
+        &project.id,
+        ProjectPatch {
+            icon: Some("rocket".to_string()),
+            ..Default::default()
+        },
+        &project.revision,
+        Actor::human("tester"),
+    )?;
+
+    let persisted = project_by_id(&service, &project.id)?;
+    assert_eq!(persisted.icon.as_deref(), Some("rocket"));
+
+    let markdown = std::fs::read_to_string(&persisted.path)?;
+    assert!(markdown.contains("icon: rocket"));
+
+    match updated.frontmatter {
+        EntityFrontmatter::Project(frontmatter) => {
+            assert_eq!(frontmatter.icon.as_deref(), Some("rocket"));
+        }
+        _ => panic!("expected project frontmatter"),
+    }
+
+    Ok(())
+}
+
+#[test]
+fn project_order_stays_stable_after_settings_updates() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+
+    let first = service.create_project(
+        CreateProjectPayload {
+            title: "First Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let second = service.create_project(
+        CreateProjectPayload {
+            title: "Second Project".to_string(),
+            owner: None,
+            source_kind: None,
+            source_locator: None,
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let ordered_before = service
+        .list_projects(10, false)?
+        .into_iter()
+        .map(|project| project.id)
+        .collect::<Vec<_>>();
+    assert_eq!(ordered_before, vec![second.id.clone(), first.id.clone()]);
+
+    service.update_project(
+        &first.id,
+        ProjectPatch {
+            icon: Some("rocket".to_string()),
+            ..Default::default()
+        },
+        &first.revision,
+        Actor::human("tester"),
+    )?;
+
+    let ordered_after = service
+        .list_projects(10, false)?
+        .into_iter()
+        .map(|project| project.id)
+        .collect::<Vec<_>>();
+    assert_eq!(ordered_after, ordered_before);
+
+    Ok(())
+}
+
+#[test]
 fn reopening_done_task_restores_nearest_done_heading_to_todo() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
@@ -181,6 +288,7 @@ fn reopening_done_task_restores_nearest_done_heading_to_todo() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -323,6 +431,7 @@ fn reindex_skips_malformed_frontmatter_but_keeps_valid_files() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: Some("valid".to_string()),
         },
@@ -356,7 +465,7 @@ fn migrations_are_forward_only_and_idempotent() -> Result<()> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |row| {
         row.get(0)
     })?;
-    assert_eq!(count, 5);
+    assert_eq!(count, 6);
 
     Ok(())
 }
@@ -376,6 +485,7 @@ fn sync_project_imports_and_updates_repo_todo_tasks() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -463,6 +573,7 @@ fn managed_task_sync_handles_outbound_inbound_conflict_and_recovery() -> Result<
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -669,6 +780,7 @@ fn managed_task_sync_resolve_from_local_rewrites_file() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -762,6 +874,7 @@ fn managed_task_sync_operations_enforce_revision_conflicts() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -814,6 +927,7 @@ fn load_project_workspace_returns_all_project_items() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -902,6 +1016,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -1081,6 +1196,7 @@ fn linked_note_watchers_follow_project_source_updates() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root_one.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -1130,6 +1246,7 @@ fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -1187,6 +1304,7 @@ fn sync_project_from_source_profile_first_and_mixed() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },

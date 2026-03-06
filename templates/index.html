@@ -445,6 +445,75 @@
       line-height: 1;
     }
 
+    .pane-todo .pane-head {
+      justify-content: flex-start;
+      min-width: 0;
+    }
+
+    .pane-todo .pane-title {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .pane-todo .pane-head-actions {
+      margin-left: auto;
+      min-width: 0;
+    }
+
+    .todo-status {
+      min-width: 0;
+      flex: 1 1 auto;
+      justify-content: flex-end;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      gap: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      letter-spacing: 0.01em;
+    }
+
+    .todo-status-label {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .todo-status-summary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .todo-status-priority {
+      display: inline-flex;
+      align-items: baseline;
+      justify-content: center;
+      min-width: 1.25em;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .todo-status-priority[data-priority="P1"] {
+      color: var(--task-priority-p1);
+    }
+
+    .todo-status-priority[data-priority="P2"] {
+      color: var(--task-priority-p2);
+    }
+
+    .todo-status-priority[data-priority="P3"] {
+      color: var(--task-priority-p3);
+    }
+
+    .todo-status-priority[data-priority="P4"] {
+      color: var(--task-priority-none);
+    }
+
     .pane-notes .pane-head {
       gap: 10px;
     }
@@ -894,6 +963,9 @@
       border: 1px solid rgba(147, 184, 207, 0.36);
       border-radius: 12px;
       background: rgba(8, 16, 23, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 12px;
       padding: 9px 42px 9px 10px;
       box-shadow: inset 0 0 0 1px rgba(3, 9, 14, 0.16);
       transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
@@ -961,10 +1033,40 @@
     }
 
     .project-card-title {
+      flex: 1 1 auto;
+      display: block;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .project-card-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      color: #8cecff;
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.16), rgba(14, 165, 233, 0.08));
+      box-shadow: inset 0 0 0 1px rgba(103, 232, 249, 0.16);
+    }
+
+    .project-card-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pane-projects .project-card.active .project-card-icon {
+      color: #def9ff;
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.24), rgba(14, 165, 233, 0.12));
+      box-shadow: inset 0 0 0 1px rgba(125, 235, 255, 0.24);
     }
 
     .project-add-card {
@@ -1003,6 +1105,7 @@
       background: transparent;
     }
 
+    .project-pane-footer-actions,
     .archive-menu {
       position: relative;
       display: inline-flex;
@@ -1012,6 +1115,7 @@
       max-width: 100%;
     }
 
+    .sidebar-footer-btn,
     .archive-launch-btn {
       display: inline-flex;
       align-items: center;
@@ -1028,6 +1132,7 @@
       text-transform: lowercase;
     }
 
+    .sidebar-footer-btn svg,
     .archive-launch-btn svg {
       width: 16px;
       height: 16px;
@@ -1039,12 +1144,15 @@
       flex: 0 0 auto;
     }
 
+    .sidebar-footer-btn.active,
     .archive-launch-btn.active {
       border: none;
       background: transparent;
       color: #f8fbff;
     }
 
+    .sidebar-footer-btn:hover,
+    .sidebar-footer-btn:focus-visible,
     .archive-launch-btn:hover,
     .archive-launch-btn:focus-visible {
       background: transparent;
@@ -1150,70 +1258,6 @@
       font-family: "IBM Plex Mono", monospace;
     }
 
-    .settings-page-shell {
-      display: grid;
-      grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-    }
-
-    .settings-nav {
-      display: grid;
-      gap: 8px;
-      align-content: start;
-      position: sticky;
-      top: 0;
-    }
-
-    .settings-nav-title {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      font-family: "IBM Plex Mono", monospace;
-      padding: 0 2px;
-    }
-
-    .settings-nav-btn {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: rgba(10, 18, 25, 0.44);
-      color: var(--text);
-      font-size: 12px;
-      font-family: "IBM Plex Mono", monospace;
-      text-transform: lowercase;
-      text-align: left;
-      padding: 8px 10px;
-      display: grid;
-      gap: 4px;
-      transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
-    }
-
-    .settings-nav-btn:hover,
-    .settings-nav-btn:focus-visible {
-      border-color: var(--line-strong);
-      background: rgba(16, 30, 40, 0.64);
-      outline: none;
-    }
-
-    .settings-nav-btn.active {
-      border-color: rgba(103, 232, 249, 0.38);
-      background: rgba(26, 48, 60, 0.72);
-      color: #e6fbff;
-    }
-
-    .settings-nav-btn-label {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .settings-nav-btn-meta {
-      color: var(--muted);
-      font-size: 10px;
-      line-height: 1.2;
-    }
-
     .settings-panel {
       min-width: 0;
       display: grid;
@@ -1239,36 +1283,6 @@
       font-size: 11px;
       color: var(--muted);
       font-family: "IBM Plex Mono", monospace;
-    }
-
-    .settings-coming-soon {
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      padding: 4px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(10, 20, 28, 0.8);
-      color: var(--muted);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-family: "IBM Plex Mono", monospace;
-    }
-
-    @media (max-width: 1120px) {
-      .settings-page-shell {
-        grid-template-columns: 1fr;
-      }
-
-      .settings-nav {
-        position: static;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      }
-
-      .settings-nav-title {
-        grid-column: 1 / -1;
-      }
     }
 
     .section-title,
@@ -1309,6 +1323,7 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
+      overflow-anchor: none;
       padding-right: var(--scrollbar-clearance);
       scrollbar-gutter: auto;
       view-transition-name: todo-active-task-list;
@@ -1342,6 +1357,22 @@
       animation-delay: calc(var(--bulk-row-index, 0) * var(--todo-animation-step));
       animation-fill-mode: both;
       will-change: transform, opacity;
+    }
+
+    .task-row.section-expand-animating,
+    .task-row.section-expand-fade-animating {
+      animation-duration: var(--todo-animation-duration);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      animation-fill-mode: both;
+      will-change: transform, opacity;
+    }
+
+    .task-row.section-expand-animating {
+      animation-name: todo-task-row-reveal;
+    }
+
+    .task-row.section-expand-fade-animating {
+      animation-name: todo-task-row-fade-in;
     }
 
     ::view-transition-old(todo-active-task-list),
@@ -1421,13 +1452,44 @@
       }
       to {
         opacity: 0;
-        transform: translateY(-6px) scale(0.95);
+        transform: translateY(var(--todo-collapse-exit-distance)) scale(var(--todo-collapse-exit-scale));
+      }
+    }
+
+    @keyframes todo-task-row-reveal {
+      from {
+        opacity: 0;
+        transform: translateY(var(--todo-animation-distance));
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes todo-task-row-fade-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes todo-task-row-exit-fade {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
       .task-list.bulk-toggle-animating,
       .task-row.sync-in-animating,
+      .task-row.section-expand-animating,
+      .task-row.section-expand-fade-animating,
       .task-row.task-row-ghost-exit,
       .task-row.task-row-reflow-animating,
       .task-list.bulk-toggle-animating > .task-row,
@@ -1475,6 +1537,14 @@
 
     .task-row.task-row-ghost-exit.is-collapse-exit {
       animation-name: todo-task-row-exit-collapse;
+    }
+
+    .task-row.task-row-ghost-exit.is-section-collapse-exit {
+      animation-name: todo-task-row-exit-collapse;
+    }
+
+    .task-row.task-row-ghost-exit.is-section-collapse-fade-exit {
+      animation-name: todo-task-row-exit-fade;
     }
 
     .task-row.task-row-reflow-animating {
@@ -2644,6 +2714,14 @@
       gap: 16px;
     }
 
+    .overlay-head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .overlay-title {
       display: grid;
       gap: 6px;
@@ -2739,6 +2817,82 @@
       stroke-linejoin: round;
     }
 
+    .project-icon-current {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .project-card-icon.project-card-icon-large {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+    }
+
+    .project-card-icon.project-card-icon-large svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .project-icon-picker {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (max-width: 560px) {
+      .project-icon-picker {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 420px) {
+      .project-icon-picker {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    .project-icon-option {
+      min-height: 48px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid rgba(147, 184, 207, 0.24);
+      border-radius: 10px;
+      background: rgba(10, 18, 25, 0.72);
+      color: var(--text);
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+    }
+
+    .project-icon-option:hover,
+    .project-icon-option:focus-visible {
+      border-color: rgba(56, 189, 248, 0.42);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.14);
+      background: rgba(14, 28, 38, 0.9);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .project-icon-option.active {
+      border-color: rgba(56, 189, 248, 0.54);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.18);
+      background: linear-gradient(180deg, rgba(13, 28, 39, 0.94), rgba(9, 19, 27, 0.96));
+    }
+
+    .project-card-icon.project-icon-glyph {
+      width: 20px;
+      height: 20px;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: currentColor;
+    }
+
+    .project-card-icon.project-icon-glyph svg {
+      width: 18px;
+      height: 18px;
+    }
+
     .overlay-value {
       color: #cbd7e3;
       line-height: 1.55;
@@ -2759,6 +2913,70 @@
 
     .overlay-message.error {
       color: #fecaca;
+    }
+
+    .port-viewer-overlay-card {
+      width: min(760px, 100%);
+    }
+
+    .port-viewer-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .port-session-card {
+      gap: 12px;
+    }
+
+    .port-session-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .port-session-title {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .port-session-title h3 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .port-session-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .port-session-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 8px;
+      border: 1px solid rgba(147, 184, 207, 0.24);
+      border-radius: 999px;
+      background: rgba(10, 18, 25, 0.52);
+      color: #d9e7f4;
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      text-transform: lowercase;
+    }
+
+    .port-session-command {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .port-session-warning {
+      color: #fed7aa;
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1.5;
     }
 
     .danger-btn {
@@ -2830,14 +3048,33 @@
     <main class="layout">
       <section class="pane pane-projects">
         <div class="pane-head">
-          <span class="pane-title">/projects</span>
+          <span class="pane-title">projects</span>
         </div>
         <div class="pane-body">
           <div id="project-tray"></div>
           <div id="project-list" class="project-list"></div>
           <div class="project-pane-footer">
             <div class="archive-menu" id="archive-menu-wrap">
-              <button class="text-btn archive-launch-btn" id="archive-menu-toggle" type="button" aria-label="Open settings" title="Open settings">
+              <button class="text-btn archive-launch-btn" id="archive-menu-toggle" type="button" aria-label="Open archive" title="Open archive">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 8h16"></path>
+                  <path d="M6 8V6.8A1.8 1.8 0 0 1 7.8 5h8.4A1.8 1.8 0 0 1 18 6.8V8"></path>
+                  <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
+                  <path d="M10 12h4"></path>
+                </svg>
+                <span>archive</span>
+              </button>
+              <button class="text-btn sidebar-footer-btn" id="ports-menu-toggle" type="button" aria-label="Open ports" title="Open ports">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 6v12"></path>
+                  <path d="M8 9h8"></path>
+                  <path d="M8 15h8"></path>
+                  <path d="M5 4h14"></path>
+                  <path d="M5 20h14"></path>
+                </svg>
+                <span>ports</span>
+              </button>
+              <button class="text-btn archive-launch-btn" id="settings-menu-toggle" type="button" aria-label="Open settings" title="Open settings">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="3"></circle>
                   <path d="M19.5 12a1.4 1.4 0 0 0 .02.26l1.54 1.2a1 1 0 0 1 .2 1.32l-1.45 2.5a1 1 0 0 1-1.26.43l-1.82-.73a7.8 7.8 0 0 1-1.35.78l-.28 1.93a1 1 0 0 1-.99.86h-2.9a1 1 0 0 1-.99-.86l-.28-1.93a7.8 7.8 0 0 1-1.35-.78l-1.82.73a1 1 0 0 1-1.26-.43l-1.45-2.5a1 1 0 0 1 .2-1.32l1.54-1.2a1.4 1.4 0 0 0 0-.52L2.94 11.06a1 1 0 0 1-.2-1.32l1.45-2.5a1 1 0 0 1 1.26-.43l1.82.73c.42-.32.88-.58 1.35-.78l.28-1.93a1 1 0 0 1 .99-.86h2.9a1 1 0 0 1 .99.86l.28 1.93c.47.2.93.46 1.35.78l1.82-.73a1 1 0 0 1 1.26.43l1.45 2.5a1 1 0 0 1-.2 1.32l-1.54 1.2a1.4 1.4 0 0 0-.02.26z"></path>
@@ -2852,9 +3089,16 @@
       <div class="todo-stack">
         <section class="pane pane-todo">
           <div class="pane-head">
-            <span class="pane-title">to-do.md</span>
+            <span class="pane-title">to-do</span>
             <div class="pane-head-actions">
-              <span class="muted" id="todo-status">ready</span>
+              <span class="muted todo-status" id="todo-status">ready</span>
+              <button class="icon-btn" id="todo-sort-priority" type="button" aria-label="Sort by priority" title="Sort by priority" aria-pressed="false" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 6h10"></path>
+                  <path d="M7 12h7"></path>
+                  <path d="M7 18h4"></path>
+                </svg>
+              </button>
               <button class="icon-btn" id="todo-toggle-header" type="button" aria-label="Convert selected row to header" title="Convert selected row to header (⇧⌘H)" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M8 6v12"></path>
@@ -2866,13 +3110,6 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m7 9 5-5 5 5"></path>
                   <path d="m7 15 5 5 5-5"></path>
-                </svg>
-              </button>
-              <button class="icon-btn" id="todo-sort-priority" type="button" aria-label="Sort by priority" title="Sort by priority" aria-pressed="false" disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 6h10"></path>
-                  <path d="M7 12h7"></path>
-                  <path d="M7 18h4"></path>
                 </svg>
               </button>
               <button class="icon-btn" id="todo-copy-selected" type="button" aria-label="Copy to-do.md" title="Copy to-do.md" disabled>
@@ -2925,7 +3162,7 @@
 
       <section class="pane pane-notes">
         <div class="pane-head">
-          <span class="pane-title">/docs</span>
+          <span class="pane-title">notes</span>
           <label class="pane-search" for="notes-search-input">
             <span class="pane-search-field">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3013,6 +3250,7 @@
     </main>
   </div>
 
+  <div id="port-viewer-overlay"></div>
   <div id="project-settings-overlay"></div>
   <div id="changelog-archive-overlay"></div>
   <div id="project-archive-overlay"></div>
@@ -3119,7 +3357,6 @@
       projectSettingsMessage: "",
       projectSettingsPickerFallback: false,
       archiveMenuOpen: false,
-      settingsTab: "archive",
       archiveMenuLoading: false,
       archiveItems: [],
       archiveTotalCount: 0,
@@ -3127,7 +3364,14 @@
       changelogArchiveConfirmOpen: false,
       projectArchiveConfirmId: null,
       noteArchiveConfirmId: null,
+      portViewerOpen: false,
+      portViewerLoading: false,
+      portViewerItems: [],
+      portViewerMessage: "",
+      portViewerKillTarget: null,
+      portViewerShowAll: false,
       emptyAppAction: "local",
+      archiveMenuMode: null,
       uiRefreshTimer: null,
       uiRefreshInFlight: false,
       pendingRemoteUiState: null,
@@ -3211,7 +3455,10 @@
     const projectList = document.getElementById("project-list");
     const archiveMenuWrap = document.getElementById("archive-menu-wrap");
     const archiveMenuToggle = document.getElementById("archive-menu-toggle");
+    const portsMenuToggle = document.getElementById("ports-menu-toggle");
+    const settingsMenuToggle = document.getElementById("settings-menu-toggle");
     const archivePane = document.getElementById("archive-pane");
+    const archivePaneTitle = archivePane.querySelector(".pane-title");
     const archiveStatus = document.getElementById("archive-status");
     const archiveBody = document.getElementById("archive-body");
     const taskMessage = document.getElementById("task-message");
@@ -3241,6 +3488,7 @@
     const changelogExportButton = document.getElementById("changelog-export");
     const layout = document.querySelector(".layout");
     const taskInputMeasure = document.getElementById("task-input-measure");
+    const portViewerOverlay = document.getElementById("port-viewer-overlay");
     const projectSettingsOverlay = document.getElementById("project-settings-overlay");
     const changelogArchiveOverlay = document.getElementById("changelog-archive-overlay");
     const projectArchiveOverlay = document.getElementById("project-archive-overlay");
@@ -3302,16 +3550,11 @@
         minute: "2-digit"
       })
       : null;
-    const todoListAnimationDurationMs = 150;
-    const todoListAnimationStepMs = 40;
+    const todoListAnimationDurationMs = 230;
+    const todoListAnimationStepMs = 42;
     const todoListAnimationDistancePx = 12;
     const todoListAnimationMaxIndex = 8;
     const todoListAnimationCleanupMs = todoListAnimationDurationMs + (todoListAnimationStepMs * todoListAnimationMaxIndex) + 80;
-    document.documentElement.style.setProperty("--todo-animation-duration", `${todoListAnimationDurationMs}ms`);
-    document.documentElement.style.setProperty("--todo-animation-step", `${todoListAnimationStepMs}ms`);
-    document.documentElement.style.setProperty("--todo-animation-distance", `${todoListAnimationDistancePx}px`);
-    document.documentElement.style.setProperty("--todo-animation-distance-half", `${todoListAnimationDistancePx / 2}px`);
-    document.documentElement.style.setProperty("--todo-animation-distance-out", `${-todoListAnimationDistancePx}px`);
     let todoListFallbackTimer = null;
     let syncedTaskAnimationTimer = null;
     const scrollRevealTimers = new WeakMap();
@@ -3319,6 +3562,19 @@
     const uiRefreshIntervalMs = 1400;
     const cleanNoteSearchMarkerSelector = "[data-note-search-marker='true']";
     let noteSearchAutoJumpTimer = null;
+
+    function shouldReduceTodoTaskMotion() {
+      return typeof window.matchMedia === "function"
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    document.documentElement.style.setProperty("--todo-animation-duration", `${todoListAnimationDurationMs}ms`);
+    document.documentElement.style.setProperty("--todo-animation-step", `${todoListAnimationStepMs}ms`);
+    document.documentElement.style.setProperty("--todo-animation-distance", `${todoListAnimationDistancePx}px`);
+    document.documentElement.style.setProperty("--todo-animation-distance-half", `${todoListAnimationDistancePx / 2}px`);
+    document.documentElement.style.setProperty("--todo-animation-distance-out", `${-10}px`);
+    document.documentElement.style.setProperty("--todo-collapse-exit-distance", `${-8}px`);
+    document.documentElement.style.setProperty("--todo-collapse-exit-scale", "0.96");
 
     function clearNoteSearchAutoJumpTimer() {
       if (noteSearchAutoJumpTimer === null) return;
@@ -3368,17 +3624,17 @@
       selection.removeAllRanges();
     }
 
-    function decorateCleanSearchMatch(editor, terms, matchIndex) {
-      if (!(editor instanceof HTMLElement) || !Array.isArray(terms) || !terms.length) return null;
-      const sourceHtml = stripSearchDecorationsFromHtml(editor.innerHTML);
+    function buildDecoratedCleanSearchHtml(sourceHtml, terms, matchIndex) {
+      const normalizedHtml = stripSearchDecorationsFromHtml(sourceHtml || "");
+      if (!Array.isArray(terms) || !terms.length) {
+        return normalizedHtml;
+      }
       const scratch = document.createElement("div");
-      scratch.innerHTML = sourceHtml;
+      scratch.innerHTML = normalizedHtml;
       const matches = collectCleanEditorSearchMatches(scratch, terms);
       const match = matches[matchIndex];
       if (!match) {
-        editor.innerHTML = sourceHtml;
-        clearBrowserTextSelection();
-        return null;
+        return normalizedHtml;
       }
 
       const range = document.createRange();
@@ -3390,7 +3646,12 @@
       marker.className = "note-search-active";
       marker.appendChild(range.extractContents());
       range.insertNode(marker);
-      editor.innerHTML = scratch.innerHTML;
+      return scratch.innerHTML;
+    }
+
+    function decorateCleanSearchMatch(editor, terms, matchIndex) {
+      if (!(editor instanceof HTMLElement) || !Array.isArray(terms) || !terms.length) return null;
+      editor.innerHTML = buildDecoratedCleanSearchHtml(editor.innerHTML, terms, matchIndex);
       clearBrowserTextSelection();
       const activeMarker = editor.querySelector("[data-note-search-active='true']");
       return activeMarker instanceof HTMLElement ? activeMarker : null;
@@ -3741,17 +4002,48 @@
 
     archiveMenuToggle.addEventListener("click", async (event) => {
       event.preventDefault();
-      if (state.archiveMenuOpen) {
+      if (state.archiveMenuOpen && state.archiveMenuMode === "archive") {
         closeArchiveMenu();
         return;
       }
+      closePortViewer({ render: false });
       state.projectTrayMode = null;
       state.archiveMenuOpen = true;
+      state.archiveMenuMode = "archive";
       state.archiveEmptyConfirm = false;
       render();
-      if (state.settingsTab === "archive") {
-        await loadArchiveMenu();
+      await loadArchiveMenu();
+    });
+
+    portsMenuToggle.addEventListener("click", async (event) => {
+      event.preventDefault();
+      if (state.portViewerOpen) {
+        closePortViewer();
+        return;
       }
+      closeArchiveMenu({ render: false });
+      state.projectTrayMode = null;
+      state.portViewerOpen = true;
+      state.portViewerLoading = true;
+      state.portViewerMessage = "";
+      state.portViewerKillTarget = null;
+      state.portViewerShowAll = false;
+      render();
+      await loadPortViewer();
+    });
+
+    settingsMenuToggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (state.archiveMenuOpen && state.archiveMenuMode === "settings") {
+        closeArchiveMenu();
+        return;
+      }
+      closePortViewer({ render: false });
+      state.projectTrayMode = null;
+      state.archiveMenuOpen = true;
+      state.archiveMenuMode = "settings";
+      state.archiveEmptyConfirm = false;
+      render();
     });
 
     document.querySelectorAll("[data-note-mode]").forEach((button) => {
@@ -3935,12 +4227,57 @@
         return;
       }
 
+      const portViewerClose = event.target.closest("[data-port-viewer-close]");
+      const portViewerBackdrop = event.target instanceof HTMLElement
+        ? event.target.dataset.portViewerBackdrop === "true"
+        : false;
+      if (portViewerClose || portViewerBackdrop) {
+        closePortViewer();
+        return;
+      }
+
+      const portViewerToggleAll = event.target.closest("[data-port-viewer-toggle-all]");
+      if (portViewerToggleAll) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.portViewerShowAll = !state.portViewerShowAll;
+        renderPortViewer();
+        return;
+      }
+
+      const portViewerRefresh = event.target.closest("[data-port-viewer-refresh]");
+      if (portViewerRefresh) {
+        event.preventDefault();
+        event.stopPropagation();
+        await loadPortViewer();
+        return;
+      }
+
+      const portViewerKill = event.target.closest("[data-port-viewer-kill]");
+      if (portViewerKill) {
+        event.preventDefault();
+        event.stopPropagation();
+        await terminatePortSession(
+          Number(portViewerKill.dataset.portViewerKillPid),
+          Number(portViewerKill.dataset.portViewerKillPort)
+        );
+        return;
+      }
+
       const settingsClose = event.target.closest("[data-project-settings-close]");
       const settingsBackdrop = event.target instanceof HTMLElement
         ? event.target.dataset.projectSettingsBackdrop === "true"
         : false;
       if (settingsClose || settingsBackdrop) {
         closeProjectSettings();
+        return;
+      }
+
+      const projectIconOption = event.target.closest("[data-project-settings-icon]");
+      if (projectIconOption) {
+        event.preventDefault();
+        event.stopPropagation();
+        await saveProjectIcon(projectIconOption.dataset.projectSettingsIcon);
         return;
       }
 
@@ -4033,21 +4370,6 @@
         event.preventDefault();
         event.stopPropagation();
         await confirmProjectArchive();
-        return;
-      }
-
-      const settingsTabButton = event.target.closest("[data-settings-tab]");
-      if (settingsTabButton) {
-        event.preventDefault();
-        event.stopPropagation();
-        const nextTab = settingsTabButton.dataset.settingsTab;
-        if (!nextTab || nextTab === state.settingsTab) return;
-        state.settingsTab = nextTab;
-        state.archiveEmptyConfirm = false;
-        renderArchivePane();
-        if (nextTab === "archive") {
-          await loadArchiveMenu();
-        }
         return;
       }
 
@@ -4283,6 +4605,12 @@
     });
 
     document.addEventListener("keydown", async (event) => {
+      if (state.portViewerOpen && event.key === "Escape") {
+        event.preventDefault();
+        closePortViewer();
+        return;
+      }
+
       if (state.archiveMenuOpen && event.key === "Escape") {
         event.preventDefault();
         closeArchiveMenu();
@@ -4552,11 +4880,14 @@
       render();
     }
 
-    function closeArchiveMenu() {
+    function closeArchiveMenu(options = {}) {
       if (!state.archiveMenuOpen && !state.archiveEmptyConfirm) return;
       state.archiveMenuOpen = false;
+      state.archiveMenuMode = null;
       state.archiveEmptyConfirm = false;
-      render();
+      if (options.render !== false) {
+        render();
+      }
     }
 
     async function loadArchiveMenu() {
@@ -4573,6 +4904,64 @@
       state.archiveItems = Array.isArray(response.items) ? response.items : [];
       state.archiveTotalCount = Number.isFinite(response.total_count) ? response.total_count : 0;
       renderArchivePane();
+    }
+
+    function closePortViewer(options = {}) {
+      if (!state.portViewerOpen && !state.portViewerKillTarget && !state.portViewerMessage) return;
+      state.portViewerOpen = false;
+      state.portViewerLoading = false;
+      state.portViewerMessage = "";
+      state.portViewerKillTarget = null;
+      state.portViewerShowAll = false;
+      if (options.render !== false) {
+        render();
+      }
+    }
+
+    async function loadPortViewer() {
+      if (!state.portViewerOpen) return;
+      state.portViewerLoading = true;
+      state.portViewerMessage = "";
+      renderPortViewer();
+      const response = await fetchJson("/api/system/ports", {}, "port", true);
+      state.portViewerLoading = false;
+      if (!response) {
+        renderPortViewer();
+        return;
+      }
+
+      state.portViewerItems = Array.isArray(response.items) ? response.items : [];
+      renderPortViewer();
+    }
+
+    async function terminatePortSession(pid, port) {
+      if (!state.portViewerOpen || !pid || !port) return;
+      const killKey = `${pid}:${port}`;
+      if (state.portViewerKillTarget === killKey) return;
+      const session = state.portViewerItems.find((item) => Number(item.pid) === pid && Number(item.port) === port);
+      if (state.portViewerShowAll && session && !session.is_likely_dev && !session.is_topside_process) {
+        const confirmed = window.confirm(
+          `Port ${port} does not look like a development process. End it anyway?`
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+      state.portViewerKillTarget = killKey;
+      renderPortViewer();
+      const response = await fetchJson("/api/system/ports/terminate", {
+        method: "POST",
+        body: JSON.stringify({ pid, port })
+      }, "port", true);
+      state.portViewerKillTarget = null;
+      if (!response) {
+        renderPortViewer();
+        return;
+      }
+
+      state.portViewerItems = Array.isArray(response.items) ? response.items : [];
+      state.portViewerMessage = typeof response.message === "string" ? response.message : "";
+      renderPortViewer();
     }
 
     function applyArchiveMutation(response) {
@@ -4612,168 +5001,235 @@
       render();
     }
 
+    function renderPortMenu() {
+      portsMenuToggle.classList.toggle("active", state.portViewerOpen);
+      portsMenuToggle.setAttribute("aria-pressed", state.portViewerOpen ? "true" : "false");
+      portsMenuToggle.title = state.portViewerOpen ? "Close ports" : "Open ports";
+      portsMenuToggle.setAttribute("aria-label", state.portViewerOpen ? "Close ports" : "Open ports");
+    }
+
     function renderArchiveMenu() {
-      archiveMenuToggle.classList.toggle("active", state.archiveMenuOpen);
-      archiveMenuToggle.setAttribute("aria-pressed", state.archiveMenuOpen ? "true" : "false");
-      archiveMenuToggle.title = state.archiveMenuOpen ? "Close settings" : "Open settings";
-      archiveMenuToggle.setAttribute(
-        "aria-label",
-        state.archiveMenuOpen ? "Close settings" : "Open settings"
-      );
+      const archiveActive = state.archiveMenuOpen && state.archiveMenuMode === "archive";
+      const settingsActive = state.archiveMenuOpen && state.archiveMenuMode === "settings";
+      archiveMenuToggle.classList.toggle("active", archiveActive);
+      archiveMenuToggle.setAttribute("aria-pressed", archiveActive ? "true" : "false");
+      archiveMenuToggle.title = archiveActive ? "Close archive" : "Open archive";
+      archiveMenuToggle.setAttribute("aria-label", archiveActive ? "Close archive" : "Open archive");
+      settingsMenuToggle.classList.toggle("active", settingsActive);
+      settingsMenuToggle.setAttribute("aria-pressed", settingsActive ? "true" : "false");
+      settingsMenuToggle.title = settingsActive ? "Close settings" : "Open settings";
+      settingsMenuToggle.setAttribute("aria-label", settingsActive ? "Close settings" : "Open settings");
+    }
+
+    function getVisiblePortViewerItems() {
+      const items = Array.isArray(state.portViewerItems) ? state.portViewerItems : [];
+      if (state.portViewerShowAll) {
+        return items;
+      }
+      return items.filter((item) => item.is_likely_dev || item.is_topside_process);
+    }
+
+    function renderPortViewer() {
+      if (!state.portViewerOpen) {
+        portViewerOverlay.innerHTML = "";
+        return;
+      }
+
+      const allItems = Array.isArray(state.portViewerItems) ? state.portViewerItems : [];
+      const items = getVisiblePortViewerItems();
+      const hiddenCount = Math.max(0, allItems.length - items.length);
+      const countLabel = state.portViewerLoading && !allItems.length
+        ? "Loading active ports..."
+        : state.portViewerShowAll
+          ? `${allItems.length} total ${allItems.length === 1 ? "port" : "ports"}`
+          : `${items.length} likely dev ${items.length === 1 ? "port" : "ports"}`;
+      const filterNote = !state.portViewerShowAll && hiddenCount > 0
+        ? `<div class="overlay-muted">${escapeHtml(String(hiddenCount))} other ${hiddenCount === 1 ? "port is" : "ports are"} hidden. Use show all to inspect them.</div>`
+        : "";
+      const rowsMarkup = items.map((item) => {
+        const pid = Number(item.pid);
+        const port = Number(item.port);
+        const killKey = `${pid}:${port}`;
+        const isBusy = state.portViewerKillTarget === killKey;
+        const bindings = Array.isArray(item.bindings) ? item.bindings : [];
+        const otherPorts = Array.isArray(item.other_ports)
+          ? item.other_ports.filter((value) => Number.isFinite(Number(value)))
+          : [];
+        const warningMarkup = otherPorts.length
+          ? `<div class="port-session-warning">This process also owns port${otherPorts.length === 1 ? "" : "s"} ${escapeHtml(otherPorts.join(", "))}. Ending it will close those listeners too.</div>`
+          : "";
+        const protectedMarkup = item.is_topside_process
+          ? `<div class="disabled-note">Topside cannot end its own process.</div>`
+          : "";
+        return `
+          <section class="overlay-section port-session-card">
+            <div class="port-session-head">
+              <div class="port-session-title">
+                <div class="small-label">port ${escapeHtml(String(port))}</div>
+                <h3>${escapeHtml(item.process_name || "Unknown process")}</h3>
+              </div>
+              <button
+                class="text-btn danger-btn"
+                type="button"
+                data-port-viewer-kill="true"
+                data-port-viewer-kill-pid="${escapeAttribute(String(pid))}"
+                data-port-viewer-kill-port="${escapeAttribute(String(port))}"
+                ${!item.can_terminate || isBusy ? "disabled" : ""}
+              >
+                ${isBusy ? "ending..." : (item.can_terminate ? "end session" : "protected")}
+              </button>
+            </div>
+            <div class="port-session-meta">
+              <span class="port-session-pill">pid ${escapeHtml(String(pid))}</span>
+              <span class="port-session-pill">${escapeHtml(item.user || "unknown user")}</span>
+              <span class="port-session-pill">${item.is_likely_dev ? "likely dev" : "other"}</span>
+              ${bindings.map((binding) => `<span class="port-session-pill">${escapeHtml(binding)}</span>`).join("")}
+            </div>
+            <div class="overlay-value port-session-command">${escapeHtml(item.command_line || item.process_name || "Unknown command")}</div>
+            ${warningMarkup}
+            ${protectedMarkup}
+          </section>
+        `;
+      }).join("");
+      const contentMarkup = items.length
+        ? `<div class="port-viewer-list">${rowsMarkup}</div>`
+        : `
+          <section class="overlay-section">
+            <div class="overlay-value">${state.portViewerLoading ? "Loading active ports..." : (state.portViewerShowAll ? "No listening TCP ports found." : "No likely dev ports found.")}</div>
+            <div class="overlay-muted">${state.portViewerShowAll ? "Topside shows listening TCP ports on this Mac and can end the owning process." : "Showing likely development ports only. Use show all if you need to inspect the rest."}</div>
+          </section>
+        `;
+
+      portViewerOverlay.innerHTML = `
+        <div class="overlay-shell open" data-port-viewer-backdrop="true">
+          <section class="overlay-card port-viewer-overlay-card" role="dialog" aria-modal="true" aria-label="Active ports">
+            <div class="overlay-head">
+              <div class="overlay-title">
+                <div class="small-label">active ports</div>
+                <h2>${escapeHtml(countLabel)}</h2>
+              </div>
+              <div class="overlay-head-actions">
+                <button class="text-btn" type="button" data-port-viewer-toggle-all>${state.portViewerShowAll ? "dev only" : "show all"}</button>
+                <button class="text-btn" type="button" data-port-viewer-refresh ${state.portViewerLoading ? "disabled" : ""}>refresh</button>
+                <button class="icon-btn" type="button" data-port-viewer-close aria-label="Close ports overlay">×</button>
+              </div>
+            </div>
+            ${state.portViewerMessage ? `<div class="overlay-message">${escapeHtml(state.portViewerMessage)}</div>` : ""}
+            ${filterNote}
+            ${contentMarkup}
+          </section>
+        </div>
+      `;
     }
 
     function renderArchivePane() {
       archivePane.setAttribute("aria-hidden", state.archiveMenuOpen ? "false" : "true");
 
       if (!state.archiveMenuOpen) {
+        archivePaneTitle.textContent = "settings";
         archiveStatus.textContent = "";
         archiveBody.innerHTML = "";
         return;
       }
+      archivePaneTitle.textContent = state.archiveMenuMode === "archive" ? "archive" : "settings";
       archiveStatus.textContent = "";
-      const settingsTabs = [
-        {
-          id: "archive",
-          label: "archive",
-          description: "Restore or permanently clear archived items."
-        },
-        {
-          id: "workspace",
-          label: "workspace",
-          description: "Workspace defaults and behavior controls.",
-          comingSoon: true
-        },
-        {
-          id: "automation",
-          label: "automation",
-          description: "Recurring actions and integration controls.",
-          comingSoon: true
-        }
-      ];
-      const activeTab = settingsTabs.find((tab) => tab.id === state.settingsTab) || settingsTabs[0];
-      if (state.settingsTab !== activeTab.id) {
-        state.settingsTab = activeTab.id;
+
+      if (state.archiveMenuMode === "settings") {
+        archiveBody.innerHTML = `
+          ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
+          <div class="settings-panel">
+            <section class="settings-panel-card">
+              <div class="settings-panel-title">settings</div>
+              <div class="settings-panel-copy">Placeholder for future settings.</div>
+            </section>
+          </div>
+        `;
+        return;
       }
 
-      const tabsMarkup = settingsTabs.map((tab) => {
-        const isActive = tab.id === activeTab.id;
-        const metaLabel = tab.id === "archive"
-          ? (state.archiveMenuLoading
-            ? "loading..."
-            : `${state.archiveTotalCount} ${state.archiveTotalCount === 1 ? "item" : "items"}`)
-          : (tab.comingSoon ? "coming soon" : tab.description);
-        return `
-          <button
-            class="settings-nav-btn${isActive ? " active" : ""}"
-            type="button"
-            data-settings-tab="${escapeAttribute(tab.id)}"
-            aria-pressed="${isActive ? "true" : "false"}"
-          >
-            <span class="settings-nav-btn-label">${escapeHtml(tab.label)}</span>
-            <span class="settings-nav-btn-meta">${escapeHtml(metaLabel)}</span>
-          </button>
+      let panelMarkup = "";
+      if (state.archiveMenuLoading) {
+        panelMarkup = `
+          <section class="settings-panel-card">
+            <div class="settings-panel-title">archive</div>
+            <div class="settings-panel-copy">Loading archived items...</div>
+          </section>
         `;
-      }).join("");
+      } else {
+        let previousType = null;
+        const itemsMarkup = state.archiveItems.map((item) => {
+          const showSection = item.entity_type !== previousType;
+          previousType = item.entity_type;
+          const sectionLabel = item.entity_type === "project"
+            ? "projects"
+            : item.entity_type === "task"
+              ? "tasks"
+              : "notes";
+          const detailParts = [item.context_label, item.detail_label].filter(Boolean);
 
-      let activePanelMarkup = "";
-      if (activeTab.id === "archive") {
-        if (state.archiveMenuLoading) {
-          activePanelMarkup = `
-            <section class="settings-panel-card">
-              <div class="settings-panel-title">archive</div>
-              <div class="settings-panel-copy">Loading archived items...</div>
-            </section>
-          `;
-        } else {
-          let previousType = null;
-          const itemsMarkup = state.archiveItems.map((item) => {
-            const showSection = item.entity_type !== previousType;
-            previousType = item.entity_type;
-            const sectionLabel = item.entity_type === "project"
-              ? "projects"
-              : item.entity_type === "task"
-                ? "tasks"
-                : "notes";
-            const detailParts = [item.context_label, item.detail_label].filter(Boolean);
-
-            return `
-              ${showSection ? `<div class="archive-menu-section-label">${escapeHtml(sectionLabel)}</div>` : ""}
-              <div class="archive-item">
-                <div class="archive-item-meta">
-                  <div class="archive-item-title">${escapeHtml(item.title || "Untitled")}</div>
-                  <div class="archive-item-detail">${escapeHtml(detailParts.join(" | "))}</div>
-                </div>
-                <button
-                  class="text-btn"
-                  type="button"
-                  data-archive-restore-id="${escapeAttribute(item.id)}"
-                  data-archive-restore-revision="${escapeAttribute(item.revision)}"
-                >
-                  restore
-                </button>
+          return `
+            ${showSection ? `<div class="archive-menu-section-label">${escapeHtml(sectionLabel)}</div>` : ""}
+            <div class="archive-item">
+              <div class="archive-item-meta">
+                <div class="archive-item-title">${escapeHtml(item.title || "Untitled")}</div>
+                <div class="archive-item-detail">${escapeHtml(detailParts.join(" | "))}</div>
               </div>
-            `;
-          }).join("");
-
-          const totalLabel = state.archiveTotalCount === 1
-            ? "1 item"
-            : `${state.archiveTotalCount} items`;
-          const archiveSectionHeadMarkup = `
-            <div class="archive-menu-head">
-              <span class="archive-menu-title">archive</span>
-              <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
+              <button
+                class="text-btn"
+                type="button"
+                data-archive-restore-id="${escapeAttribute(item.id)}"
+                data-archive-restore-revision="${escapeAttribute(item.revision)}"
+              >
+                restore
+              </button>
             </div>
           `;
-          const emptyStateMarkup = state.archiveItems.length
-            ? ""
-            : `<div class="empty-state">Archive is empty.</div>`;
-          const actionsMarkup = state.archiveTotalCount === 0
-            ? ""
-            : (state.archiveEmptyConfirm
-              ? `
-                <div class="archive-empty-confirm">
-                  <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
-                  <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
-                  <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
-                </div>
-              `
-              : `
-                <div class="archive-menu-actions">
-                  <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
-                </div>
-              `);
+        }).join("");
 
-          activePanelMarkup = `
-            <section class="settings-panel-card">
-              ${archiveSectionHeadMarkup}
-              <div class="archive-menu-list">
-                ${itemsMarkup}
+        const totalLabel = state.archiveTotalCount === 1
+          ? "1 item"
+          : `${state.archiveTotalCount} items`;
+        const archiveSectionHeadMarkup = `
+          <div class="archive-menu-head">
+            <span class="archive-menu-title">archive</span>
+            <span class="archive-menu-count">${escapeHtml(totalLabel)}</span>
+          </div>
+        `;
+        const emptyStateMarkup = state.archiveItems.length
+          ? ""
+          : `<div class="empty-state">Archive is empty.</div>`;
+        const actionsMarkup = state.archiveTotalCount === 0
+          ? ""
+          : (state.archiveEmptyConfirm
+            ? `
+              <div class="archive-empty-confirm">
+                <span>Delete ${escapeHtml(totalLabel)} permanently?</span>
+                <button class="text-btn" type="button" data-archive-empty-cancel>cancel</button>
+                <button class="text-btn danger-btn" type="button" data-archive-empty-confirm>empty archive</button>
               </div>
-              ${emptyStateMarkup}
-              ${actionsMarkup}
-            </section>
-          `;
-        }
-      } else {
-        activePanelMarkup = `
+            `
+            : `
+              <div class="archive-menu-actions">
+                <button class="text-btn danger-btn" type="button" data-archive-empty-trigger>empty archive</button>
+              </div>
+            `);
+
+        panelMarkup = `
           <section class="settings-panel-card">
-            <div class="settings-panel-title">${escapeHtml(activeTab.label)}</div>
-            <div class="settings-panel-copy">${escapeHtml(activeTab.description)}</div>
-            <span class="settings-coming-soon">coming soon</span>
+            ${archiveSectionHeadMarkup}
+            <div class="archive-menu-list">
+              ${itemsMarkup}
+            </div>
+            ${emptyStateMarkup}
+            ${actionsMarkup}
           </section>
         `;
       }
 
       archiveBody.innerHTML = `
         ${state.projectMessage ? `<div class="message error">${escapeHtml(state.projectMessage)}</div>` : ""}
-        <div class="settings-page-shell">
-          <nav class="settings-nav" aria-label="Settings sections">
-            <div class="settings-nav-title">sections</div>
-            ${tabsMarkup}
-          </nav>
-          <div class="settings-panel">
-            ${activePanelMarkup}
-          </div>
+        <div class="settings-panel">
+          ${panelMarkup}
         </div>
       `;
     }
@@ -5429,6 +5885,57 @@
         .filter(Boolean);
     }
 
+    function captureActiveTaskSectionAnchor(taskId) {
+      if (!taskId || !(activeTaskList instanceof HTMLElement)) return null;
+      const row = activeTaskList.querySelector(`[data-draggable-task-id="${taskId}"]`);
+      if (!(row instanceof HTMLElement)) return null;
+      return {
+        taskId,
+        top: row.getBoundingClientRect().top,
+      };
+    }
+
+    function restoreActiveTaskSectionAnchor(anchor) {
+      if (!anchor?.taskId || !(activeTaskList instanceof HTMLElement)) return false;
+
+      const row = activeTaskList.querySelector(`[data-draggable-task-id="${anchor.taskId}"]`);
+      if (!(row instanceof HTMLElement)) return false;
+
+      const deltaY = row.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(deltaY) < 0.5) return false;
+
+      const maxScrollTop = Math.max(0, activeTaskList.scrollHeight - activeTaskList.clientHeight);
+      const nextScrollTop = Math.min(maxScrollTop, Math.max(0, activeTaskList.scrollTop + deltaY));
+      if (Math.abs(nextScrollTop - activeTaskList.scrollTop) < 0.5) return false;
+
+      activeTaskList.scrollTop = nextScrollTop;
+      return true;
+    }
+
+    function preserveActiveTaskSectionAnchor(anchor) {
+      if (!anchor) return;
+
+      restoreActiveTaskSectionAnchor(anchor);
+      window.requestAnimationFrame(() => {
+        restoreActiveTaskSectionAnchor(anchor);
+        window.requestAnimationFrame(() => {
+          restoreActiveTaskSectionAnchor(anchor);
+        });
+      });
+    }
+
+    function focusTaskSectionToggle(taskId) {
+      if (!taskId || !(activeTaskList instanceof HTMLElement)) return;
+      const button = activeTaskList.querySelector(`[data-task-section-toggle-id="${taskId}"]`);
+      if (!(button instanceof HTMLButtonElement)) return;
+
+      try {
+        button.focus({ preventScroll: true });
+      } catch (_error) {
+        button.focus();
+      }
+    }
+
     function restoreShellScrollState(scrollState) {
       if (!Array.isArray(scrollState) || !scrollState.length) return;
 
@@ -5877,8 +6384,18 @@
 
     function toggleTaskSection(taskId) {
       if (!taskId) return;
-      setTaskSectionCollapsed(taskId, !isTaskSectionCollapsed(taskId));
+      const shouldCollapse = !isTaskSectionCollapsed(taskId);
+      const sectionAnchor = captureActiveTaskSectionAnchor(taskId);
+      const beforeSnapshot = captureTaskRowSnapshot();
+      setTaskSectionCollapsed(taskId, shouldCollapse);
       render();
+      flushTaskRowSync();
+      preserveActiveTaskSectionAnchor(sectionAnchor);
+      focusTaskSectionToggle(taskId);
+      animateTaskListMutationFromSnapshot(beforeSnapshot, {
+        context: "section-toggle",
+        mode: shouldCollapse ? "collapse" : "expand"
+      });
     }
 
     function toggleDoneTaskSection(taskId) {
@@ -5920,15 +6437,16 @@
         setTaskSectionCollapsed(taskId, shouldCollapse);
       });
       render();
+      flushTaskRowSync();
       animateTaskListMutationFromSnapshot(beforeSnapshot, {
+        context: "section-toggle",
         mode: shouldCollapse ? "collapse" : "expand"
       });
     }
 
     function renderWithTodoListTransition(renderOptions = {}) {
       const supportsViewTransition = typeof document.startViewTransition === "function";
-      const prefersReducedMotion = typeof window.matchMedia === "function"
-        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const prefersReducedMotion = shouldReduceTodoTaskMotion();
       const shouldUseViewTransition = !isDesktopShell && supportsViewTransition && !prefersReducedMotion;
 
       if (!shouldUseViewTransition) {
@@ -5979,7 +6497,7 @@
       }, todoListAnimationCleanupMs);
     }
 
-    function animateSyncedTaskRows(taskIds = []) {
+    function animateAddedTaskRows(taskIds = [], options = {}) {
       if (!(activeTaskList instanceof HTMLElement) || !Array.isArray(taskIds) || !taskIds.length) {
         return;
       }
@@ -5996,9 +6514,16 @@
         syncedTaskAnimationTimer = null;
       }
 
+      const shouldStagger = options.context !== "section-toggle";
+
       rows.forEach((row, index) => {
         row.classList.remove("sync-in-animating");
-        row.style.setProperty("--bulk-row-index", String(Math.min(index, todoListAnimationMaxIndex)));
+        row.classList.remove("section-expand-animating", "section-expand-fade-animating");
+        if (shouldStagger) {
+          row.style.setProperty("--bulk-row-index", String(Math.min(index, todoListAnimationMaxIndex)));
+        } else {
+          row.style.removeProperty("--bulk-row-index");
+        }
       });
       void activeTaskList.offsetHeight;
       rows.forEach((row) => {
@@ -6008,6 +6533,7 @@
       syncedTaskAnimationTimer = window.setTimeout(() => {
         rows.forEach((row) => {
           row.classList.remove("sync-in-animating");
+          row.classList.remove("section-expand-animating", "section-expand-fade-animating");
           row.style.removeProperty("--bulk-row-index");
         });
         syncedTaskAnimationTimer = null;
@@ -6041,7 +6567,7 @@
       return taskIds.map((taskId) => snapshot.get(taskId) || null).filter(Boolean);
     }
 
-    function animateTaskRowReflowFromSnapshot(snapshot) {
+    function animateTaskRowReflowFromSnapshot(snapshot, options = {}) {
       if (!(activeTaskList instanceof HTMLElement) || !(snapshot instanceof Map) || !snapshot.size) {
         return;
       }
@@ -6084,8 +6610,7 @@
         return;
       }
 
-      const prefersReducedMotion = typeof window.matchMedia === "function"
-        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const prefersReducedMotion = shouldReduceTodoTaskMotion();
       if (prefersReducedMotion) return;
 
       const nextTaskIds = new Set(
@@ -6096,18 +6621,19 @@
       const previousTaskIds = Array.from(beforeSnapshot.keys());
       const removedTaskIds = previousTaskIds.filter((taskId) => !nextTaskIds.has(taskId));
       const addedTaskIds = Array.from(nextTaskIds).filter((taskId) => !beforeSnapshot.has(taskId));
+      const isSectionToggle = options.context === "section-toggle";
 
-      animateTaskRowReflowFromSnapshot(beforeSnapshot);
-      if (removedTaskIds.length) {
+      animateTaskRowReflowFromSnapshot(beforeSnapshot, options);
+      if (!isSectionToggle && removedTaskIds.length) {
         const removedGhosts = buildRemovedTaskGhostEntriesFromSnapshot(beforeSnapshot, removedTaskIds);
-        animateRemovedTaskGhosts(removedGhosts, options.mode === "collapse" ? "collapse" : "default");
+        animateRemovedTaskGhosts(removedGhosts, options.mode === "collapse" ? "collapse" : "default", options);
       }
-      if (addedTaskIds.length) {
-        animateSyncedTaskRows(addedTaskIds);
+      if (!isSectionToggle && addedTaskIds.length) {
+        animateAddedTaskRows(addedTaskIds, options);
       }
     }
 
-    function animateRemovedTaskGhosts(ghostEntries = [], mode = "default") {
+    function animateRemovedTaskGhosts(ghostEntries = [], mode = "default", options = {}) {
       if (!Array.isArray(ghostEntries) || !ghostEntries.length) return;
 
       ghostEntries.forEach((entry) => {
@@ -6137,8 +6663,7 @@
       state.pendingActiveTaskAnimation = null;
       if (!pendingAnimation) return;
 
-      const prefersReducedMotion = typeof window.matchMedia === "function"
-        && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const prefersReducedMotion = shouldReduceTodoTaskMotion();
       if (prefersReducedMotion) return;
 
       if (pendingAnimation.beforeTaskRowSnapshot) {
@@ -6150,7 +6675,7 @@
       }
 
       if (pendingAnimation.addedTaskIds.length > 0) {
-        animateSyncedTaskRows(pendingAnimation.addedTaskIds);
+        animateAddedTaskRows(pendingAnimation.addedTaskIds);
       }
     }
 
@@ -6167,7 +6692,7 @@
 
     function normalizeTaskPriority(priorityValue) {
       const value = String(priorityValue || "").toUpperCase();
-      if (value === "P1" || value === "P2" || value === "P3") {
+      if (value === "P0" || value === "P1" || value === "P2" || value === "P3") {
         return value;
       }
       return "P0";
@@ -6198,7 +6723,8 @@
       if (priority === "P1") return 0;
       if (priority === "P2") return 1;
       if (priority === "P3") return 2;
-      return 3;
+      if (priority === "P0") return 3;
+      return 4;
     }
 
     function compareTasksByPriority(left, right) {
@@ -6236,16 +6762,28 @@
     }
 
     function activePriorityCounts(tasks = []) {
-      const counts = { P1: 0, P2: 0, P3: 0 };
+      const counts = { P1: 0, P2: 0, P3: 0, P0: 0 };
       tasks.forEach((task) => {
         const title = state.taskEdits[task.id] ?? task.title;
         if (isMarkdownTaskHeading(title)) return;
         const priority = normalizeTaskPriority(task.priority);
-        if (priority === "P1" || priority === "P2" || priority === "P3") {
+        if (priority === "P1" || priority === "P2" || priority === "P3" || priority === "P0") {
           counts[priority] += 1;
         }
       });
       return counts;
+    }
+
+    function todoStatusSummaryMarkup(activeCount, counts) {
+      const visibleCount = counts.P1 + counts.P2 + counts.P3 + counts.P0;
+      return `
+        <span class="todo-status-summary" aria-label="${visibleCount} active tasks. P1 ${counts.P1}, P2 ${counts.P2}, P3 ${counts.P3}, P4 ${counts.P0}.">
+          <span class="todo-status-priority" data-priority="P1" title="P1 tasks">${counts.P1}</span>
+          <span class="todo-status-priority" data-priority="P2" title="P2 tasks">${counts.P2}</span>
+          <span class="todo-status-priority" data-priority="P3" title="P3 tasks">${counts.P3}</span>
+          <span class="todo-status-priority" data-priority="P4" title="P4 tasks">${counts.P0}</span>
+        </span>
+      `;
     }
 
     function isHeaderShortcut(event) {
@@ -6452,6 +6990,14 @@
       document.querySelectorAll(".task-row, .task-draft, .done-row, .done-section-heading").forEach((row) => {
         syncTaskRowHeight(row);
       });
+    }
+
+    function flushTaskRowSync() {
+      if (taskRowSyncFrame !== null) {
+        window.cancelAnimationFrame(taskRowSyncFrame);
+        taskRowSyncFrame = null;
+      }
+      syncAllTaskRowHeights();
     }
 
     function scheduleTaskRowSync() {
@@ -6863,16 +7409,16 @@
         todoStatus.textContent = "idle";
       } else {
         const counts = activePriorityCounts(state.workspace.active_tasks);
-        const baseLabel = `${state.workspace.active_tasks.length} active · P1 ${counts.P1} · P2 ${counts.P2} · P3 ${counts.P3}`;
+        const summaryMarkup = todoStatusSummaryMarkup(state.workspace.active_tasks.length, counts);
         if (state.workspace.project?.task_sync_status === "conflict") {
-          todoStatus.textContent = `sync conflict · ${baseLabel}`;
+          todoStatus.innerHTML = `<span class="todo-status-label">sync conflict</span>${summaryMarkup}`;
           return;
         }
         if (state.workspace.project?.task_sync_status === "paused" && state.workspace.project?.task_sync_enabled) {
-          todoStatus.textContent = `sync paused · ${baseLabel}`;
+          todoStatus.innerHTML = `<span class="todo-status-label">sync paused</span>${summaryMarkup}`;
           return;
         }
-        todoStatus.textContent = baseLabel;
+        todoStatus.innerHTML = summaryMarkup;
       }
     }
 
@@ -7235,7 +7781,7 @@
             </div>
             <section class="overlay-section">
               <div class="overlay-value">Move these completed tasks into the archive?</div>
-              <div class="overlay-muted">They will be removed from the changelog and can be restored later from settings > archive.</div>
+              <div class="overlay-muted">They will be removed from the changelog and can be restored later from archive.</div>
               <div class="overlay-inline-actions">
                 <button class="text-btn" type="button" data-changelog-archive-close>cancel</button>
                 <button class="text-btn danger-btn" type="button" data-changelog-archive-confirm>archive tasks</button>
@@ -7258,12 +7804,14 @@
       layout.classList.toggle("archive-view", state.archiveMenuOpen);
       renderProjectTray();
       renderProjects();
+      renderPortMenu();
       renderArchiveMenu();
       renderArchivePane();
       renderTasks();
       renderChangelogPane();
       renderChangelogArchiveConfirm();
       renderNotes();
+      renderPortViewer();
       bindNoteBodyResizeTracking();
       bindMarkdownSearchOverlayTracking();
       renderNoteFilePicker();
@@ -7515,6 +8063,350 @@
       }
     }
 
+    const PROJECT_ICON_OPTIONS = Object.freeze([
+      { value: "stack", label: "Default" },
+      { value: "rocket", label: "Rocket" },
+      { value: "code", label: "Code" },
+      { value: "terminal", label: "Terminal" },
+      { value: "folder", label: "Folder" },
+      { value: "database", label: "Database" },
+      { value: "cloud", label: "Cloud" },
+      { value: "video", label: "Video" },
+      { value: "briefcase", label: "Work" },
+      { value: "chart", label: "Growth" },
+      { value: "palette", label: "Design" },
+      { value: "sparkles", label: "Spark" },
+      { value: "bot", label: "Bot" },
+      { value: "cpu", label: "Infra" },
+      { value: "camera", label: "Camera" },
+      { value: "book", label: "Docs" },
+      { value: "bag", label: "Commerce" },
+      { value: "store", label: "Storefront" },
+      { value: "flask", label: "Lab" },
+      { value: "globe", label: "Web" },
+      { value: "map", label: "Map" },
+      { value: "message", label: "Chat" },
+      { value: "calendar", label: "Calendar" },
+      { value: "music", label: "Audio" },
+      { value: "wrench", label: "Build" },
+      { value: "shield", label: "Security" },
+      { value: "lock", label: "Lock" },
+      { value: "heart", label: "Care" },
+      { value: "star", label: "Star" },
+      { value: "leaf", label: "Nature" },
+      { value: "phone", label: "Mobile" },
+      { value: "home", label: "Home" }
+    ]);
+
+    function normalizeProjectIconKey(icon) {
+      const normalized = String(icon || "").trim();
+      return PROJECT_ICON_OPTIONS.some((option) => option.value === normalized)
+        ? normalized
+        : "stack";
+    }
+
+    function projectIconLabel(icon) {
+      const key = normalizeProjectIconKey(icon);
+      return PROJECT_ICON_OPTIONS.find((option) => option.value === key)?.label || "Default";
+    }
+
+    function renderProjectIconSvg(icon) {
+      const key = normalizeProjectIconKey(icon);
+      switch (key) {
+        case "rocket":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 4c3 1 5 3 6 6-1.7 4.5-5.5 8.3-10 10-3-1-5-3-6-6 1.7-4.5 5.5-8.3 10-10Z"></path>
+              <circle cx="15.5" cy="8.5" r="1.2"></circle>
+              <path d="m8 16-3 3"></path>
+              <path d="M8 13H5v-3"></path>
+              <path d="M11 19v-3h3"></path>
+            </svg>
+          `;
+        case "code":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m8 8-4 4 4 4"></path>
+              <path d="m16 8 4 4-4 4"></path>
+              <path d="m14.5 5-5 14"></path>
+            </svg>
+          `;
+        case "terminal":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+              <path d="m8 10 2 2-2 2"></path>
+              <path d="M12 15h4"></path>
+            </svg>
+          `;
+        case "folder":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 9a2 2 0 0 1 2-2h4.1l1.8 2H18.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"></path>
+            </svg>
+          `;
+        case "database":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse cx="12" cy="6.5" rx="6" ry="2.5"></ellipse>
+              <path d="M6 6.5v6c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-6"></path>
+              <path d="M6 12.5v5c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-5"></path>
+            </svg>
+          `;
+        case "cloud":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.5 18a3.5 3.5 0 1 1 .6-6.9A4.8 4.8 0 0 1 17.6 10a3.2 3.2 0 1 1 .9 6.9Z"></path>
+            </svg>
+          `;
+        case "video":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="7" width="11" height="10" rx="2"></rect>
+              <path d="m15 11 5-3v8l-5-3"></path>
+            </svg>
+          `;
+        case "briefcase":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"></path>
+              <path d="M9 7V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8V7"></path>
+              <path d="M4 12h16"></path>
+            </svg>
+          `;
+        case "chart":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 19h14"></path>
+              <path d="M7 16v-3"></path>
+              <path d="M12 16V9"></path>
+              <path d="M17 16v-6"></path>
+              <path d="m7 11 4-4 4 2 3-3"></path>
+            </svg>
+          `;
+        case "palette":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4c-4.4 0-8 3.4-8 7.7S7.6 20 12 20h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h2.2c3.2 0 5.8-2.4 5.8-5.4C20 5.1 16.4 4 12 4Z"></path>
+              <circle cx="8" cy="10" r="1"></circle>
+              <circle cx="11" cy="7.5" r="1"></circle>
+              <circle cx="15" cy="8.5" r="1"></circle>
+            </svg>
+          `;
+        case "sparkles":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v4"></path>
+              <path d="M12 16v4"></path>
+              <path d="M4 12h4"></path>
+              <path d="M16 12h4"></path>
+              <path d="m6.5 6.5 2.5 2.5"></path>
+              <path d="m15 15 2.5 2.5"></path>
+              <path d="m17.5 6.5-2.5 2.5"></path>
+              <path d="M9 15 6.5 17.5"></path>
+            </svg>
+          `;
+        case "bot":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v3"></path>
+              <rect x="6" y="8" width="12" height="10" rx="3"></rect>
+              <path d="M4 11v4"></path>
+              <path d="M20 11v4"></path>
+              <circle cx="9.5" cy="12.5" r="1"></circle>
+              <circle cx="14.5" cy="12.5" r="1"></circle>
+              <path d="M10 16h4"></path>
+            </svg>
+          `;
+        case "cpu":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2"></rect>
+              <path d="M9 4v3"></path>
+              <path d="M15 4v3"></path>
+              <path d="M9 17v3"></path>
+              <path d="M15 17v3"></path>
+              <path d="M4 9h3"></path>
+              <path d="M4 15h3"></path>
+              <path d="M17 9h3"></path>
+              <path d="M17 15h3"></path>
+            </svg>
+          `;
+        case "camera":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9a2 2 0 0 1 2-2h2l1.5-2h5L16 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"></path>
+              <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+          `;
+        case "book":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 5.5A2.5 2.5 0 0 1 8.5 3H18v17H8.5A2.5 2.5 0 0 0 6 22"></path>
+              <path d="M6 5.5V22"></path>
+              <path d="M8.5 8H18"></path>
+            </svg>
+          `;
+        case "bag":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9h12l-1 10H7L6 9Z"></path>
+              <path d="M9 9V7.5A3 3 0 0 1 12 4.5 3 3 0 0 1 15 7.5V9"></path>
+            </svg>
+          `;
+        case "store":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9h16"></path>
+              <path d="M5 9v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"></path>
+              <path d="M7 9V7.5A1.5 1.5 0 0 1 8.5 6h7A1.5 1.5 0 0 1 17 7.5V9"></path>
+              <path d="M9 13h6"></path>
+            </svg>
+          `;
+        case "flask":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 4h4"></path>
+              <path d="M11 4v5l-5 8a2 2 0 0 0 1.7 3h8.6a2 2 0 0 0 1.7-3l-5-8V4"></path>
+              <path d="M8.5 14h7"></path>
+            </svg>
+          `;
+        case "globe":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="8"></circle>
+              <path d="M4 12h16"></path>
+              <path d="M12 4c2.5 2.2 4 5 4 8s-1.5 5.8-4 8c-2.5-2.2-4-5-4-8s1.5-5.8 4-8Z"></path>
+            </svg>
+          `;
+        case "map":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2Z"></path>
+              <path d="M9 4v14"></path>
+              <path d="M15 6v14"></path>
+            </svg>
+          `;
+        case "message":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 7h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7l-4 3v-3H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"></path>
+            </svg>
+          `;
+        case "calendar":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="6" width="16" height="14" rx="2"></rect>
+              <path d="M8 4v4"></path>
+              <path d="M16 4v4"></path>
+              <path d="M4 10h16"></path>
+              <path d="M8 14h3"></path>
+              <path d="M13 14h3"></path>
+            </svg>
+          `;
+        case "music":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 6v10"></path>
+              <path d="M18 5v10"></path>
+              <circle cx="11" cy="18" r="2.5"></circle>
+              <circle cx="18" cy="16" r="2.5"></circle>
+              <path d="m14 7 4-1"></path>
+            </svg>
+          `;
+        case "wrench":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m15 5 4 4"></path>
+              <path d="m7 17 7-7"></path>
+              <path d="m5 19 2-2"></path>
+              <path d="m15 5 2-2 4 4-2 2"></path>
+            </svg>
+          `;
+        case "shield":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4 18 6.5V12c0 4-2.4 6.9-6 8-3.6-1.1-6-4-6-8V6.5Z"></path>
+              <path d="m9.5 12 1.7 1.7 3.3-3.3"></path>
+            </svg>
+          `;
+        case "lock":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="6" y="11" width="12" height="9" rx="2"></rect>
+              <path d="M9 11V8.5A3 3 0 0 1 12 5.5 3 3 0 0 1 15 8.5V11"></path>
+            </svg>
+          `;
+        case "heart":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 20-1.4-1.2C6 14.8 4 12.8 4 10.3 4 8.2 5.7 6.5 7.8 6.5c1.2 0 2.4.6 3.2 1.5.8-.9 2-1.5 3.2-1.5 2.1 0 3.8 1.7 3.8 3.8 0 2.5-2 4.5-6.6 8.5Z"></path>
+            </svg>
+          `;
+        case "star":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8Z"></path>
+            </svg>
+          `;
+        case "leaf":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 5c-6 0-10 3.7-12 9 2.5.8 6.2.6 9.2-2.4C18.9 9 19.4 6.5 19 5Z"></path>
+              <path d="M5 19c2.5-4.5 6.5-7 12-8"></path>
+            </svg>
+          `;
+        case "phone":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="8" y="4" width="8" height="16" rx="2"></rect>
+              <path d="M11 7h2"></path>
+              <circle cx="12" cy="16.5" r=".8"></circle>
+            </svg>
+          `;
+        case "home":
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4 11 8-6 8 6"></path>
+              <path d="M6 10.5V19h12v-8.5"></path>
+              <path d="M10 19v-4h4v4"></path>
+            </svg>
+          `;
+        default:
+          return `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 4 7 4-7 4-7-4z"></path>
+              <path d="m5 12 7 4 7-4"></path>
+              <path d="m5 16 7 4 7-4"></path>
+            </svg>
+          `;
+      }
+    }
+
+    function renderProjectIconBadge(icon, className = "project-card-icon") {
+      return `
+        <span class="${className}" aria-hidden="true" title="${escapeHtml(projectIconLabel(icon))}">
+          ${renderProjectIconSvg(icon)}
+        </span>
+      `;
+    }
+
+    function renderProjectIconPicker(currentIcon) {
+      const activeIcon = normalizeProjectIconKey(currentIcon);
+      return PROJECT_ICON_OPTIONS.map((option) => `
+        <button
+          class="project-icon-option${option.value === activeIcon ? " active" : ""}"
+          type="button"
+          data-project-settings-icon="${option.value}"
+          aria-pressed="${option.value === activeIcon ? "true" : "false"}"
+          aria-label="${escapeHtml(option.label)}"
+          title="${escapeHtml(option.label)}"
+        >
+          ${renderProjectIconBadge(option.value, "project-card-icon project-icon-glyph")}
+        </button>
+      `).join("");
+    }
+
     function renderProjects() {
       const highlightSelectedProject = !isAlternateProjectViewOpen();
       const addProjectCard = `
@@ -7545,6 +8437,7 @@
             type="button"
             data-project-select-id="${project.id}"
           >
+            ${renderProjectIconBadge(project.icon)}
             <span class="project-card-title">${escapeHtml(project.title)}</span>
           </button>
           <button
@@ -7710,6 +8603,21 @@
               <button class="icon-btn" type="button" data-project-settings-close aria-label="Close project settings">+</button>
             </div>
             ${state.projectSettingsMessage ? `<div class="overlay-message error">${escapeHtml(state.projectSettingsMessage)}</div>` : ""}
+            <section class="overlay-section">
+              <div class="overlay-section-head">
+                <div class="small-label">icon</div>
+              </div>
+              <div class="project-icon-current">
+                ${renderProjectIconBadge(project.icon, "project-card-icon project-card-icon-large")}
+                <div>
+                  <div class="overlay-value">${escapeHtml(projectIconLabel(project.icon))}</div>
+                  <div class="overlay-muted">Click an icon to save it. The selected icon appears in the project list.</div>
+                </div>
+              </div>
+              <div class="project-icon-picker">
+                ${renderProjectIconPicker(project.icon)}
+              </div>
+            </section>
             <section class="overlay-section">
               <div class="overlay-section-head">
                 <div class="small-label">source</div>
@@ -8053,6 +8961,27 @@
       render();
     }
 
+    async function saveProjectIcon(icon) {
+      const project = getProjectById(state.projectSettingsId);
+      if (!project) return;
+
+      const normalizedIcon = normalizeProjectIconKey(icon);
+      if (normalizeProjectIconKey(project.icon) === normalizedIcon) return;
+
+      const response = await fetchJson(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expected_revision: project.revision,
+          current_project_id: state.selectedProjectId,
+          icon: normalizedIcon
+        })
+      }, "project");
+      if (!response) return;
+
+      applyUiState(response);
+      render();
+    }
+
     async function openProjectSource() {
       const project = getProjectById(state.projectSettingsId);
       if (!project || !project.source_locator) return;
@@ -8297,6 +9226,14 @@
       return String(query || "").trim().toLowerCase();
     }
 
+    function hasActiveNotesSearchQuery(queryOverride = null) {
+      return Boolean(getNormalizedNotesSearchQuery(queryOverride ?? state.notesSearchQuery));
+    }
+
+    function getEffectiveNoteRenderMode(queryOverride = null) {
+      return hasActiveNotesSearchQuery(queryOverride) ? "clean" : state.noteMode;
+    }
+
     function getNotesSearchTerms(query) {
       const normalizedQuery = getNormalizedNotesSearchQuery(query);
       if (!normalizedQuery) return [];
@@ -8337,25 +9274,60 @@
     function getSearchableNoteBodyText(note) {
       if (!note) return "";
       const noteId = note.id || null;
-      if (state.noteMode === "markdown") {
+      const renderMode = getEffectiveNoteRenderMode();
+      if (renderMode === "markdown") {
         if (noteId && Object.prototype.hasOwnProperty.call(state.noteBodyEdits, noteId)) {
           return String(state.noteBodyEdits[noteId] || "");
         }
         return String(note.body || "");
       }
 
+      if (noteId && Object.prototype.hasOwnProperty.call(state.noteHtmlEdits, noteId)) {
+        const draftText = extractTextFromNoteHtml(state.noteHtmlEdits[noteId]);
+        if (draftText) return draftText;
+      }
+
+      let liveHtml = null;
       if (noteId) {
         const editor = document.querySelector(`[data-note-clean-id="${noteId}"]`);
-        if (editor instanceof HTMLElement) {
+        if (editor instanceof HTMLElement && editor.dataset.hydrated === "true") {
           return String(editor.textContent || "");
+        }
+        if (!(editor instanceof HTMLElement)) {
+          liveHtml = getCurrentCleanHtml(noteId);
         }
       }
 
       const htmlSource = noteId
-        ? (state.noteHtmlEdits[noteId] ?? getCurrentCleanHtml(noteId) ?? note.rendered_html)
+        ? (state.noteHtmlEdits[noteId] || liveHtml || note.rendered_html)
         : note.rendered_html;
       const renderedText = extractTextFromNoteHtml(htmlSource);
       return renderedText || String(note.body || "");
+    }
+
+    function getActiveBodySearchMatchForNote(noteId, queryOverride = null) {
+      const query = String(queryOverride ?? state.notesSearchQuery ?? "").trim();
+      if (!noteId || !query) return null;
+      const searchData = getGlobalNoteSearchData(query);
+      if (!searchData.globalMatches.length) return null;
+
+      let navIndex = Number.isFinite(state.noteSearchNavIndex) ? state.noteSearchNavIndex : -1;
+      if (navIndex < 0 || navIndex >= searchData.globalMatches.length) {
+        navIndex = findFirstGlobalMatchIndexForNote(searchData.globalMatches, noteId);
+      }
+      if (navIndex < 0 || navIndex >= searchData.globalMatches.length) {
+        return null;
+      }
+
+      const activeMatch = searchData.globalMatches[navIndex];
+      if (!activeMatch || activeMatch.noteId !== noteId || activeMatch.field !== "body") {
+        return null;
+      }
+
+      return {
+        terms: searchData.terms,
+        matchIndex: Number.isFinite(activeMatch.fieldIndex) ? activeMatch.fieldIndex : 0
+      };
     }
 
     function findNoteSearchMatch(text, terms) {
@@ -8521,7 +9493,7 @@
 
     function getOpenNoteSearchTargets(terms, noteId = state.openNoteId) {
       if (!noteId || !terms.length) return null;
-      if (state.noteMode === "markdown") {
+      if (getEffectiveNoteRenderMode() === "markdown") {
         return collectMarkdownNoteSearchTargets(noteId, terms)
           || collectCleanNoteSearchTargets(noteId, terms)
           || collectTitleSearchTargets(noteId, terms);
@@ -8946,6 +9918,7 @@
 
     function renderNotes() {
       syncNotesSearchInput();
+      updateModeButtons();
       noteMessage.innerHTML = state.noteMessage ? `<div class="message error">${escapeHtml(state.noteMessage)}</div>` : "";
       if (!state.projects.length) {
         resetTransientStatusLabel(noteStatus);
@@ -9084,6 +10057,9 @@
     }
 
     function renderOpenNote(note) {
+      const renderMode = getEffectiveNoteRenderMode();
+      const searchDocViewActive = hasActiveNotesSearchQuery();
+      const cleanEditorEditable = renderMode === "clean" && !searchDocViewActive;
       const revisionConflictBanner = state.noteRevisionConflict?.noteId === note.id ? `
         <div class="note-sync-banner">
           <div>Note changed in the background. Choose which version to keep.</div>
@@ -9107,7 +10083,7 @@
       const savedBodyHeight = getSavedNoteBodyHeight(note.id);
       const bodyHeightStyle = savedBodyHeight ? ` style="height:${savedBodyHeight}px;"` : "";
 
-      if (state.noteMode === "markdown") {
+      if (renderMode === "markdown") {
         const body = state.noteBodyEdits[note.id] ?? note.body;
         return `
           <div class="note-editor">
@@ -9129,31 +10105,39 @@
           ${revisionConflictBanner}
           ${syncBanner}
           ${syncMeta}
-          <div class="toolbar note-toolbar">
+          ${cleanEditorEditable ? `<div class="toolbar note-toolbar">
             <button type="button" data-rich-command="bold">bold</button>
             <button type="button" data-rich-command="italic">italic</button>
             <button type="button" data-rich-command="h2">h2</button>
             <button type="button" data-rich-command="bullet">list</button>
             <button type="button" data-rich-command="checklist">check</button>
             <button type="button" data-rich-command="link">link</button>
-          </div>
-          <div class="clean-editor" contenteditable="true" data-note-clean-id="${note.id}" data-placeholder="Capture context, decisions, links, or a handoff note..."></div>
+          </div>` : ""}
+          <div class="clean-editor" contenteditable="${cleanEditorEditable ? "true" : "false"}" data-note-clean-id="${note.id}" data-placeholder="Capture context, decisions, links, or a handoff note..." aria-readonly="${cleanEditorEditable ? "false" : "true"}"></div>
         </div>
       `;
     }
 
     function hydrateCleanEditor() {
-      if (state.noteMode !== "clean" || !state.openNoteId || !state.workspace) return;
+      if (getEffectiveNoteRenderMode() !== "clean" || !state.openNoteId || !state.workspace) return;
       const note = state.workspace.notes.find((item) => item.id === state.openNoteId);
       const editor = document.querySelector(`[data-note-clean-id="${state.openNoteId}"]`);
       if (!note || !editor || editor.dataset.hydrated === "true") return;
-      editor.innerHTML = normalizeCleanHtml(state.noteHtmlEdits[note.id] ?? note.rendered_html);
+      const baseHtmlSource = state.noteMode === "clean"
+        ? (state.noteHtmlEdits[note.id] ?? note.rendered_html)
+        : note.rendered_html;
+      const baseHtml = normalizeCleanHtml(baseHtmlSource);
+      const activeBodyMatch = getActiveBodySearchMatchForNote(note.id);
+      editor.innerHTML = activeBodyMatch
+        ? buildDecoratedCleanSearchHtml(baseHtml, activeBodyMatch.terms, activeBodyMatch.matchIndex)
+        : baseHtml;
       editor.dataset.hydrated = "true";
     }
 
     function updateModeButtons() {
+      const activeMode = getEffectiveNoteRenderMode();
       document.querySelectorAll("[data-note-mode]").forEach((button) => {
-        button.classList.toggle("active", button.dataset.noteMode === state.noteMode);
+        button.classList.toggle("active", button.dataset.noteMode === activeMode);
       });
     }
 
@@ -9344,6 +10328,7 @@
           }
           if (channel === "task") state.taskMessage = message;
           if (channel === "note") state.noteMessage = message;
+          if (channel === "port") state.portViewerMessage = message;
           if (!allowFailure) render();
           return null;
         }
@@ -9353,6 +10338,7 @@
         }
         if (channel === "task") state.taskMessage = "";
         if (channel === "note") state.noteMessage = "";
+        if (channel === "port") state.portViewerMessage = "";
         return response.status === 204 ? null : response.json();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -9362,6 +10348,7 @@
         }
         if (channel === "task") state.taskMessage = message;
         if (channel === "note") state.noteMessage = message;
+        if (channel === "port") state.portViewerMessage = message;
         if (!allowFailure) render();
         return null;
       }

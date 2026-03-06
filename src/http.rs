@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::markdown::render_markdown_html;
+use crate::ports::{PortManager, PortManagerError, PortSession};
 use crate::repo_sync::derive_sync_source_key;
 use crate::service::{AppService, ArchiveEntityRequest, ServiceError};
 use crate::types::{
@@ -24,6 +25,7 @@ use crate::types::{
 pub struct WebState {
     pub service: Arc<AppService>,
     pub dev_reload_token: Option<String>,
+    pub port_manager: Arc<dyn PortManager>,
 }
 
 pub fn router(state: Arc<WebState>) -> Router {
@@ -87,6 +89,11 @@ pub fn router(state: Arc<WebState>) -> Router {
             post(api_resolve_note_sync_local),
         )
         .route("/api/notes/{id}/archive", post(api_archive_note))
+        .route("/api/system/ports", get(api_system_ports))
+        .route(
+            "/api/system/ports/terminate",
+            post(api_terminate_port_session),
+        )
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
         .with_state(state)
@@ -147,6 +154,7 @@ struct ProjectSummary {
     id: String,
     title: String,
     revision: String,
+    icon: Option<String>,
     source_kind: Option<String>,
     source_locator: Option<String>,
     last_synced_at_label: Option<String>,
@@ -217,10 +225,36 @@ struct NoteMutationResponse {
     created_note_id: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+struct PortSessionPayload {
+    pid: u32,
+    port: u16,
+    process_name: String,
+    command_line: String,
+    user: String,
+    bindings: Vec<String>,
+    other_ports: Vec<u16>,
+    is_topside_process: bool,
+    can_terminate: bool,
+    is_likely_dev: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct PortSessionsPayload {
+    items: Vec<PortSessionPayload>,
+}
+
+#[derive(Debug, Serialize)]
+struct PortTerminateResponse {
+    items: Vec<PortSessionPayload>,
+    message: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct CreateProjectRequest {
     mode: String,
     title: Option<String>,
+    icon: Option<String>,
     source_locator: Option<String>,
 }
 
@@ -245,6 +279,7 @@ struct UpdateProjectRequest {
     expected_revision: String,
     current_project_id: Option<String>,
     title: Option<String>,
+    icon: Option<String>,
     source_kind: Option<String>,
     source_locator: Option<String>,
     #[serde(default)]
@@ -313,6 +348,12 @@ struct CurrentProjectRequest {
 #[derive(Debug, Deserialize)]
 struct OpenPathRequest {
     path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TerminatePortRequest {
+    pid: u32,
+    port: u16,
 }
 
 #[derive(Debug, Deserialize)]
@@ -462,6 +503,7 @@ async fn api_create_project(
             CreateProjectPayload {
                 title,
                 owner: None,
+                icon: normalize_optional(request.icon),
                 source_kind,
                 source_locator,
                 tags: None,
@@ -968,6 +1010,35 @@ async fn api_open_path(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn api_system_ports(State(state): State<Arc<WebState>>) -> ApiResult<PortSessionsPayload> {
+    let items = state
+        .port_manager
+        .list_sessions()
+        .map_err(map_port_manager_err_json)?
+        .into_iter()
+        .map(map_port_session_payload)
+        .collect();
+    Ok(Json(PortSessionsPayload { items }))
+}
+
+async fn api_terminate_port_session(
+    State(state): State<Arc<WebState>>,
+    Json(request): Json<TerminatePortRequest>,
+) -> ApiResult<PortTerminateResponse> {
+    let result = state
+        .port_manager
+        .terminate_session(request.pid, request.port)
+        .map_err(map_port_manager_err_json)?;
+    Ok(Json(PortTerminateResponse {
+        items: result
+            .items
+            .into_iter()
+            .map(map_port_session_payload)
+            .collect(),
+        message: result.message,
+    }))
+}
+
 fn parse_task_status(value: Option<&str>) -> Result<Option<TaskStatus>, String> {
     let Some(value) = value else {
         return Ok(None);
@@ -1023,6 +1094,7 @@ fn project_payload_parts(
 fn project_patch_from_request(request: &UpdateProjectRequest) -> Result<ProjectPatch, String> {
     let mut patch = ProjectPatch {
         title: normalize_optional(request.title.clone()),
+        icon: normalize_optional(request.icon.clone()),
         ..ProjectPatch::default()
     };
 
@@ -1228,6 +1300,7 @@ fn map_project_summary(project: ProjectItem) -> ProjectSummary {
         id: project.id,
         title: project.title,
         revision: project.revision,
+        icon: project.icon,
         source_kind: project.source_kind.map(|kind| kind.as_str().to_string()),
         source_locator: project.source_locator,
         last_synced_at_label: project.last_synced_at.map(format_timestamp),
@@ -1378,6 +1451,35 @@ fn map_service_err_json(err: ServiceError) -> (StatusCode, Json<ApiError>) {
     }
 }
 
+fn map_port_manager_err_json(err: PortManagerError) -> (StatusCode, Json<ApiError>) {
+    match err {
+        PortManagerError::Forbidden(message) => (
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                error: message,
+                expected_revision: None,
+                current_revision: None,
+            }),
+        ),
+        PortManagerError::Unsupported(message) => (
+            StatusCode::NOT_IMPLEMENTED,
+            Json(ApiError {
+                error: message,
+                expected_revision: None,
+                current_revision: None,
+            }),
+        ),
+        PortManagerError::CommandFailed(message) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError {
+                error: message,
+                expected_revision: None,
+                current_revision: None,
+            }),
+        ),
+    }
+}
+
 fn bad_request_json(message: impl Into<String>) -> (StatusCode, Json<ApiError>) {
     (
         StatusCode::BAD_REQUEST,
@@ -1402,6 +1504,21 @@ fn internal_api_err(err: impl std::fmt::Display) -> (StatusCode, Json<ApiError>)
 
 fn internal_err(err: impl std::fmt::Display) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}
+
+fn map_port_session_payload(session: PortSession) -> PortSessionPayload {
+    PortSessionPayload {
+        pid: session.pid,
+        port: session.port,
+        process_name: session.process_name,
+        command_line: session.command_line,
+        user: session.user,
+        bindings: session.bindings,
+        other_ports: session.other_ports,
+        is_topside_process: session.is_topside_process,
+        can_terminate: session.can_terminate,
+        is_likely_dev: session.is_likely_dev,
+    }
 }
 
 #[cfg(target_os = "macos")]

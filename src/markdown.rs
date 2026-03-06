@@ -180,6 +180,9 @@ fn render_frontmatter_yaml(frontmatter: &EntityFrontmatter, revision: Option<&st
             if let Some(owner) = &project.owner {
                 out.push_str(&format!("owner: {}\n", yaml_scalar(owner)));
             }
+            if let Some(icon) = &project.icon {
+                out.push_str(&format!("icon: {}\n", yaml_scalar(icon)));
+            }
             if let Some(source_kind) = &project.source_kind {
                 out.push_str(&format!("source_kind: {}\n", source_kind.as_str()));
             }
@@ -352,7 +355,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
 
     use crate::types::{
-        EntityFrontmatter, EntityType, NoteFrontmatter, TaskFrontmatter, TaskPriority, TaskStatus,
+        EntityFrontmatter, EntityType, NoteFrontmatter, ProjectFrontmatter, ProjectStatus,
+        TaskFrontmatter, TaskPriority, TaskStatus,
     };
 
     use super::{parse_entity_markdown, render_entity_markdown};
@@ -410,5 +414,46 @@ body
     fn markdown_to_html_renders_task_lists() {
         let html = super::render_markdown_html("- [x] done");
         assert!(html.contains("checkbox"));
+    }
+
+    #[test]
+    fn round_trip_project_icon() {
+        let mut fm = EntityFrontmatter::Project(ProjectFrontmatter {
+            id: "prj_1".to_string(),
+            entity_type: EntityType::Project,
+            title: "Icon Project".to_string(),
+            status: ProjectStatus::Active,
+            owner: None,
+            icon: Some("rocket".to_string()),
+            source_kind: None,
+            source_locator: None,
+            sync_source_key: None,
+            last_synced_at: None,
+            last_sync_summary: None,
+            task_sync_mode: None,
+            task_sync_file: None,
+            task_sync_enabled: false,
+            task_sync_status: None,
+            task_sync_last_seen_hash: None,
+            task_sync_last_inbound_at: None,
+            task_sync_last_outbound_at: None,
+            task_sync_conflict_summary: None,
+            task_sync_conflict_at: None,
+            tags: None,
+            created_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            updated_at: Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+            revision: String::new(),
+        });
+
+        let rendered = render_entity_markdown(&mut fm, "body").unwrap();
+        assert!(rendered.contains("icon: rocket"));
+
+        let parsed = parse_entity_markdown(&rendered).unwrap();
+        match parsed.frontmatter {
+            EntityFrontmatter::Project(ProjectFrontmatter { icon, .. }) => {
+                assert_eq!(icon.as_deref(), Some("rocket"));
+            }
+            _ => panic!("expected project"),
+        }
     }
 }

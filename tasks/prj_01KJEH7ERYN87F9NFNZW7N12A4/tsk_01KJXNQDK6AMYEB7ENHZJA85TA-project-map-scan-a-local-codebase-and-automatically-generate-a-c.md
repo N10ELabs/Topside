@@ -6,13 +6,13 @@ project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 status: todo
 priority: P0
 assignee: agent:unassigned
-sort_order: 10
+sort_order: 3
 sync_kind: managed_todo_file
 sync_path: docs/to-do.md
 sync_key: tsk_01KJXNQDEYS9G641EED6T6GWYY
 sync_managed: true
 created_at: 2026-03-05T00:17:55.814668+00:00
-updated_at: 2026-03-05T03:53:27.992967+00:00
-revision: a54a673a595f5342329fe1bb3d51c70a489ed416e556c108a8d16df121dc62eb
+updated_at: 2026-03-05T23:10:05.466535+00:00
+revision: d6cf8e0522eebe0aec4eb61d80185cb4b865f8def0788c8147f458db749526a8
 ---
 

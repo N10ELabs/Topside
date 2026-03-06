@@ -98,7 +98,7 @@ impl TaskPriority {
 
 impl Default for TaskPriority {
     fn default() -> Self {
-        Self::P2
+        Self::P0
     }
 }
 
@@ -261,6 +261,8 @@ pub struct ProjectFrontmatter {
     pub status: ProjectStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_kind: Option<ProjectSourceKind>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -480,6 +482,13 @@ impl EntityFrontmatter {
         }
     }
 
+    pub fn icon(&self) -> Option<&str> {
+        match self {
+            Self::Project(v) => v.icon.as_deref(),
+            _ => None,
+        }
+    }
+
     pub fn source_kind(&self) -> Option<ProjectSourceKind> {
         match self {
             Self::Project(v) => v.source_kind.clone(),
@@ -685,6 +694,7 @@ pub struct IndexedEntity {
     pub sync_key: Option<String>,
     pub sync_managed: bool,
     pub owner: Option<String>,
+    pub icon: Option<String>,
     pub source_kind: Option<ProjectSourceKind>,
     pub source_locator: Option<String>,
     pub sync_source_key: Option<String>,
@@ -831,6 +841,7 @@ pub struct ProjectItem {
     pub title: String,
     pub status: String,
     pub owner: Option<String>,
+    pub icon: Option<String>,
     pub source_kind: Option<ProjectSourceKind>,
     pub source_locator: Option<String>,
     pub sync_source_key: Option<String>,
@@ -883,6 +894,8 @@ pub struct CreateProjectPayload {
     pub title: String,
     #[serde(default)]
     pub owner: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
     #[serde(default)]
     pub source_kind: Option<ProjectSourceKind>,
     #[serde(default)]
@@ -969,6 +982,7 @@ pub struct ProjectPatch {
     pub title: Option<String>,
     pub status: Option<ProjectStatus>,
     pub owner: Option<Option<String>>,
+    pub icon: Option<String>,
     pub source_kind: Option<Option<ProjectSourceKind>>,
     pub source_locator: Option<Option<String>>,
     pub sync_source_key: Option<Option<String>>,

@@ -231,7 +231,7 @@ impl AppService {
                 title,
                 project_id: project_id.to_string(),
                 status: Some(TaskStatus::Todo),
-                priority: Some(TaskPriority::P2),
+                priority: Some(TaskPriority::P0),
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
                 sort_order: Some(self.next_task_sort_order(project_id)?),
@@ -301,6 +301,7 @@ impl AppService {
             title: payload.title,
             status: ProjectStatus::Active,
             owner: payload.owner,
+            icon: payload.icon,
             source_kind: payload.source_kind,
             source_locator: payload.source_locator,
             sync_source_key,
@@ -1124,6 +1125,9 @@ impl AppService {
         if let Some(value) = patch.owner {
             frontmatter.owner = value;
         }
+        if let Some(value) = patch.icon {
+            frontmatter.icon = Some(value);
+        }
         if let Some(value) = patch.source_kind {
             frontmatter.source_kind = value;
         }
@@ -1329,7 +1333,7 @@ impl AppService {
                 title: candidate.title.clone(),
                 project_id: project_id.to_string(),
                 status: Some(desired_status),
-                priority: Some(TaskPriority::P2),
+                priority: Some(TaskPriority::P0),
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
                 sort_order: None,
@@ -3449,7 +3453,7 @@ impl AppService {
                 title: desired_title,
                 project_id: project_id.to_string(),
                 status: Some(desired_status),
-                priority: Some(TaskPriority::P2),
+                priority: Some(TaskPriority::P0),
                 assignee: Some("agent:unassigned".to_string()),
                 due_at: None,
                 sort_order: Some(desired_sort_order),

@@ -467,14 +467,14 @@ impl Db {
             let mut stmt = conn.prepare(
                 r#"
                 SELECT id, title, status, owner, source_kind, source_locator, sync_source_key,
-                       last_synced_at, last_sync_summary, task_sync_mode, task_sync_file,
+                       icon, last_synced_at, last_sync_summary, task_sync_mode, task_sync_file,
                        task_sync_enabled, task_sync_status, task_sync_last_seen_hash,
                        task_sync_last_inbound_at, task_sync_last_outbound_at,
                        task_sync_conflict_summary, task_sync_conflict_at, path, updated_at,
                        revision, archived
                 FROM projects
                 WHERE (?1 = 1 OR archived = 0)
-                ORDER BY updated_at DESC
+                ORDER BY created_at DESC, id DESC
                 LIMIT ?2
                 "#,
             )?;
@@ -483,22 +483,22 @@ impl Db {
                 params![if include_archived { 1 } else { 0 }, sqlite_limit(limit)],
                 |row| {
                     let task_sync_last_inbound_at = row
-                        .get::<_, Option<String>>(14)?
-                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
-                        .map(|v| v.with_timezone(&Utc));
-                    let task_sync_last_outbound_at = row
                         .get::<_, Option<String>>(15)?
                         .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
                         .map(|v| v.with_timezone(&Utc));
-                    let task_sync_conflict_at = row
-                        .get::<_, Option<String>>(17)?
+                    let task_sync_last_outbound_at = row
+                        .get::<_, Option<String>>(16)?
                         .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
                         .map(|v| v.with_timezone(&Utc));
-                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(19)?)
+                    let task_sync_conflict_at = row
+                        .get::<_, Option<String>>(18)?
+                        .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
+                        .map(|v| v.with_timezone(&Utc));
+                    let updated_at = DateTime::parse_from_rfc3339(&row.get::<_, String>(20)?)
                         .map_err(|err| to_sql_err(anyhow::Error::new(err)))?
                         .with_timezone(&Utc);
                     let last_synced_at = row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>(8)?
                         .and_then(|v| DateTime::parse_from_rfc3339(&v).ok())
                         .map(|v| v.with_timezone(&Utc));
                     Ok(ProjectItem {
@@ -506,6 +506,7 @@ impl Db {
                         title: row.get(1)?,
                         status: row.get(2)?,
                         owner: row.get(3)?,
+                        icon: row.get(7)?,
                         source_kind: row
                             .get::<_, Option<String>>(4)?
                             .map(|value| parse_project_source_kind(&value))
@@ -514,28 +515,28 @@ impl Db {
                         source_locator: row.get(5)?,
                         sync_source_key: row.get(6)?,
                         last_synced_at,
-                        last_sync_summary: row.get(8)?,
+                        last_sync_summary: row.get(9)?,
                         task_sync_mode: row
-                            .get::<_, Option<String>>(9)?
+                            .get::<_, Option<String>>(10)?
                             .map(|value| parse_task_sync_mode(&value))
                             .transpose()
                             .map_err(to_sql_err)?,
-                        task_sync_file: row.get(10)?,
-                        task_sync_enabled: row.get::<_, i64>(11)? != 0,
+                        task_sync_file: row.get(11)?,
+                        task_sync_enabled: row.get::<_, i64>(12)? != 0,
                         task_sync_status: row
-                            .get::<_, Option<String>>(12)?
+                            .get::<_, Option<String>>(13)?
                             .map(|value| parse_task_sync_status(&value))
                             .transpose()
                             .map_err(to_sql_err)?,
-                        task_sync_last_seen_hash: row.get(13)?,
+                        task_sync_last_seen_hash: row.get(14)?,
                         task_sync_last_inbound_at,
                         task_sync_last_outbound_at,
-                        task_sync_conflict_summary: row.get(16)?,
+                        task_sync_conflict_summary: row.get(17)?,
                         task_sync_conflict_at,
-                        path: row.get(18)?,
+                        path: row.get(19)?,
                         updated_at,
-                        revision: row.get(20)?,
-                        archived: row.get::<_, i64>(21)? != 0,
+                        revision: row.get(21)?,
+                        archived: row.get::<_, i64>(22)? != 0,
                     })
                 },
             )?;
@@ -865,17 +866,18 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
             tx.execute(
                 r#"
                 INSERT INTO projects (
-                    id, status, owner, source_kind, source_locator, sync_source_key,
+                    id, status, owner, icon, source_kind, source_locator, sync_source_key,
                     last_synced_at, last_sync_summary, task_sync_mode, task_sync_file,
                     task_sync_enabled, task_sync_status, task_sync_last_seen_hash,
                     task_sync_last_inbound_at, task_sync_last_outbound_at,
                     task_sync_conflict_summary, task_sync_conflict_at, path, title,
                     created_at, updated_at, revision, archived
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
                 ON CONFLICT(id) DO UPDATE SET
                     status = excluded.status,
                     owner = excluded.owner,
+                    icon = excluded.icon,
                     source_kind = excluded.source_kind,
                     source_locator = excluded.source_locator,
                     sync_source_key = excluded.sync_source_key,
@@ -901,6 +903,7 @@ fn upsert_indexed_entity_tx(tx: &rusqlite::Transaction<'_>, entity: &IndexedEnti
                     entity.id,
                     entity.status,
                     entity.owner,
+                    entity.icon,
                     entity.source_kind.as_ref().map(ProjectSourceKind::as_str),
                     entity.source_locator,
                     entity.sync_source_key,
@@ -1146,6 +1149,7 @@ fn apply_migration(conn: &mut Connection, name: &str, sql: &str) -> Result<()> {
         "003_project_and_task_sync_metadata" => apply_project_and_task_sync_migration(conn),
         "004_managed_task_sync_projects" => apply_managed_task_sync_project_migration(conn),
         "005_note_sync_metadata" => apply_note_sync_migration(conn),
+        "006_project_icons" => apply_project_icon_migration(conn),
         _ => conn.execute_batch(sql).map_err(Into::into),
     }
 }
@@ -1278,6 +1282,13 @@ fn apply_note_sync_migration(conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
+fn apply_project_icon_migration(conn: &mut Connection) -> Result<()> {
+    if !has_column(conn, "projects", "icon")? {
+        conn.execute_batch("ALTER TABLE projects ADD COLUMN icon TEXT;")?;
+    }
+    Ok(())
+}
+
 fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool> {
     let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
     let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
@@ -1347,6 +1358,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         id TEXT PRIMARY KEY,
         status TEXT NOT NULL,
         owner TEXT,
+        icon TEXT,
         source_kind TEXT,
         source_locator TEXT,
         sync_source_key TEXT,
@@ -1442,4 +1454,5 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("003_project_and_task_sync_metadata", ""),
     ("004_managed_task_sync_projects", ""),
     ("005_note_sync_metadata", ""),
+    ("006_project_icons", ""),
 ];

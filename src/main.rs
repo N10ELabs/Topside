@@ -16,6 +16,7 @@ use topside::dev::run_dev_supervisor;
 use topside::doctor::run_doctor;
 use topside::http::{WebState, router};
 use topside::mcp::run_stdio_server_forever;
+use topside::ports::DefaultPortManager;
 use topside::service::AppService;
 
 #[cfg(target_os = "macos")]
@@ -319,6 +320,7 @@ fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
     Arc::new(WebState {
         service,
         dev_reload_token: std::env::var("TOPSIDE_DEV_RELOAD_TOKEN").ok(),
+        port_manager: Arc::new(DefaultPortManager::new(std::process::id())),
     })
 }
 

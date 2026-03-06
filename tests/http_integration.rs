@@ -1,7 +1,7 @@
 mod common;
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use axum::body::{Body, to_bytes};
@@ -10,10 +10,70 @@ use serde_json::json;
 use tower::util::ServiceExt;
 
 use topside::http::{WebState, router};
+use topside::ports::{
+    PortManager, PortManagerError, PortSession, TerminatePortResult, UnsupportedPortManager,
+};
 use topside::types::{
     Actor, CreateNotePayload, CreateProjectPayload, CreateTaskPayload, ProjectSourceKind,
     TaskFilters, TaskStatus, TaskSyncMode, TaskSyncStatus,
 };
+
+#[derive(Default)]
+struct FakePortManagerState {
+    list_result: Option<Result<Vec<PortSession>, PortManagerError>>,
+    terminate_result: Option<Result<TerminatePortResult, PortManagerError>>,
+    list_calls: usize,
+    terminate_calls: Vec<(u32, u16)>,
+}
+
+#[derive(Clone, Default)]
+struct FakePortManager {
+    state: Arc<Mutex<FakePortManagerState>>,
+}
+
+impl FakePortManager {
+    fn new(
+        list_result: Result<Vec<PortSession>, PortManagerError>,
+        terminate_result: Result<TerminatePortResult, PortManagerError>,
+    ) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(FakePortManagerState {
+                list_result: Some(list_result),
+                terminate_result: Some(terminate_result),
+                list_calls: 0,
+                terminate_calls: Vec::new(),
+            })),
+        }
+    }
+
+    fn snapshot(&self) -> (usize, Vec<(u32, u16)>) {
+        let state = self.state.lock().unwrap();
+        (state.list_calls, state.terminate_calls.clone())
+    }
+}
+
+impl PortManager for FakePortManager {
+    fn list_sessions(&self) -> Result<Vec<PortSession>, PortManagerError> {
+        let mut state = self.state.lock().unwrap();
+        state.list_calls += 1;
+        state.list_result.clone().unwrap_or_else(|| Ok(Vec::new()))
+    }
+
+    fn terminate_session(
+        &self,
+        pid: u32,
+        port: u16,
+    ) -> Result<TerminatePortResult, PortManagerError> {
+        let mut state = self.state.lock().unwrap();
+        state.terminate_calls.push((pid, port));
+        state.terminate_result.clone().unwrap_or_else(|| {
+            Ok(TerminatePortResult {
+                items: Vec::new(),
+                message: String::new(),
+            })
+        })
+    }
+}
 
 #[tokio::test]
 async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
@@ -25,6 +85,7 @@ async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: Some("http body".to_string()),
         },
@@ -34,6 +95,7 @@ async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state.clone());
 
@@ -72,6 +134,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -81,6 +144,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -111,6 +175,7 @@ async fn task_http_mutations_and_conflict_path() -> Result<()> {
     })?;
     assert_eq!(tasks.len(), 1);
     let task = &tasks[0];
+    assert_eq!(task.priority.as_str(), "P0");
 
     let update_json = format!(
         "{{\"expected_revision\":\"{}\",\"status\":\"done\"}}",
@@ -192,6 +257,7 @@ async fn note_archive_endpoint_removes_note_from_workspace() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -211,6 +277,7 @@ async fn note_archive_endpoint_removes_note_from_workspace() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -260,6 +327,7 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -269,6 +337,7 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -358,6 +427,7 @@ async fn create_local_project_bootstraps_managed_todo_file() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -422,6 +492,7 @@ async fn create_local_project_succeeds_when_bootstrap_fails() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -483,6 +554,7 @@ async fn create_and_update_note_for_local_project_writes_docs_file() -> Result<(
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -492,6 +564,7 @@ async fn create_and_update_note_for_local_project_writes_docs_file() -> Result<(
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -565,6 +638,7 @@ async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let dev_state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: Some("reload-7".to_string()),
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let dev_app = router(dev_state);
 
@@ -593,6 +667,7 @@ async fn dev_reload_token_endpoint_and_script_are_dev_only() -> Result<()> {
     let non_dev_state = Arc::new(WebState {
         service: Arc::new(service),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let non_dev_app = router(non_dev_state);
 
@@ -627,6 +702,7 @@ async fn bulk_archive_tasks_endpoint_archives_done_tasks() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -683,6 +759,7 @@ async fn bulk_archive_tasks_endpoint_archives_done_tasks() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -732,6 +809,7 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -741,6 +819,7 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -752,7 +831,7 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
                 .uri(format!("/api/projects/{}", project.id))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(format!(
-                    "{{\"expected_revision\":\"{}\",\"current_project_id\":\"{}\",\"title\":\"Renamed Project\",\"source_kind\":\"local\",\"source_locator\":\"{}\"}}",
+                    "{{\"expected_revision\":\"{}\",\"current_project_id\":\"{}\",\"title\":\"Renamed Project\",\"icon\":\"rocket\",\"source_kind\":\"local\",\"source_locator\":\"{}\"}}",
                     project.revision,
                     project.id,
                     tmp.path().display()
@@ -764,6 +843,7 @@ async fn project_http_mutations_cover_settings_actions() -> Result<()> {
     let projects = service.list_projects(10, false)?;
     assert_eq!(projects.len(), 1);
     assert_eq!(projects[0].title, "Renamed Project");
+    assert_eq!(projects[0].icon.as_deref(), Some("rocket"));
     assert_eq!(
         projects[0].source_kind.as_ref().map(|kind| kind.as_str()),
         Some("local")
@@ -854,6 +934,7 @@ async fn archive_menu_endpoints_list_restore_and_empty_archive() -> Result<()> {
             owner: None,
             source_kind: None,
             source_locator: None,
+            icon: None,
             tags: None,
             body: None,
         },
@@ -890,6 +971,7 @@ async fn archive_menu_endpoints_list_restore_and_empty_archive() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -1036,6 +1118,7 @@ async fn project_sync_endpoint_imports_repo_tasks() -> Result<()> {
             owner: None,
             source_kind: Some(ProjectSourceKind::Local),
             source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
             tags: None,
             body: None,
         },
@@ -1045,6 +1128,7 @@ async fn project_sync_endpoint_imports_repo_tasks() -> Result<()> {
     let state = Arc::new(WebState {
         service: Arc::new(service.clone()),
         dev_reload_token: None,
+        port_manager: Arc::new(UnsupportedPortManager),
     });
     let app = router(state);
 
@@ -1081,6 +1165,160 @@ async fn project_sync_endpoint_imports_repo_tasks() -> Result<()> {
             .iter()
             .any(|task| task.title == "Ship alpha" && task.status == TaskStatus::Done)
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn system_ports_endpoint_serializes_live_port_rows() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let port_manager = FakePortManager::new(
+        Ok(vec![PortSession {
+            pid: 999,
+            port: 3000,
+            process_name: "node".to_string(),
+            command_line: "/usr/local/bin/node server.js".to_string(),
+            user: "anthonymarti".to_string(),
+            bindings: vec!["127.0.0.1:3000".to_string(), "[::1]:3000".to_string()],
+            other_ports: vec![3001],
+            is_topside_process: false,
+            can_terminate: true,
+            is_likely_dev: true,
+        }]),
+        Ok(TerminatePortResult {
+            items: Vec::new(),
+            message: String::new(),
+        }),
+    );
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service),
+        dev_reload_token: None,
+        port_manager: Arc::new(port_manager.clone()),
+    });
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/system/ports")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)?;
+    assert_eq!(payload["items"][0]["pid"], json!(999));
+    assert_eq!(payload["items"][0]["port"], json!(3000));
+    assert_eq!(payload["items"][0]["process_name"], json!("node"));
+    assert_eq!(
+        payload["items"][0]["bindings"],
+        json!(["127.0.0.1:3000", "[::1]:3000"])
+    );
+    assert_eq!(payload["items"][0]["other_ports"], json!([3001]));
+    assert_eq!(payload["items"][0]["can_terminate"], json!(true));
+    assert_eq!(payload["items"][0]["is_likely_dev"], json!(true));
+
+    let (list_calls, terminate_calls) = port_manager.snapshot();
+    assert_eq!(list_calls, 1);
+    assert!(terminate_calls.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn system_port_terminate_endpoint_returns_refreshed_items_and_message() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let port_manager = FakePortManager::new(
+        Ok(Vec::new()),
+        Ok(TerminatePortResult {
+            items: vec![PortSession {
+                pid: 998,
+                port: 4000,
+                process_name: "api".to_string(),
+                command_line: "/usr/local/bin/api --watch".to_string(),
+                user: "anthonymarti".to_string(),
+                bindings: vec!["*:4000".to_string()],
+                other_ports: Vec::new(),
+                is_topside_process: false,
+                can_terminate: true,
+                is_likely_dev: false,
+            }],
+            message: "Force ended session on port 3000".to_string(),
+        }),
+    );
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service),
+        dev_reload_token: None,
+        port_manager: Arc::new(port_manager.clone()),
+    });
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/ports/terminate")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pid":999,"port":3000}"#))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)?;
+    assert_eq!(
+        payload["message"],
+        json!("Force ended session on port 3000")
+    );
+    assert_eq!(payload["items"][0]["port"], json!(4000));
+
+    let (list_calls, terminate_calls) = port_manager.snapshot();
+    assert_eq!(list_calls, 0);
+    assert_eq!(terminate_calls, vec![(999, 3000)]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn system_port_terminate_endpoint_maps_forbidden_errors() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let port_manager = FakePortManager::new(
+        Ok(Vec::new()),
+        Err(PortManagerError::Forbidden(
+            "Topside cannot terminate its own process".to_string(),
+        )),
+    );
+
+    let state = Arc::new(WebState {
+        service: Arc::new(service),
+        dev_reload_token: None,
+        port_manager: Arc::new(port_manager.clone()),
+    });
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/system/ports/terminate")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pid":10158,"port":7410}"#))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)?;
+    assert_eq!(
+        payload["error"],
+        json!("Topside cannot terminate its own process")
+    );
+
+    let (_list_calls, terminate_calls) = port_manager.snapshot();
+    assert_eq!(terminate_calls, vec![(10158, 7410)]);
 
     Ok(())
 }

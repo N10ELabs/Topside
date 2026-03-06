@@ -12,6 +12,7 @@ pub mod http;
 pub mod indexer;
 pub mod markdown;
 pub mod mcp;
+pub mod ports;
 pub mod repo_sync;
 pub mod service;
 pub mod task_sync;

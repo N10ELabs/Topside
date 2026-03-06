@@ -116,6 +116,7 @@ impl Indexer {
             sync_key: parsed.frontmatter.sync_key().map(ToString::to_string),
             sync_managed: parsed.frontmatter.sync_managed().unwrap_or(false),
             owner: parsed.frontmatter.owner().map(ToString::to_string),
+            icon: parsed.frontmatter.icon().map(ToString::to_string),
             source_kind: parsed.frontmatter.source_kind(),
             source_locator: parsed.frontmatter.source_locator().map(ToString::to_string),
             sync_source_key: parsed

@@ -27,7 +27,7 @@
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNGGS2M1T26BA12D1XAZWR"
+      "sync_key": "tsk_01KK0163P2D8FYZX04KHM1KZNX"
     },
     {
       "title": "Sample task: create a task from agent prompt and confirm row animation timing",
@@ -39,13 +39,13 @@
       "sync_key": "tsk_01KJXNGGSJ984H353J1WFZNT5V"
     },
     {
-      "title": "Scan the linked repo for TODO:, FIXME:, and HACK: comments and surface them as suggested tasks. This is high-impact because it turns hidden code debt into visible, actionable planning in one click.",
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNGGS2MWT3A9DHAYYMNCFR"
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     },
     {
       "title": "Sample task: test multiple synced tasks arriving together",
@@ -57,13 +57,27 @@
       "sync_key": "tsk_01KJVE9GRET0XZMN4JQX7E33KC"
     },
     {
+      "title": "Add port viewer/killer",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJXNQDEYHT7E8X4EPXJ843CG"
+    },
+    {
       "title": "Move archive into a settings tab. Needs more formatting",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJXZ0XEH6VD9Q9VFR33NT6MB"
+    },
+    {
+      "title": "UI Polish",
+      "kind": "Section",
+      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Sample task: confirm section collapse/expand animation runs at 150ms",
@@ -75,63 +89,76 @@
       "sync_key": "tsk_01KJXJW074FPX1Q88RKWFH6EYX"
     },
     {
-      "title": "Searchbar x is in weird spot, moves around on zoom needs better handling",
+      "title": "Allow custom icons per project",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJY0HRF3GP33HV443X719XTB"
+    },
+    {
+      "title": "Adjust changing section header heights with expand vs collapse",
       "kind": {
         "Task": {
           "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJY1HV0T4NBEBKWCD4529PA6"
+    },
+    {
+      "title": "Searchbar x is in weird spot, moves around on zoom needs better handling",
+      "kind": {
+        "Task": {
+          "completed": true
         }
       },
       "sync_key": "tsk_01KJY222MBPN805X9GDHDZHA7W"
     },
     {
-      "title": "Add port viewer/killer",
+      "title": "Do a pass on pane headers and buttons for consistent typecase",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNQDEYHT7E8X4EPXJ843CG"
+      "sync_key": "tsk_01KK07R6HSP7KAYJHAQGKJX559"
     },
     {
-      "title": "Add agent usage meter",
+      "title": "Center headers in their borders",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNQDEYRQDFRVE14AG3NFFF"
+      "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
     },
     {
-      "title": "Add focus mode/timer",
+      "title": "Resolve pane names",
+      "kind": {
+        "Task": {
+          "completed": true
+        }
+      },
+      "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
+    },
+    {
+      "title": "Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNQDEY7EC2MB6F7CEPPKPH"
+      "sync_key": "tsk_01KK07S6DXNW3FNW1QWW3K6V29"
     },
     {
-      "title": "Project baseball card",
+      "title": "Review YT Script #1",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNQDEYRKPNK29WXBGQ1GTN"
-    },
-    {
-      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
-    },
-    {
-      "title": "UI Polish",
-      "kind": "Section",
-      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
+      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
     },
     {
       "title": "Add ability to copy rich html or markdown",
@@ -143,27 +170,9 @@
       "sync_key": "tsk_01KJXK6Y72PSTDWMHE89DCSBS2"
     },
     {
-      "title": "Resolve pane names",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
-    },
-    {
       "title": "Section: Phase 6 - Visual Polish and Functionality",
       "kind": "Section",
       "sync_key": "sec_01KJXNQDFY1XXAFBNEV4RQS841"
-    },
-    {
-      "title": "Allow custom icons per project",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJY0HRF3GP33HV443X719XTB"
     },
     {
       "title": "to-do pane, collapse all expand all toggle",
@@ -173,15 +182,6 @@
         }
       },
       "sync_key": "tsk_01KJXK6Y72ETJPWGJTC4XRJYPD"
-    },
-    {
-      "title": "Adjust changing section header heights with expand vs collapse",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJY1HV0T4NBEBKWCD4529PA6"
     },
     {
       "title": "Update task placeholder text",
