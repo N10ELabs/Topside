@@ -6550,7 +6550,9 @@
 
       if (!afterTaskId) return false;
       if (isTaskSectionCollapsed(afterTaskId)) {
+        const insertionAnchor = getLastActiveTaskIdInSection(afterTaskId);
         setTaskSectionCollapsed(afterTaskId, false);
+        afterTaskId = insertionAnchor || afterTaskId;
       }
       insertDraftAfter(afterTaskId);
       render({ preserveShellScroll: true });
@@ -7421,6 +7423,36 @@
       });
 
       return sectionMap;
+    }
+
+    function getLastActiveTaskIdInSection(sectionTaskId, workspace = state.workspace) {
+      if (!workspace || !sectionTaskId) return sectionTaskId || null;
+
+      let lastTaskId = sectionTaskId;
+      let inTargetSection = false;
+
+      workspace.active_tasks.forEach((task) => {
+        const rawTitle = state.taskEdits[task.id] ?? task.title;
+        const headingLabel = getTaskHeadingLabel(rawTitle);
+
+        if (headingLabel !== null) {
+          if (task.id === sectionTaskId) {
+            inTargetSection = true;
+            lastTaskId = sectionTaskId;
+            return;
+          }
+
+          if (inTargetSection) {
+            inTargetSection = false;
+          }
+          return;
+        }
+
+        if (!inTargetSection) return;
+        lastTaskId = task.id;
+      });
+
+      return lastTaskId;
     }
 
     function buildTaskSectionCopyText(sectionTaskId) {
