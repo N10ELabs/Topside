@@ -1002,9 +1002,9 @@ fn load_project_workspace_returns_all_project_items() -> Result<()> {
 fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root = tempfile::TempDir::new()?;
-    let doc_path = repo_root.path().join("docs/ARCHITECTURE.md");
+    let doc_path = repo_root.path().join("docs/PROJECT.md");
     std::fs::create_dir_all(doc_path.parent().expect("doc parent exists"))?;
-    std::fs::write(&doc_path, "# Architecture\n\nInitial draft.\n")?;
+    std::fs::write(&doc_path, "# Project\n\nInitial draft.\n")?;
     std::fs::write(
         repo_root.path().join("docs/to-do.md"),
         "- [ ] Keep task sync separate\n",
@@ -1025,16 +1025,16 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
 
     let files = service.list_linkable_note_files(&project.id)?;
     assert_eq!(files.len(), 1);
-    assert_eq!(files[0].relative_path, "docs/ARCHITECTURE.md");
+    assert_eq!(files[0].relative_path, "docs/PROJECT.md");
 
     let linked = service.link_note_to_repo_file(
         &project.id,
-        "docs/ARCHITECTURE.md",
+        "docs/PROJECT.md",
         Actor::human("tester"),
     )?;
     let linked_again = service.link_note_to_repo_file(
         &project.id,
-        "docs/ARCHITECTURE.md",
+        "docs/PROJECT.md",
         Actor::human("tester"),
     )?;
     assert_eq!(linked.id, linked_again.id);
@@ -1048,7 +1048,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     assert_eq!(workspace.notes[0].sync_status, Some(NoteSyncStatus::Live));
     assert_eq!(
         workspace.notes[0].sync_path.as_deref(),
-        Some("docs/ARCHITECTURE.md")
+        Some("docs/PROJECT.md")
     );
     assert!(workspace.notes[0].body.contains("Initial draft."));
 
@@ -1056,7 +1056,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
         &linked.id,
         NotePatch {
             title: Some("Should stay file-owned".to_string()),
-            body: Some("# Architecture\n\nLocal revision.\n".to_string()),
+            body: Some("# Project\n\nLocal revision.\n".to_string()),
             ..Default::default()
         },
         &linked.revision,
@@ -1067,7 +1067,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
         Ok(std::fs::read_to_string(&doc_path)?.contains("Local revision."))
     })?;
 
-    std::fs::write(&doc_path, "# Architecture\n\nExternal revision.\n")?;
+    std::fs::write(&doc_path, "# Project\n\nExternal revision.\n")?;
     let note_before_import = service
         .load_project_workspace(&project.id)?
         .notes
@@ -1087,7 +1087,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     let _pending_conflict = service.update_note(
         &linked.id,
         NotePatch {
-            body: Some("# Architecture\n\nLocal conflict draft.\n".to_string()),
+            body: Some("# Project\n\nLocal conflict draft.\n".to_string()),
             ..Default::default()
         },
         &note_after_import.revision,
@@ -1095,7 +1095,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     )?;
 
     thread::sleep(Duration::from_millis(50));
-    std::fs::write(&doc_path, "# Architecture\n\nFile wins.\n")?;
+    std::fs::write(&doc_path, "# Project\n\nFile wins.\n")?;
 
     wait_for("linked note conflict detection", || {
         let note = service
@@ -1133,7 +1133,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     let _pending_local_conflict = service.update_note(
         &linked.id,
         NotePatch {
-            body: Some("# Architecture\n\nTopside wins.\n".to_string()),
+            body: Some("# Project\n\nTopside wins.\n".to_string()),
             ..Default::default()
         },
         &note_after_file_resolve.revision,
@@ -1141,7 +1141,7 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     )?;
 
     thread::sleep(Duration::from_millis(50));
-    std::fs::write(&doc_path, "# Architecture\n\nExternal stray content.\n")?;
+    std::fs::write(&doc_path, "# Project\n\nExternal stray content.\n")?;
 
     wait_for("linked note second conflict detection", || {
         let note = service
@@ -1182,13 +1182,13 @@ fn linked_note_watchers_follow_project_source_updates() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root_one = tempfile::TempDir::new()?;
     let repo_root_two = tempfile::TempDir::new()?;
-    let first_doc_path = repo_root_one.path().join("docs/ARCHITECTURE.md");
-    let second_doc_path = repo_root_two.path().join("docs/ARCHITECTURE.md");
+    let first_doc_path = repo_root_one.path().join("docs/PROJECT.md");
+    let second_doc_path = repo_root_two.path().join("docs/PROJECT.md");
 
     std::fs::create_dir_all(first_doc_path.parent().expect("first doc parent exists"))?;
     std::fs::create_dir_all(second_doc_path.parent().expect("second doc parent exists"))?;
-    std::fs::write(&first_doc_path, "# Architecture\n\nFirst source.\n")?;
-    std::fs::write(&second_doc_path, "# Architecture\n\nSecond source.\n")?;
+    std::fs::write(&first_doc_path, "# Project\n\nFirst source.\n")?;
+    std::fs::write(&second_doc_path, "# Project\n\nSecond source.\n")?;
 
     let project = service.create_project(
         CreateProjectPayload {
@@ -1205,7 +1205,7 @@ fn linked_note_watchers_follow_project_source_updates() -> Result<()> {
 
     let linked = service.link_note_to_repo_file(
         &project.id,
-        "docs/ARCHITECTURE.md",
+        "docs/PROJECT.md",
         Actor::human("tester"),
     )?;
 
@@ -1235,10 +1235,10 @@ fn linked_note_watchers_follow_project_source_updates() -> Result<()> {
 fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root = tempfile::TempDir::new()?;
-    let doc_path = repo_root.path().join("docs/ARCHITECTURE.md");
+    let doc_path = repo_root.path().join("docs/PROJECT.md");
 
     std::fs::create_dir_all(doc_path.parent().expect("doc parent exists"))?;
-    std::fs::write(&doc_path, "# Architecture\n\nStable linked doc.\n")?;
+    std::fs::write(&doc_path, "# Project\n\nStable linked doc.\n")?;
 
     let project = service.create_project(
         CreateProjectPayload {
@@ -1255,7 +1255,7 @@ fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
 
     let linked = service.link_note_to_repo_file(
         &project.id,
-        "docs/ARCHITECTURE.md",
+        "docs/PROJECT.md",
         Actor::human("tester"),
     )?;
 
@@ -1273,7 +1273,7 @@ fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
 
     let relinked = service.link_note_to_repo_file(
         &project.id,
-        "docs/ARCHITECTURE.md",
+        "docs/PROJECT.md",
         Actor::human("tester"),
     )?;
     assert_eq!(relinked.id, linked.id);

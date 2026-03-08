@@ -118,6 +118,7 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/codex-sessions/{id}", patch(api_update_codex_session))
         .route("/api/codex-sessions/{id}/resume", post(api_resume_codex_session))
         .route("/api/codex-sessions/{id}/terminate", post(api_terminate_codex_session))
+        .route("/api/codex-sessions/{id}/archive", post(api_archive_codex_session))
         .route("/api/codex-sessions/{id}/pty", get(api_codex_session_pty))
         .with_state(state)
 }
@@ -1269,6 +1270,35 @@ async fn api_terminate_codex_session(
             .map_err(internal_api_err)?,
         opened_session_id: None,
         message: Some("Codex session ended".to_string()),
+    }))
+}
+
+async fn api_archive_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .service
+        .get_codex_session(&id)
+        .map_err(internal_api_err)?
+        .ok_or_else(|| bad_request_json("codex session not found"))?;
+    state
+        .codex_manager
+        .archive_session(&id)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+    let workspace = map_workspace_payload(&state.service, &state.codex_manager, workspace)
+        .map_err(internal_api_err)?;
+    let opened_session_id = workspace.codex_sessions.first().map(|session| session.id.clone());
+    Ok(Json(CodexSessionMutationResponse {
+        workspace,
+        opened_session_id,
+        message: Some("Codex session archived".to_string()),
     }))
 }
 

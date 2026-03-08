@@ -1082,6 +1082,12 @@
       max-width: 100%;
     }
 
+    .project-row-main {
+      position: relative;
+      min-width: 0;
+      max-width: 100%;
+    }
+
     .project-card {
       display: flex;
       align-items: center;
@@ -1291,39 +1297,32 @@
       gap: 4px;
     }
 
-    .project-codex-row {
+    .project-codex-nav {
       width: 100%;
       border: 1px solid rgba(147, 184, 207, 0.12);
       border-radius: 10px;
       background: rgba(8, 15, 21, 0.3);
       color: var(--text);
-      padding: 8px 10px;
-      display: grid;
-      gap: 4px;
+      padding: 9px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
       text-align: left;
       transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
     }
 
-    .project-codex-row:hover,
-    .project-codex-row:focus-visible,
-    .project-codex-row.active {
+    .project-codex-nav:hover,
+    .project-codex-nav:focus-visible,
+    .project-codex-nav.active {
       border-color: rgba(56, 189, 248, 0.28);
       background: rgba(13, 28, 38, 0.7);
       outline: none;
       transform: translateY(-1px);
     }
 
-    .project-codex-row-head,
-    .project-codex-row-meta {
+    .project-codex-nav-label {
       min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .project-codex-row-title {
-      min-width: 0;
-      flex: 1 1 auto;
       font-size: 12px;
       font-weight: 600;
       overflow: hidden;
@@ -1331,29 +1330,21 @@
       white-space: nowrap;
     }
 
-    .project-codex-status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
+    .project-codex-nav-icon {
+      width: 14px;
+      height: 14px;
       flex: 0 0 auto;
-      background: rgba(148, 163, 184, 0.9);
-      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
-    }
-
-    .project-codex-status-dot.live {
-      background: var(--success);
-    }
-
-    .project-codex-status-dot.launching {
-      background: var(--warm);
-    }
-
-    .project-codex-row-meta {
       color: var(--muted);
-      font-size: 10px;
-      font-family: "IBM Plex Mono", monospace;
-      justify-content: space-between;
-      flex-wrap: wrap;
+    }
+
+    .project-codex-nav-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .project-codex-inline-actions {
@@ -2903,8 +2894,31 @@
       color: var(--muted);
       font-size: 10px;
       font-family: "IBM Plex Mono", monospace;
-      justify-content: space-between;
-      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    .project-codex-status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      background: rgba(148, 163, 184, 0.9);
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
+    }
+
+    .project-codex-status-dot.live {
+      background: rgba(52, 211, 153, 0.96);
+      box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18), 0 0 10px rgba(52, 211, 153, 0.28);
+    }
+
+    .project-codex-status-dot.launching {
+      background: rgba(251, 191, 36, 0.96);
+      box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18), 0 0 10px rgba(251, 191, 36, 0.2);
+    }
+
+    .project-codex-status-dot.resumable {
+      background: rgba(148, 163, 184, 0.92);
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
     }
 
     .codex-session-tab-title {
@@ -4129,7 +4143,7 @@
                   <path d="m8 6 10 6-10 6z"></path>
                 </svg>
               </button>
-              <button class="icon-btn danger-btn" id="codex-end" type="button" aria-label="End selected session" title="End selected session">
+              <button class="icon-btn danger-btn" id="codex-end" type="button" aria-label="Archive selected session" title="Archive selected session">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M6 6l12 12"></path>
                   <path d="M18 6 6 18"></path>
@@ -4278,6 +4292,7 @@
       taskMessage: "",
       noteMessage: "",
       codexMessage: "",
+      codexHeadNotice: "",
       notesSearchQuery: "",
       pendingNoteSearchJump: null,
       noteSearchNavIndex: -1,
@@ -5098,7 +5113,7 @@
     codexEndButton.addEventListener("click", () => {
       const session = getCurrentCodexSession();
       if (!session) return;
-      void terminateCodexSession(session.id);
+      void archiveCodexSession(session.id);
     });
 
     codexCloseButton.addEventListener("click", () => {
@@ -5914,12 +5929,13 @@
       return Boolean(state.projectTrayMode || state.archiveMenuOpen || state.archiveEmptyConfirm);
     }
 
-    async function selectProject(projectId) {
+    async function selectProject(projectId, options = {}) {
+      const preferredPaneMode = options.preferredPaneMode === "codex" ? "codex" : "notes";
       if (state.selectedProjectId === projectId) {
-        if (!isAlternateProjectViewOpen() && state.rightPaneMode !== "codex") return;
+        if (!isAlternateProjectViewOpen() && state.rightPaneMode === preferredPaneMode) return;
         closeArchiveMenu();
         state.projectTrayMode = null;
-        setRightPaneMode("notes");
+        setRightPaneMode(preferredPaneMode);
         render();
         return;
       }
@@ -5936,7 +5952,7 @@
       applyWorkspace(workspace);
       state.taskDrafts = [];
       state.projectTrayMode = null;
-      setRightPaneMode("notes");
+      setRightPaneMode(preferredPaneMode);
       syncLocation();
       render();
     }
@@ -7284,6 +7300,7 @@
 
     function applyWorkspace(workspace, preferredOpenNoteId = null) {
       const previousOpenNoteId = state.openNoteId;
+      const previousWorkspaceProjectId = state.workspace?.project?.id || null;
       const pendingAnimation = computeActiveTaskAnimation(state.workspace, workspace);
       if (pendingAnimation) {
         pendingAnimation.beforeTaskRowSnapshot = captureTaskRowSnapshot();
@@ -7296,6 +7313,9 @@
       }
       state.pendingActiveTaskAnimation = pendingAnimation;
       state.workspace = workspace;
+      if (!workspace || workspace.project.id !== previousWorkspaceProjectId) {
+        state.codexHeadNotice = "";
+      }
       if (!workspace) {
         disconnectCodexSocket(true);
         clearNoteSearchAutoJumpTimer();
@@ -9323,6 +9343,7 @@
       const selectedProject = state.workspace?.project || getProjectById(state.selectedProjectId);
       if (nextMode === "codex" && !projectSupportsCodex(selectedProject)) {
         state.rightPaneMode = "notes";
+        state.codexHeadNotice = "";
         state.codexMessage = isDesktopShell
           ? "Codex sessions are available only on local-linked projects."
           : "Codex sessions are available only inside the Topside desktop app.";
@@ -9331,6 +9352,7 @@
       }
       state.rightPaneMode = nextMode;
       if (nextMode !== "codex") {
+        state.codexHeadNotice = "";
         disconnectCodexSocket();
       }
     }
@@ -9865,14 +9887,6 @@
       render();
     }
 
-    async function openProjectCodexSession(projectId, sessionId) {
-      if (!projectId || !sessionId) return;
-      if (state.selectedProjectId !== projectId) {
-        await selectProject(projectId);
-      }
-      await openCodexSession(sessionId);
-    }
-
     async function createCodexSession() {
       if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
       closeArchiveMenu({ render: false });
@@ -9904,7 +9918,7 @@
       );
       if (!response) return;
       applyWorkspace(response.workspace);
-      state.codexMessage = response.message || "";
+      state.codexHeadNotice = response.message || "";
       if (!state.openCodexSessionId && state.workspace?.codex_sessions?.length) {
         state.openCodexSessionId = state.workspace.codex_sessions[0].id;
       }
@@ -9948,6 +9962,23 @@
       render();
     }
 
+    async function archiveCodexSession(sessionId) {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      if (!normalizedSessionId) return;
+      disconnectCodexSocket();
+      const response = await fetchJson(
+        `/api/codex-sessions/${encodeURIComponent(normalizedSessionId)}/archive`,
+        { method: "POST" },
+        "codex"
+      );
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      state.openCodexSessionId = response.opened_session_id || null;
+      state.codexHeadNotice = response.message || "";
+      state.codexMessage = "";
+      render();
+    }
+
     function setCodexTerminalEmptyMarkup(markup) {
       codexTerminalEmpty.innerHTML = markup || "";
       codexTerminalEmpty.hidden = !markup;
@@ -9967,42 +9998,24 @@
       if (!projectSupportsCodex(project) || !state.codexExpandedProjects[project.id]) {
         return "";
       }
-      if (state.codexLoadingProjects[project.id]) {
-        return `<div class="project-codex-children"><div class="project-codex-empty">Loading Codex sessions...</div></div>`;
-      }
-      const sessions = getProjectCodexSessions(project.id);
-      if (!sessions.length) {
-        return `
-          <div class="project-codex-children">
-            <div class="project-codex-empty">No Codex sessions attached to this project yet.</div>
-            <div class="project-codex-inline-actions">
-              <button class="text-btn" type="button" data-project-codex-new="${escapeAttribute(project.id)}">New Session</button>
-              <button class="text-btn" type="button" data-project-codex-discover="${escapeAttribute(project.id)}">Discover</button>
-            </div>
-          </div>
-        `;
-      }
+      const codexOpen = state.selectedProjectId === project.id && state.rightPaneMode === "codex";
       return `
         <div class="project-codex-children">
-          <div class="project-codex-list">
-            ${sessions.map((session) => `
-              <button
-                class="project-codex-row ${state.selectedProjectId === project.id && state.openCodexSessionId === session.id ? "active" : ""}"
-                type="button"
-                data-project-codex-open="${escapeAttribute(project.id)}"
-                data-project-codex-session="${escapeAttribute(session.id)}"
-              >
-                <span class="project-codex-row-head">
-                  <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
-                  <span class="project-codex-row-title">${escapeHtml(session.title || "Untitled session")}</span>
-                </span>
-                <span class="project-codex-row-meta">
-                  <span>${escapeHtml(codexStatusLabel(session.status))}</span>
-                  <span>${escapeHtml(session.last_seen_at_label || "")}</span>
-                </span>
-              </button>
-            `).join("")}
-          </div>
+          <button
+            class="project-codex-nav ${codexOpen ? "active" : ""}"
+            type="button"
+            data-project-codex-nav="${escapeAttribute(project.id)}"
+            aria-label="Open Codex for ${escapeAttribute(project.title)}"
+            title="Open Codex for ${escapeAttribute(project.title)}"
+          >
+            <span class="project-codex-nav-label">Open Codex</span>
+            <span class="project-codex-nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M5 12h12"></path>
+                <path d="m13 6 6 6-6 6"></path>
+              </svg>
+            </span>
+          </button>
         </div>
       `;
     }
@@ -10023,17 +10036,18 @@
         state.openCodexSessionId = sessions[0].id;
       }
       const activeSession = supportsCodex ? getCurrentCodexSession() : null;
+      const codexHeaderNotice = !state.codexMessage ? state.codexHeadNotice : "";
       codexMessage.innerHTML = state.codexMessage
         ? `<div class="message">${escapeHtml(state.codexMessage)}</div>`
         : "";
-      codexHeadCopy.textContent = "";
-      codexHeadCopy.hidden = true;
+      codexHeadCopy.textContent = codexHeaderNotice;
+      codexHeadCopy.hidden = !codexHeaderNotice;
       codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
 
       codexDiscoverButton.disabled = !supportsCodex;
       codexNewButton.disabled = !supportsCodex;
       codexResumeButton.disabled = !(activeSession && activeSession.resume_available && activeSession.status === "resumable");
-      codexEndButton.disabled = !(activeSession && (activeSession.status === "live" || activeSession.status === "launching"));
+      codexEndButton.disabled = !activeSession;
       codexTerminalHelper.hidden = true;
       codexTerminalHelper.innerHTML = "";
 
@@ -10083,7 +10097,6 @@
               <span class="codex-session-tab-title">${escapeHtml(session.title || "Untitled session")}</span>
             </span>
             <span class="codex-session-tab-meta">
-              ${renderCodexStatusPill(session.status)}
               <span>${escapeHtml(session.last_seen_at_label || "")}</span>
             </span>
           </button>
@@ -10150,9 +10163,7 @@
             ${activeSession.resume_available && activeSession.status === "resumable"
               ? `<button class="text-btn" type="button" data-codex-inline-resume="${escapeAttribute(activeSession.id)}">Resume</button>`
               : ""}
-            ${(activeSession.status === "live" || activeSession.status === "launching")
-              ? `<button class="text-btn danger-btn" type="button" data-codex-inline-end="${escapeAttribute(activeSession.id)}">End Session</button>`
-              : ""}
+            <button class="text-btn danger-btn" type="button" data-codex-inline-archive="${escapeAttribute(activeSession.id)}">Archive Session</button>
           </div>
         `;
 
@@ -10242,9 +10253,9 @@
           void openCodexSession(button.dataset.codexInlineResume, { resumeIfNeeded: true });
         });
       });
-      codexSessionEditor.querySelectorAll("[data-codex-inline-end]").forEach((button) => {
+      codexSessionEditor.querySelectorAll("[data-codex-inline-archive]").forEach((button) => {
         button.addEventListener("click", () => {
-          void terminateCodexSession(button.dataset.codexInlineEnd);
+          void archiveCodexSession(button.dataset.codexInlineArchive);
         });
       });
     }
@@ -10668,93 +10679,64 @@
 
       projectList.innerHTML = `${addProjectCard}${state.projects.map((project) => `
         <div class="project-row ${projectSupportsCodex(project) ? "has-codex" : ""} ${state.codexExpandedProjects[project.id] ? "expanded" : ""}">
-          ${projectSupportsCodex(project) ? `
+          <div class="project-row-main">
+            ${projectSupportsCodex(project) ? `
+              <button
+                class="project-codex-toggle"
+                type="button"
+                aria-label="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
+                title="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
+                aria-expanded="${state.codexExpandedProjects[project.id] ? "true" : "false"}"
+                data-project-codex-toggle="${project.id}"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6"></path>
+                </svg>
+              </button>
+            ` : ""}
             <button
-              class="project-codex-toggle"
+              class="project-card project-select ${highlightSelectedProject && project.id === state.selectedProjectId ? "active" : ""}"
               type="button"
-              aria-label="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
-              title="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
-              aria-expanded="${state.codexExpandedProjects[project.id] ? "true" : "false"}"
-              data-project-codex-toggle="${project.id}"
+              data-project-select-id="${project.id}"
+            >
+              ${renderProjectIconBadge(project.icon)}
+              <span class="project-card-main">
+                <span class="project-card-title">${escapeHtml(project.title)}</span>
+              </span>
+            </button>
+            <button
+              class="project-actions-btn"
+              type="button"
+              aria-label="Project settings"
+              title="Project settings"
+              data-project-menu-id="${project.id}"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m9 6 6 6-6 6"></path>
+                <circle cx="12" cy="5" r="1.8"></circle>
+                <circle cx="12" cy="12" r="1.8"></circle>
+                <circle cx="12" cy="19" r="1.8"></circle>
               </svg>
             </button>
-          ` : ""}
-          <button
-            class="project-card project-select ${highlightSelectedProject && project.id === state.selectedProjectId ? "active" : ""}"
-            type="button"
-            data-project-select-id="${project.id}"
-          >
-            ${renderProjectIconBadge(project.icon)}
-            <span class="project-card-main">
-              <span class="project-card-title">${escapeHtml(project.title)}</span>
-              <span class="project-card-meta">
-                ${project.source_kind === "local" ? `<span class="project-card-hint">Local</span>` : ""}
-                ${project.codex_live_count > 0 ? `<span class="project-codex-badge live">${project.codex_live_count} live</span>` : ""}
-              </span>
-            </span>
-          </button>
-          <button
-            class="project-actions-btn"
-            type="button"
-            aria-label="Project settings"
-            title="Project settings"
-            data-project-menu-id="${project.id}"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="5" r="1.8"></circle>
-              <circle cx="12" cy="12" r="1.8"></circle>
-              <circle cx="12" cy="19" r="1.8"></circle>
-            </svg>
-          </button>
+          </div>
           ${renderProjectCodexChildren(project)}
         </div>
       `).join("")}`;
 
       projectList.querySelectorAll("[data-project-codex-toggle]").forEach((button) => {
-        button.addEventListener("click", async (event) => {
+        button.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
           const projectId = button.dataset.projectCodexToggle;
           state.codexExpandedProjects[projectId] = !state.codexExpandedProjects[projectId];
           render();
-          if (state.codexExpandedProjects[projectId]) {
-            await ensureCodexProjectSessionsLoaded(projectId);
-          }
         });
       });
 
-      projectList.querySelectorAll("[data-project-codex-open]").forEach((button) => {
+      projectList.querySelectorAll("[data-project-codex-nav]").forEach((button) => {
         button.addEventListener("click", async (event) => {
           event.preventDefault();
           event.stopPropagation();
-          await openProjectCodexSession(button.dataset.projectCodexOpen, button.dataset.projectCodexSession);
-        });
-      });
-
-      projectList.querySelectorAll("[data-project-codex-new]").forEach((button) => {
-        button.addEventListener("click", async (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const projectId = button.dataset.projectCodexNew;
-          if (state.selectedProjectId !== projectId) {
-            await selectProject(projectId);
-          }
-          await createCodexSession();
-        });
-      });
-
-      projectList.querySelectorAll("[data-project-codex-discover]").forEach((button) => {
-        button.addEventListener("click", async (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const projectId = button.dataset.projectCodexDiscover;
-          if (state.selectedProjectId !== projectId) {
-            await selectProject(projectId);
-          }
-          await discoverCodexSessions();
+          await selectProject(button.dataset.projectCodexNav, { preferredPaneMode: "codex" });
         });
       });
 
@@ -12637,7 +12619,10 @@
           }
           if (channel === "task") state.taskMessage = message;
           if (channel === "note") state.noteMessage = message;
-          if (channel === "codex") state.codexMessage = message;
+          if (channel === "codex") {
+            state.codexHeadNotice = "";
+            state.codexMessage = message;
+          }
           if (channel === "port") state.portViewerMessage = message;
           if (!allowFailure) render();
           return null;
@@ -12648,7 +12633,10 @@
         }
         if (channel === "task") state.taskMessage = "";
         if (channel === "note") state.noteMessage = "";
-        if (channel === "codex") state.codexMessage = "";
+        if (channel === "codex") {
+          state.codexHeadNotice = "";
+          state.codexMessage = "";
+        }
         if (channel === "port") state.portViewerMessage = "";
         return response.status === 204 ? null : response.json();
       } catch (error) {
@@ -12659,7 +12647,10 @@
         }
         if (channel === "task") state.taskMessage = message;
         if (channel === "note") state.noteMessage = message;
-        if (channel === "codex") state.codexMessage = message;
+        if (channel === "codex") {
+          state.codexHeadNotice = "";
+          state.codexMessage = message;
+        }
         if (channel === "port") state.portViewerMessage = message;
         if (!allowFailure) render();
         return null;

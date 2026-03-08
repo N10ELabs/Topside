@@ -9,7 +9,7 @@
 - `tools/call` is accepted but returns `unknown tool name`
 - All direct tool methods return `method not found`
 
-Operational reads and writes now flow through the synced markdown source of truth instead of MCP.
+Operational reads and writes happen through the workspace, sync flows, and the desktop Codex integration rather than through MCP tool calls.
 
 ## Stable Response Contract
 

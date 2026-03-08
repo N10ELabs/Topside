@@ -28,6 +28,8 @@ const DEFAULT_PTY_ROWS: u16 = 30;
 const DEFAULT_PTY_COLS: u16 = 110;
 const CODEX_RECONCILE_TIMEOUT: Duration = Duration::from_secs(12);
 const CODEX_RECONCILE_POLL_INTERVAL: Duration = Duration::from_millis(600);
+const CODEX_ARCHIVE_TIMEOUT: Duration = Duration::from_secs(4);
+const CODEX_ARCHIVE_POLL_INTERVAL: Duration = Duration::from_millis(60);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -316,6 +318,39 @@ impl CodexSessionStore {
         self.write_record(&path, &frontmatter, &summary)
     }
 
+    pub fn archive_session(&self, session_id: &str) -> Result<()> {
+        let current = self
+            .get_session(session_id)?
+            .with_context(|| format!("codex session {session_id} not found"))?;
+        let source = PathBuf::from(&current.path);
+        let archive_dir = self
+            .config
+            .archive_dir()
+            .join("codex_sessions")
+            .join(&current.project_id);
+        fs::create_dir_all(&archive_dir)
+            .with_context(|| format!("failed creating {}", archive_dir.display()))?;
+
+        let file_name = source
+            .file_name()
+            .with_context(|| format!("session path missing file name: {}", source.display()))?
+            .to_string_lossy()
+            .to_string();
+        let mut target = archive_dir.join(&file_name);
+        while target.exists() {
+            target = archive_dir.join(format!("{}-{}", Ulid::new(), file_name));
+        }
+
+        fs::rename(&source, &target).with_context(|| {
+            format!(
+                "failed archiving codex session {} to {}",
+                source.display(),
+                target.display()
+            )
+        })?;
+        Ok(())
+    }
+
     pub fn normalize_statuses_on_boot(&self) -> Result<usize> {
         let mut updated = 0usize;
         for session in self.list_all_sessions()? {
@@ -396,7 +431,6 @@ impl CodexSessionManager {
         task_id: Option<String>,
     ) -> Result<CodexSessionRecord, ServiceError> {
         let cwd = self.service.local_project_source_root(project_id)?;
-        let prompt = self.service.build_codex_context_pack(project_id, task_id.as_deref())?;
         let title = self.service.suggest_codex_session_title(project_id, task_id.as_deref())?;
         let now = Utc::now();
         let record = self
@@ -416,7 +450,7 @@ impl CodexSessionManager {
             })
             .map_err(ServiceError::Other)?;
 
-        self.spawn_runtime(&record, Some(prompt), None, false)?;
+        self.spawn_runtime(&record, None, None, false)?;
         self.spawn_codex_session_reconciler(record.id.clone(), cwd);
         self.store
             .get_session(&record.id)
@@ -493,6 +527,31 @@ impl CodexSessionManager {
                 status: CodexSessionStatus::Resumable.as_str().to_string(),
             });
         runtime.terminate().map_err(ServiceError::Other)
+    }
+
+    pub fn archive_session(&self, session_id: &str) -> Result<(), ServiceError> {
+        self.store
+            .get_session(session_id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("codex session {session_id} not found"))
+            .map_err(ServiceError::Other)?;
+
+        if self.is_live(session_id) {
+            self.terminate_session(session_id)?;
+            let started = Instant::now();
+            while self.is_live(session_id) && started.elapsed() < CODEX_ARCHIVE_TIMEOUT {
+                std::thread::sleep(CODEX_ARCHIVE_POLL_INTERVAL);
+            }
+            if self.is_live(session_id) {
+                return Err(ServiceError::Other(anyhow::anyhow!(
+                    "timed out waiting for codex session {session_id} to exit before archiving"
+                )));
+            }
+        }
+
+        self.store
+            .archive_session(session_id)
+            .map_err(ServiceError::Other)
     }
 
     pub fn subscribe(
@@ -658,6 +717,9 @@ impl CodexSessionManager {
                     ..Default::default()
                 },
             ) {
+                if matches!(store.get_session(&session_id), Ok(None)) {
+                    return;
+                }
                 warn!(error = %error, session_id, "failed persisting codex session exit");
             }
             runtime.push_message(CodexTerminalServerMessage::Status {
@@ -1243,12 +1305,53 @@ pub fn summarize_task_for_context(
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
     use std::fs;
+    use std::sync::{Mutex, MutexGuard, OnceLock};
 
     use chrono::{TimeZone, Utc};
     use tempfile::TempDir;
 
     use super::*;
+
+    struct ScopedEnvVar {
+        key: &'static str,
+        original: Option<OsString>,
+        _guard: MutexGuard<'static, ()>,
+    }
+
+    impl ScopedEnvVar {
+        fn set(key: &'static str, value: &Path) -> Self {
+            static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+            let guard = ENV_LOCK
+                .get_or_init(|| Mutex::new(()))
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            let original = env::var_os(key);
+            unsafe {
+                env::set_var(key, value);
+            }
+            Self {
+                key,
+                original,
+                _guard: guard,
+            }
+        }
+    }
+
+    impl Drop for ScopedEnvVar {
+        fn drop(&mut self) {
+            if let Some(original) = &self.original {
+                unsafe {
+                    env::set_var(self.key, original);
+                }
+            } else {
+                unsafe {
+                    env::remove_var(self.key);
+                }
+            }
+        }
+    }
 
     #[test]
     fn codex_session_markdown_round_trip() -> Result<()> {
@@ -1297,20 +1400,8 @@ mod tests {
             ),
         )?;
 
-        let original = env::var_os("TOPSIDE_CODEX_HOME");
-        unsafe {
-            env::set_var("TOPSIDE_CODEX_HOME", &codex_home);
-        }
+        let _env = ScopedEnvVar::set("TOPSIDE_CODEX_HOME", &codex_home);
         let discovered = discover_codex_history_for_root(&project_root)?;
-        if let Some(original) = original {
-            unsafe {
-                env::set_var("TOPSIDE_CODEX_HOME", original);
-            }
-        } else {
-            unsafe {
-                env::remove_var("TOPSIDE_CODEX_HOME");
-            }
-        }
 
         assert_eq!(discovered.len(), 1);
         assert_eq!(discovered[0].thread_name, "Investigate");
@@ -1376,10 +1467,7 @@ command = "other"
 "#,
         )?;
 
-        let original = env::var_os("TOPSIDE_CODEX_HOME");
-        unsafe {
-            env::set_var("TOPSIDE_CODEX_HOME", &codex_home);
-        }
+        let _env = ScopedEnvVar::set("TOPSIDE_CODEX_HOME", &codex_home);
 
         let command = build_codex_command(
             "codex",
@@ -1388,16 +1476,6 @@ command = "other"
             None,
             None,
         );
-
-        if let Some(original) = original {
-            unsafe {
-                env::set_var("TOPSIDE_CODEX_HOME", original);
-            }
-        } else {
-            unsafe {
-                env::remove_var("TOPSIDE_CODEX_HOME");
-            }
-        }
 
         let argv = command
             .get_argv()

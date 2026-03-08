@@ -418,8 +418,8 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
     let repo_root = tempfile::TempDir::new()?;
     std::fs::create_dir_all(repo_root.path().join("docs"))?;
     std::fs::write(
-        repo_root.path().join("docs").join("ARCHITECTURE.md"),
-        "# Architecture\n\nHTTP linked doc.\n",
+        repo_root.path().join("docs").join("PROJECT.md"),
+        "# Project\n\nHTTP linked doc.\n",
     )?;
     std::fs::write(
         repo_root.path().join("docs").join("to-do.md"),
@@ -453,7 +453,7 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
     assert_eq!(list_response.status(), StatusCode::OK);
     let list_body = to_bytes(list_response.into_body(), usize::MAX).await?;
     let list_json = String::from_utf8(list_body.to_vec())?;
-    assert!(list_json.contains("ARCHITECTURE.md"));
+    assert!(list_json.contains("PROJECT.md"));
     assert!(!list_json.contains("to-do.md"));
 
     let link_response = app
@@ -464,7 +464,7 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
                 .uri(format!("/api/projects/{}/notes/link-file", project.id))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"relative_path":"docs/ARCHITECTURE.md"}"#.to_string(),
+                    r#"{"relative_path":"docs/PROJECT.md"}"#.to_string(),
                 ))?,
         )
         .await?;
@@ -474,13 +474,13 @@ async fn linked_note_endpoints_list_and_link_repo_markdown_files() -> Result<()>
     assert_eq!(workspace.notes.len(), 1);
     assert_eq!(
         workspace.notes[0].sync_path.as_deref(),
-        Some("docs/ARCHITECTURE.md")
+        Some("docs/PROJECT.md")
     );
 
     let note = workspace.notes[0].clone();
     std::fs::write(
-        repo_root.path().join("docs").join("ARCHITECTURE.md"),
-        "# Architecture\n\nResolved via HTTP.\n",
+        repo_root.path().join("docs").join("PROJECT.md"),
+        "# Project\n\nResolved via HTTP.\n",
     )?;
 
     let resolve_response = app
