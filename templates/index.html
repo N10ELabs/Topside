@@ -2857,6 +2857,7 @@
       gap: 8px;
       align-content: start;
       overflow: auto;
+      overscroll-behavior: contain;
     }
 
     .codex-main-stack {
@@ -2865,6 +2866,7 @@
       display: grid;
       gap: 0;
       grid-template-rows: minmax(0, 1fr);
+      overflow: hidden;
     }
 
     .codex-session-tab {
@@ -2976,14 +2978,14 @@
     }
 
     .codex-terminal-body {
-      position: relative;
-      min-height: 320px;
+      min-height: 0;
       background: #04090e;
+      display: grid;
     }
 
     .codex-terminal-host {
-      position: absolute;
-      inset: 0;
+      grid-area: 1 / 1;
+      box-sizing: border-box;
       min-height: 0;
       padding: 10px 12px;
       overflow: hidden;
@@ -3001,13 +3003,17 @@
     }
 
     .codex-terminal-empty {
-      position: absolute;
-      inset: 12px;
+      grid-area: 1 / 1;
+      margin: 12px;
       display: grid;
       place-items: center;
       background: rgba(8, 15, 21, 0.72);
       border: 1px dashed rgba(147, 184, 207, 0.16);
       z-index: 1;
+    }
+
+    .codex-terminal-empty[hidden] {
+      display: none !important;
     }
 
     .codex-terminal-empty-card {
@@ -3033,13 +3039,62 @@
 
     .codex-terminal-host .xterm-viewport {
       overflow-y: auto !important;
+      box-sizing: border-box;
+      padding-bottom: max(18px, env(safe-area-inset-bottom));
       background-color: #04090e !important;
       opacity: 1 !important;
+      overscroll-behavior: contain;
     }
 
     .codex-terminal-host .xterm-screen canvas {
       filter: none !important;
       opacity: 1 !important;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .pane-head {
+      min-height: 44px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .pane-body {
+      padding: 10px;
+      gap: 8px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-panel,
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-pane-shell {
+      gap: 8px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-session-tabs {
+      padding: 8px;
+      gap: 6px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-session-tab {
+      padding: 8px;
+      gap: 4px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-terminal-head {
+      padding: 8px 10px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="compact"] .codex-terminal-body {
+      min-height: 220px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="tight"] .codex-head-copy {
+      font-size: 11px;
+    }
+
+    .pane.pane-codex[data-codex-height-mode="tight"] .codex-pane-shell {
+      grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
+    }
+
+    .pane.pane-codex[data-codex-height-mode="tight"] .codex-terminal-body {
+      min-height: 200px;
     }
 
     .codex-composer {
@@ -4256,6 +4311,7 @@
       codexSocketSessionId: null,
       codexTerminal: null,
       codexFitAddon: null,
+      codexTerminalResizeObserver: null,
       codexTerminalResizeTimer: null,
       taskTimers: {},
       noteTimers: {},
@@ -4434,6 +4490,7 @@
     const codexComposeInput = document.getElementById("codex-compose-input");
     const codexComposeSend = document.getElementById("codex-compose-send");
     const codexComposeHint = document.getElementById("codex-compose-hint");
+    const codexPaneBody = codexPane?.querySelector(".pane-body") || null;
     const observedNoteBodyInputs = new WeakSet();
     const observedMarkdownOverlayInputs = new WeakSet();
     const noteBodyResizeObserver = typeof ResizeObserver !== "undefined"
@@ -4464,6 +4521,35 @@
       [activeTaskList, doneTaskList].forEach((listNode) => {
         if (listNode) taskListResizeObserver.observe(listNode);
       });
+    }
+
+    function syncCodexPaneHeightMode() {
+      if (!(codexPane instanceof HTMLElement) || !(codexPaneBody instanceof HTMLElement)) {
+        return;
+      }
+      const availableHeight = codexPaneBody.clientHeight;
+      let mode = "";
+      if (availableHeight > 0 && availableHeight < 540) {
+        mode = "tight";
+      } else if (availableHeight > 0 && availableHeight < 700) {
+        mode = "compact";
+      }
+      if (mode) {
+        codexPane.dataset.codexHeightMode = mode;
+      } else {
+        delete codexPane.dataset.codexHeightMode;
+      }
+    }
+
+    if (typeof ResizeObserver !== "undefined" && codexPane instanceof HTMLElement) {
+      const codexPaneResizeObserver = new ResizeObserver(() => {
+        syncCodexPaneHeightMode();
+        scheduleCodexTerminalResize();
+      });
+      codexPaneResizeObserver.observe(codexPane);
+      if (codexPaneShell instanceof HTMLElement) {
+        codexPaneResizeObserver.observe(codexPaneShell);
+      }
     }
     if (document.fonts?.ready) {
       document.fonts.ready.then(() => {
@@ -9317,16 +9403,7 @@
     }
 
     function normalizeCodexTerminalOutput(value) {
-      return String(value || "").replace(/\u001b\[([0-9;]*)m/g, (match, params) => {
-        if (!params) return match;
-        const filtered = params
-          .split(";")
-          .filter((part) => part !== "2");
-        if (filtered.length === params.split(";").length) {
-          return match;
-        }
-        return filtered.length ? `\u001b[${filtered.join(";")}m` : "";
-      });
+      return String(value || "");
     }
 
     function clearCodexTerminalPrompt(sessionId = null) {
@@ -9552,7 +9629,7 @@
         fontWeightBold: 700,
         cursorBlink: true,
         allowTransparency: false,
-        minimumContrastRatio: 5.5,
+        minimumContrastRatio: 4.5,
         scrollback: 5000,
         theme: {
           background: "#04090e",
@@ -9592,6 +9669,12 @@
         codexTerminalHost.addEventListener("pointerdown", () => {
           focusCodexTerminal();
         });
+      }
+      if (!state.codexTerminalResizeObserver && typeof ResizeObserver !== "undefined") {
+        state.codexTerminalResizeObserver = new ResizeObserver(() => {
+          scheduleCodexTerminalResize();
+        });
+        state.codexTerminalResizeObserver.observe(codexTerminalHost);
       }
       state.codexTerminal.onData((data) => {
         if (!state.codexSocket || state.codexSocket.readyState !== WebSocket.OPEN) return;
@@ -9927,6 +10010,7 @@
     function renderCodexPane() {
       const showCodex = state.rightPaneMode === "codex";
       codexPane.hidden = !showCodex;
+      syncCodexPaneHeightMode();
 
       if (!showCodex) {
         return;
@@ -9942,11 +10026,8 @@
       codexMessage.innerHTML = state.codexMessage
         ? `<div class="message">${escapeHtml(state.codexMessage)}</div>`
         : "";
-      codexHeadCopy.textContent = project
-        ? supportsCodex
-          ? `${project.title} • ${pathLeaf(project.source_locator || "")}`
-          : project.title
-        : "No project selected";
+      codexHeadCopy.textContent = "";
+      codexHeadCopy.hidden = true;
       codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
 
       codexDiscoverButton.disabled = !supportsCodex;
@@ -10611,7 +10692,6 @@
               <span class="project-card-title">${escapeHtml(project.title)}</span>
               <span class="project-card-meta">
                 ${project.source_kind === "local" ? `<span class="project-card-hint">Local</span>` : ""}
-                ${project.codex_session_count > 0 ? `<span class="project-codex-badge">${project.codex_session_count} session${project.codex_session_count === 1 ? "" : "s"}</span>` : ""}
                 ${project.codex_live_count > 0 ? `<span class="project-codex-badge live">${project.codex_live_count} live</span>` : ""}
               </span>
             </span>

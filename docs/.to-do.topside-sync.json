@@ -7,9 +7,9 @@
       "sync_key": "sec_01KJXNGGSE1729M1C4QQ0FVHB5"
     },
     {
-      "title": "Phase 7 - Hub as Interactive Codebase",
+      "title": "Codex Integration",
       "kind": "Section",
-      "sync_key": "sec_01KJXNQDGDJ7W1EV5WV4YRYDHE"
+      "sync_key": "sec_01KK64H8E1BSJ2PF8B4X0XGEVH"
     },
     {
       "title": "Sample task: verify new task sync animation appears in to-do pane",
@@ -21,13 +21,13 @@
       "sync_key": "tsk_01KJVE81MYK9R8V046ZG6HYC0K"
     },
     {
-      "title": "Project selection should initialize to-do.md in project workspace. Needs more work",
+      "title": "Continue to refine UI and UX",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK0163P2D8FYZX04KHM1KZNX"
+      "sync_key": "tsk_01KK64HMY5G43KS2DAPV2KTNG4"
     },
     {
       "title": "Sample task: create a task from agent prompt and confirm row animation timing",
@@ -39,13 +39,13 @@
       "sync_key": "tsk_01KJXNGGSJ984H353J1WFZNT5V"
     },
     {
-      "title": "Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking",
+      "title": "Create ability to assign task to new codex session",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK5F7BY7WMN68V2Y513C0QNX"
+      "sync_key": "tsk_01KK64KAVMJN9MZYEFSX78ETMX"
     },
     {
       "title": "Sample task: test multiple synced tasks arriving together",
@@ -75,11 +75,6 @@
       "sync_key": "tsk_01KJXZ0XEH6VD9Q9VFR33NT6MB"
     },
     {
-      "title": "UI Polish",
-      "kind": "Section",
-      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
-    },
-    {
       "title": "When a task is dragged out of Topside, ensure the task content is pasted and not the taskID",
       "kind": {
         "Task": {
@@ -87,6 +82,15 @@
         }
       },
       "sync_key": "tsk_01KK0J4J5C2M4WCH05HFCQJCV8"
+    },
+    {
+      "title": "Add ability to hotswap Notes pane for Codex pane",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK64M87RJJ43E8C8BVSSBX61"
     },
     {
       "title": "Sample task: confirm section collapse/expand animation runs at 150ms",
@@ -125,13 +129,13 @@
       "sync_key": "tsk_01KJY222MBPN805X9GDHDZHA7W"
     },
     {
-      "title": "Add collapsible sidebar button, leaves only icons exposed",
+      "title": "Remove redundant codex session info",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK5JCAB1R29ZHRZWPJ5VRRX3"
+      "sync_key": "tsk_01KK64MK1X1HS5JED4TDZ3GNM4"
     },
     {
       "title": "Do a pass on pane headers and buttons for consistent typecase",
@@ -152,22 +156,13 @@
       "sync_key": "tsk_01KK07S6DXNW3FNW1QWW3K6V29"
     },
     {
-      "title": "Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)",
+      "title": "Establish UX flow for setting up codex if not already done",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK5JDXJYBT1BHG81QN5DDNX8"
-    },
-    {
-      "title": "Review YT Script #1",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
+      "sync_key": "tsk_01KK64N2R1C6WW9Q2B29BB2RR3"
     },
     {
       "title": "Center headers in their borders",
@@ -179,6 +174,20 @@
       "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
     },
     {
+      "title": "Verify Topside is getting codex from correct file source",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK64NS6N509D0RFVGRWCDS3N"
+    },
+    {
+      "title": "Phase 7 - Hub as Interactive Codebase",
+      "kind": "Section",
+      "sync_key": "sec_01KJXNQDGDJ7W1EV5WV4YRYDHE"
+    },
+    {
       "title": "Resolve pane names",
       "kind": {
         "Task": {
@@ -188,18 +197,27 @@
       "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
     },
     {
-      "title": "Features for Later",
-      "kind": "Section",
-      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
-    },
-    {
-      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
+      "title": "Project selection should initialize to-do.md in project workspace. Needs more work",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
+      "sync_key": "tsk_01KK0163P2D8FYZX04KHM1KZNX"
+    },
+    {
+      "title": "Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK5F7BY7WMN68V2Y513C0QNX"
+    },
+    {
+      "title": "UI Polish",
+      "kind": "Section",
+      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Add ability to copy rich html or markdown",
@@ -211,9 +229,27 @@
       "sync_key": "tsk_01KJXK6Y72PSTDWMHE89DCSBS2"
     },
     {
+      "title": "Add collapsible sidebar button, leaves only icons exposed",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK5JCAB1R29ZHRZWPJ5VRRX3"
+    },
+    {
       "title": "Section: Phase 6 - Visual Polish and Functionality",
       "kind": "Section",
       "sync_key": "sec_01KJXNQDFY1XXAFBNEV4RQS841"
+    },
+    {
+      "title": "Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK5JDXJYBT1BHG81QN5DDNX8"
     },
     {
       "title": "to-do pane, collapse all expand all toggle",
@@ -225,6 +261,15 @@
       "sync_key": "tsk_01KJXK6Y72ETJPWGJTC4XRJYPD"
     },
     {
+      "title": "Review YT Script #1",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
+    },
+    {
       "title": "Update task placeholder text",
       "kind": {
         "Task": {
@@ -234,6 +279,11 @@
       "sync_key": "tsk_01KJXK6Y729WYHRKJ15F5RNM2E"
     },
     {
+      "title": "Features for Later",
+      "kind": "Section",
+      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
+    },
+    {
       "title": "Ensure copied changelog is in document view",
       "kind": {
         "Task": {
@@ -241,6 +291,15 @@
         }
       },
       "sync_key": "tsk_01KJXNQDG4W1B1X9D9R12MS2FX"
+    },
+    {
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     },
     {
       "title": "Add polished search bar in docs pane",
