@@ -9348,6 +9348,107 @@
         || getDefaultCodexSession(sessions);
     }
 
+    function setProjectCodexSessions(projectId, sessions) {
+      if (!projectId) return [];
+      const normalizedSessions = syncCodexSessionCache(projectId, sessions);
+      if (state.workspace?.project?.id === projectId) {
+        state.workspace.codex_sessions = normalizedSessions;
+      }
+      return normalizedSessions;
+    }
+
+    function getCodexArchiveFallbackSession(sessions, archivedSessionId) {
+      const currentSessions = Array.isArray(sessions) ? sessions : [];
+      const archivedIndex = currentSessions.findIndex((session) => session.id === archivedSessionId);
+      const remainingSessions = currentSessions.filter((session) => session.id !== archivedSessionId);
+      if (!remainingSessions.length) {
+        return { remainingSessions, fallbackSession: null };
+      }
+      if (archivedIndex < 0) {
+        return { remainingSessions, fallbackSession: remainingSessions[0] };
+      }
+      const fallbackIndex = Math.min(archivedIndex, remainingSessions.length - 1);
+      return { remainingSessions, fallbackSession: remainingSessions[fallbackIndex] };
+    }
+
+    function captureCodexSessionLocalState(sessionId) {
+      const hasPendingPrompt = state.codexPendingPrompt?.sessionId === sessionId;
+      return {
+        sessionId,
+        hasTerminalTail: Object.prototype.hasOwnProperty.call(state.codexTerminalTails, sessionId),
+        terminalTail: state.codexTerminalTails[sessionId],
+        hasTitleEdit: Object.prototype.hasOwnProperty.call(state.codexSessionTitleEdits, sessionId),
+        titleEdit: state.codexSessionTitleEdits[sessionId],
+        hasSummaryEdit: Object.prototype.hasOwnProperty.call(state.codexSessionSummaryEdits, sessionId),
+        summaryEdit: state.codexSessionSummaryEdits[sessionId],
+        hasPromptEdit: Object.prototype.hasOwnProperty.call(state.codexPromptEdits, sessionId),
+        promptEdit: state.codexPromptEdits[sessionId],
+        pendingPrompt: hasPendingPrompt ? { ...state.codexPendingPrompt } : null,
+      };
+    }
+
+    function clearCodexSessionLocalState(sessionId) {
+      if (!sessionId) return;
+      delete state.codexTerminalTails[sessionId];
+      delete state.codexSessionTitleEdits[sessionId];
+      delete state.codexSessionSummaryEdits[sessionId];
+      delete state.codexPromptEdits[sessionId];
+      if (state.codexPendingPrompt?.sessionId === sessionId) {
+        state.codexPendingPrompt = null;
+      }
+    }
+
+    function restoreCodexSessionLocalState(snapshot) {
+      if (!snapshot?.sessionId) return;
+      const { sessionId } = snapshot;
+      if (snapshot.hasTerminalTail) {
+        state.codexTerminalTails[sessionId] = snapshot.terminalTail;
+      } else {
+        delete state.codexTerminalTails[sessionId];
+      }
+      if (snapshot.hasTitleEdit) {
+        state.codexSessionTitleEdits[sessionId] = snapshot.titleEdit;
+      } else {
+        delete state.codexSessionTitleEdits[sessionId];
+      }
+      if (snapshot.hasSummaryEdit) {
+        state.codexSessionSummaryEdits[sessionId] = snapshot.summaryEdit;
+      } else {
+        delete state.codexSessionSummaryEdits[sessionId];
+      }
+      if (snapshot.hasPromptEdit) {
+        state.codexPromptEdits[sessionId] = snapshot.promptEdit;
+      } else {
+        delete state.codexPromptEdits[sessionId];
+      }
+      if (snapshot.pendingPrompt) {
+        state.codexPendingPrompt = snapshot.pendingPrompt;
+      } else if (state.codexPendingPrompt?.sessionId === sessionId) {
+        state.codexPendingPrompt = null;
+      }
+    }
+
+    async function refreshSelectedProjectCodexWorkspace(projectId = state.selectedProjectId) {
+      if (!projectId) return null;
+      const workspace = await fetchJson(
+        `/api/projects/${encodeURIComponent(projectId)}/workspace`,
+        {},
+        "codex",
+        true
+      );
+      if (workspace) {
+        if (state.workspace?.project?.id === projectId) {
+          applyWorkspace(workspace);
+        } else {
+          syncCodexSessionCache(
+            projectId,
+            Array.isArray(workspace.codex_sessions) ? workspace.codex_sessions : []
+          );
+        }
+      }
+      return workspace;
+    }
+
     function setRightPaneMode(mode) {
       const nextMode = mode === "codex" ? "codex" : "notes";
       const selectedProject = state.workspace?.project || getProjectById(state.selectedProjectId);
@@ -9986,24 +10087,51 @@
 
     async function archiveCodexSession(sessionId) {
       const normalizedSessionId = normalizeSessionId(sessionId);
-      if (!normalizedSessionId) return;
+      if (!normalizedSessionId || !state.selectedProjectId) return;
+      const projectId = state.selectedProjectId;
+      const currentSessions = getProjectCodexSessions(projectId);
+      const previousOpenCodexSessionId = state.openCodexSessionId;
+      const archivedSessionLocalState = captureCodexSessionLocalState(normalizedSessionId);
       const archivedWasOpen = state.openCodexSessionId === normalizedSessionId;
+      const { remainingSessions, fallbackSession } = getCodexArchiveFallbackSession(
+        currentSessions,
+        normalizedSessionId
+      );
       disconnectCodexSocket(archivedWasOpen);
+      clearCodexSessionLocalState(normalizedSessionId);
+      setProjectCodexSessions(projectId, remainingSessions);
+      if (archivedWasOpen) {
+        state.openCodexSessionId = fallbackSession?.id || null;
+      }
+      state.codexHeadNotice = "Archiving session...";
+      state.codexMessage = "";
+      render();
       const response = await fetchJson(
         `/api/codex-sessions/${encodeURIComponent(normalizedSessionId)}/archive`,
         { method: "POST" },
         "codex"
       );
-      if (!response) return;
-      delete state.codexTerminalTails[normalizedSessionId];
-      delete state.codexSessionTitleEdits[normalizedSessionId];
-      delete state.codexSessionSummaryEdits[normalizedSessionId];
-      delete state.codexPromptEdits[normalizedSessionId];
-      if (state.codexPendingPrompt?.sessionId === normalizedSessionId) {
-        state.codexPendingPrompt = null;
+      if (!response) {
+        const failureMessage = state.codexMessage || "Failed to archive Codex session.";
+        setProjectCodexSessions(projectId, currentSessions);
+        if (state.selectedProjectId === projectId) {
+          state.openCodexSessionId = previousOpenCodexSessionId;
+        }
+        restoreCodexSessionLocalState(archivedSessionLocalState);
+        const workspace = await refreshSelectedProjectCodexWorkspace(projectId);
+        if (
+          workspace
+          && !getProjectCodexSessions(projectId).some((session) => session.id === normalizedSessionId)
+        ) {
+          clearCodexSessionLocalState(normalizedSessionId);
+        }
+        state.codexHeadNotice = "";
+        state.codexMessage = failureMessage;
+        render();
+        return;
       }
       applyWorkspace(response.workspace);
-      state.openCodexSessionId = response.opened_session_id || null;
+      state.openCodexSessionId = response.opened_session_id || state.openCodexSessionId || null;
       state.codexHeadNotice = response.message || "";
       state.codexMessage = "";
       render();
@@ -10188,7 +10316,25 @@
         renderCodexComposerState(activeSession);
 
         if (activeSession.status === "live" || activeSession.status === "launching") {
-          setCodexTerminalEmptyMarkup("");
+          const hasTerminalOutput = Boolean((state.codexTerminalTails[activeSession.id] || "").trim());
+          setCodexTerminalEmptyMarkup(
+            hasTerminalOutput
+              ? ""
+              : `
+                <div class="codex-terminal-empty-card">
+                  <div class="codex-terminal-empty-title">${escapeHtml(
+                    activeSession.status === "launching"
+                      ? "Launching Codex session"
+                      : "Connecting Codex terminal"
+                  )}</div>
+                  <div class="codex-panel-copy">${escapeHtml(
+                    activeSession.status === "launching"
+                      ? "Topside is waiting for the first terminal output from this session. This can take a few seconds."
+                      : "Topside is reconnecting to this live Codex session."
+                  )}</div>
+                </div>
+              `
+          );
           window.requestAnimationFrame(() => {
             attachCodexSocket(activeSession);
             focusCodexTerminal();

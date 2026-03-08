@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -557,6 +557,7 @@ impl CodexSessionManager {
         let should_normalize_exit = runtime.is_some()
             || record.status == CodexSessionStatus::Live
             || record.status == CodexSessionStatus::Launching;
+
         if should_normalize_exit {
             let now = Utc::now();
             self.store
@@ -855,6 +856,7 @@ struct LiveCodexSession {
     master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Arc<Mutex<Box<dyn Child + Send>>>,
+    killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
     tx: broadcast::Sender<CodexTerminalServerMessage>,
     backlog: Arc<Mutex<VecDeque<String>>>,
 }
@@ -865,11 +867,13 @@ impl LiveCodexSession {
         writer: Box<dyn Write + Send>,
         child: Box<dyn Child + Send>,
     ) -> Self {
+        let killer = child.clone_killer();
         let (tx, _) = broadcast::channel(512);
         Self {
             master: Arc::new(Mutex::new(master)),
             writer: Arc::new(Mutex::new(writer)),
             child: Arc::new(Mutex::new(child)),
+            killer: Arc::new(Mutex::new(killer)),
             tx,
             backlog: Arc::new(Mutex::new(VecDeque::new())),
         }
@@ -933,7 +937,7 @@ impl LiveCodexSession {
     }
 
     fn terminate(&self) -> Result<()> {
-        self.child
+        self.killer
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
             .kill()
@@ -1430,6 +1434,7 @@ pub fn summarize_task_for_context(title: &str, status: TaskStatus, linked: bool)
 mod tests {
     use std::ffi::OsString;
     use std::fs;
+    use std::io;
     use std::sync::{Mutex, MutexGuard, OnceLock};
 
     use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
@@ -1473,6 +1478,89 @@ mod tests {
                     env::remove_var(self.key);
                 }
             }
+        }
+    }
+
+    struct TestMasterPty;
+
+    impl MasterPty for TestMasterPty {
+        fn resize(&self, _size: PtySize) -> Result<(), anyhow::Error> {
+            Ok(())
+        }
+
+        fn get_size(&self) -> Result<PtySize, anyhow::Error> {
+            Ok(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+        }
+
+        fn try_clone_reader(&self) -> Result<Box<dyn io::Read + Send>, anyhow::Error> {
+            Ok(Box::new(io::empty()))
+        }
+
+        fn take_writer(&self) -> Result<Box<dyn io::Write + Send>, anyhow::Error> {
+            Ok(Box::new(io::sink()))
+        }
+
+        #[cfg(unix)]
+        fn process_group_leader(&self) -> Option<std::os::raw::c_int> {
+            None
+        }
+
+        #[cfg(unix)]
+        fn as_raw_fd(&self) -> Option<std::os::unix::io::RawFd> {
+            None
+        }
+
+        #[cfg(unix)]
+        fn tty_name(&self) -> Option<PathBuf> {
+            None
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct TestChild {
+        kill_calls: Arc<Mutex<usize>>,
+    }
+
+    impl TestChild {
+        fn kill_count(&self) -> usize {
+            *self
+                .kill_calls
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+        }
+    }
+
+    impl portable_pty::ChildKiller for TestChild {
+        fn kill(&mut self) -> io::Result<()> {
+            let mut guard = self
+                .kill_calls
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            *guard += 1;
+            Ok(())
+        }
+
+        fn clone_killer(&self) -> Box<dyn portable_pty::ChildKiller + Send + Sync> {
+            Box::new(self.clone())
+        }
+    }
+
+    impl Child for TestChild {
+        fn try_wait(&mut self) -> io::Result<Option<portable_pty::ExitStatus>> {
+            Ok(None)
+        }
+
+        fn wait(&mut self) -> io::Result<portable_pty::ExitStatus> {
+            Ok(portable_pty::ExitStatus::with_exit_code(0))
+        }
+
+        fn process_id(&self) -> Option<u32> {
+            Some(42)
         }
     }
 
@@ -1780,6 +1868,56 @@ mod tests {
         assert_eq!(archived.status, CodexSessionStatus::Resumable);
         assert!(archived.ended_at.is_some());
         assert!(archived.last_seen_at >= now);
+        Ok(())
+    }
+
+    #[test]
+    fn archive_session_detaches_live_runtime_before_process_exit() -> Result<()> {
+        let temp = TempDir::new()?;
+        let workspace_root = temp.path().to_path_buf();
+        let config = AppConfig::default_for_workspace(workspace_root.clone());
+        let service = Arc::new(AppService::bootstrap(config.clone())?);
+        let manager = CodexSessionManager::new(service)?;
+        let now = Utc.with_ymd_and_hms(2026, 3, 8, 18, 2, 41).unwrap();
+
+        let record = manager.store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "Live Codex session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Live,
+            cwd: "/tmp/project".to_string(),
+            codex_session_id: Some("thread-live".to_string()),
+            started_at: now,
+            last_seen_at: now,
+            ended_at: None,
+            summary: build_summary_stub(Some("Live Codex session"), None, now, "Live"),
+        })?;
+
+        let child = TestChild::default();
+        let runtime = Arc::new(LiveCodexSession::new(
+            Box::new(TestMasterPty),
+            Box::new(io::sink()),
+            Box::new(child.clone()),
+        ));
+        manager
+            .runtimes
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .insert(record.id.clone(), runtime);
+
+        manager.archive_session(&record.id)?;
+
+        assert!(!manager.is_live(&record.id));
+        assert!(manager.subscribe(&record.id).is_err());
+        assert_eq!(child.kill_count(), 1);
+
+        let archived_path = config
+            .archive_dir()
+            .join("codex_sessions")
+            .join("prj_1")
+            .join(format!("{}.md", record.id));
+        assert!(archived_path.exists());
         Ok(())
     }
 

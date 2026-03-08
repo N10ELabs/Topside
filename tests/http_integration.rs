@@ -15,6 +15,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tower::util::ServiceExt;
 
 use topside::codex::CodexSessionManager;
+use topside::codex::CodexSessionRecord;
 use topside::http::{WebState, router};
 use topside::ports::{
     PortManager, PortManagerError, PortSession, TerminatePortResult, UnsupportedPortManager,
@@ -190,6 +191,53 @@ impl Drop for MockCodexEnv {
 
 fn desktop_request(builder: axum::http::request::Builder) -> axum::http::request::Builder {
     builder.header("x-topside-desktop", "true")
+}
+
+async fn wait_for_codex_session<F>(
+    service: &AppService,
+    project_id: &str,
+    session_id: &str,
+    mut predicate: F,
+) -> Result<CodexSessionRecord>
+where
+    F: FnMut(&CodexSessionRecord) -> bool,
+{
+    for _ in 0..80 {
+        let workspace = service.load_project_workspace(project_id)?;
+        if let Some(session) = workspace
+            .codex_sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .cloned()
+        {
+            if predicate(&session) {
+                return Ok(session);
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    anyhow::bail!("timed out waiting for codex session {session_id}")
+}
+
+async fn wait_for_codex_session_absent(
+    service: &AppService,
+    project_id: &str,
+    session_id: &str,
+) -> Result<()> {
+    for _ in 0..80 {
+        let workspace = service.load_project_workspace(project_id)?;
+        if !workspace
+            .codex_sessions
+            .iter()
+            .any(|session| session.id == session_id)
+        {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    anyhow::bail!("timed out waiting for codex session {session_id} to disappear")
 }
 
 #[tokio::test]
@@ -1420,6 +1468,187 @@ async fn codex_session_create_and_websocket_stream_work_with_mock_cli() -> Resul
 
     let _ = socket.close(None).await;
     server.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn codex_session_terminate_endpoint_marks_session_resumable() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Terminate Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let session_id = create_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let created = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" && session.codex_session_id.is_some()
+    })
+    .await?;
+    assert!(created.codex_session_id.is_some());
+
+    let terminate_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/terminate")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(terminate_response.status(), StatusCode::OK);
+    let terminate_body = to_bytes(terminate_response.into_body(), usize::MAX).await?;
+    let terminate_json: serde_json::Value = serde_json::from_slice(&terminate_body)?;
+    assert_eq!(terminate_json["message"], json!("Codex session ended"));
+    assert_eq!(
+        terminate_json["workspace"]["codex_sessions"]
+            .as_array()
+            .map(|sessions| sessions.len()),
+        Some(1)
+    );
+
+    let terminated = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "resumable" && session.ended_at.is_some()
+    })
+    .await?;
+    assert_eq!(terminated.id, session_id);
+    assert!(terminated.ended_at.is_some());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn codex_session_archive_endpoint_removes_session_and_selects_fallback() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Archive Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let first_create_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(first_create_response.status(), StatusCode::OK);
+    let first_create_body = to_bytes(first_create_response.into_body(), usize::MAX).await?;
+    let first_create_json: serde_json::Value = serde_json::from_slice(&first_create_body)?;
+    let first_session_id = first_create_json["opened_session_id"]
+        .as_str()
+        .expect("first opened session id")
+        .to_string();
+
+    let second_create_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(second_create_response.status(), StatusCode::OK);
+    let second_create_body = to_bytes(second_create_response.into_body(), usize::MAX).await?;
+    let second_create_json: serde_json::Value = serde_json::from_slice(&second_create_body)?;
+    let second_session_id = second_create_json["opened_session_id"]
+        .as_str()
+        .expect("second opened session id")
+        .to_string();
+
+    wait_for_codex_session(&service, &project.id, &second_session_id, |session| {
+        session.status.as_str() == "live" || session.status.as_str() == "launching"
+    })
+    .await?;
+
+    let archive_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{second_session_id}/archive")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+    let archive_body = to_bytes(archive_response.into_body(), usize::MAX).await?;
+    let archive_json: serde_json::Value = serde_json::from_slice(&archive_body)?;
+    assert_eq!(archive_json["message"], json!("Codex session archived"));
+    assert_eq!(archive_json["opened_session_id"], json!(first_session_id));
+
+    let response_sessions = archive_json["workspace"]["codex_sessions"]
+        .as_array()
+        .expect("workspace codex sessions");
+    assert_eq!(response_sessions.len(), 1);
+    assert_eq!(response_sessions[0]["id"], json!(first_session_id));
+
+    wait_for_codex_session_absent(&service, &project.id, &second_session_id).await?;
+    assert!(service.get_codex_session(&second_session_id)?.is_none());
+    assert_eq!(
+        service
+            .load_project_workspace(&project.id)?
+            .codex_sessions
+            .len(),
+        1
+    );
 
     Ok(())
 }
