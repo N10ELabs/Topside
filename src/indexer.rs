@@ -33,10 +33,11 @@ impl Indexer {
 
     pub fn full_scan(&self) -> Result<()> {
         let mut discovered = HashSet::new();
+        let agents_dir_name = self.config.dirs.agents.clone();
 
         for entry in WalkDir::new(&self.config.workspace_root)
             .into_iter()
-            .filter_entry(|entry| !is_ignored(entry.path()))
+            .filter_entry(|entry| !is_ignored(entry.path(), &agents_dir_name))
         {
             let Ok(entry) = entry else {
                 continue;
@@ -182,6 +183,7 @@ impl Indexer {
 
         let debounce = Duration::from_millis(self.config.index.debounce_ms.max(50));
         let indexer = Arc::clone(&self);
+        let agents_dir_name = self.config.dirs.agents.clone();
 
         let thread = std::thread::spawn(move || {
             while let Ok(first) = rx.recv() {
@@ -209,7 +211,7 @@ impl Indexer {
                     if !is_markdown(&path) {
                         continue;
                     }
-                    if is_ignored(&path) {
+                    if is_ignored(&path, &agents_dir_name) {
                         continue;
                     }
 
@@ -300,10 +302,10 @@ fn collect_paths(paths: &mut HashMap<PathBuf, bool>, event: notify::Result<Event
     }
 }
 
-fn is_ignored(path: &Path) -> bool {
+fn is_ignored(path: &Path, agents_dir_name: &str) -> bool {
     path.components().any(|part| {
         let p = part.as_os_str().to_string_lossy();
-        p == ".git" || p == APP_DIR || p == LEGACY_APP_DIR
+        p == ".git" || p == APP_DIR || p == LEGACY_APP_DIR || p == agents_dir_name
     })
 }
 

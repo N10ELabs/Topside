@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Topside</title>
+  <link rel="stylesheet" href="/assets/xterm.css">
   <style>
     :root {
       --app-height: 100vh;
@@ -604,6 +605,42 @@
       margin-left: 0;
     }
 
+    .pane-mode-toggle {
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .pane-mode-toggle .mode-btn {
+      width: auto;
+      min-width: 72px;
+      padding: 0 12px;
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      letter-spacing: 0.03em;
+    }
+
+    .notes-head-context,
+    .notes-head-actions,
+    .codex-head-context,
+    .codex-head-actions {
+      min-width: 0;
+    }
+
+    .codex-head-context {
+      justify-content: center;
+    }
+
+    .codex-head-copy {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--pane-control-size-compact);
+      max-width: min(100%, 44ch);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .pane-search {
       height: 36px;
       flex: 1 1 auto;
@@ -1126,6 +1163,202 @@
       white-space: nowrap;
       font-size: 14px;
       font-weight: 600;
+    }
+
+    .project-card-main {
+      min-width: 0;
+      flex: 1 1 auto;
+      display: grid;
+      gap: 3px;
+    }
+
+    .project-card-meta {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .project-card-hint,
+    .project-codex-badge,
+    .project-codex-empty {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 18px;
+      padding: 0 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+
+    .project-card-hint {
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(147, 184, 207, 0.12);
+    }
+
+    .project-codex-badge {
+      color: #d6f4ff;
+      background: rgba(14, 116, 144, 0.18);
+      border: 1px solid rgba(56, 189, 248, 0.24);
+    }
+
+    .project-codex-badge.live {
+      color: #d5ffe9;
+      background: rgba(16, 84, 52, 0.2);
+      border-color: rgba(52, 211, 153, 0.28);
+    }
+
+    .project-codex-toggle {
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      position: absolute;
+      top: 50%;
+      left: 8px;
+      transform: translateY(-50%);
+      opacity: 0.42;
+      transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, background-color 120ms ease;
+      z-index: 1;
+    }
+
+    .project-codex-toggle svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 160ms ease;
+    }
+
+    .project-row.has-codex .project-card {
+      padding-left: 34px;
+    }
+
+    .project-row.has-codex:hover .project-codex-toggle,
+    .project-row.has-codex:focus-within .project-codex-toggle,
+    .project-row.has-codex.expanded .project-codex-toggle {
+      opacity: 0.96;
+      transform: translateY(-50%) scale(1);
+    }
+
+    .project-row.has-codex.expanded .project-codex-toggle svg {
+      transform: rotate(90deg);
+    }
+
+    .project-codex-toggle:hover,
+    .project-codex-toggle:focus-visible {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
+      outline: none;
+    }
+
+    .project-codex-children {
+      margin: 6px 0 0 34px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .project-codex-list {
+      display: grid;
+      gap: 4px;
+    }
+
+    .project-codex-row {
+      width: 100%;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      border-radius: 10px;
+      background: rgba(8, 15, 21, 0.3);
+      color: var(--text);
+      padding: 8px 10px;
+      display: grid;
+      gap: 4px;
+      text-align: left;
+      transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+    }
+
+    .project-codex-row:hover,
+    .project-codex-row:focus-visible,
+    .project-codex-row.active {
+      border-color: rgba(56, 189, 248, 0.28);
+      background: rgba(13, 28, 38, 0.7);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .project-codex-row-head,
+    .project-codex-row-meta {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-codex-row-title {
+      min-width: 0;
+      flex: 1 1 auto;
+      font-size: 12px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .project-codex-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      background: rgba(148, 163, 184, 0.9);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .project-codex-status-dot.live {
+      background: var(--success);
+    }
+
+    .project-codex-status-dot.launching {
+      background: var(--warm);
+    }
+
+    .project-codex-row-meta {
+      color: var(--muted);
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .project-codex-inline-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .project-codex-inline-actions .text-btn {
+      padding: 6px 8px;
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .project-codex-empty {
+      color: var(--muted);
+      background: rgba(8, 15, 21, 0.24);
+      border: 1px dashed rgba(147, 184, 207, 0.14);
+      padding: 9px 10px;
+      justify-content: center;
     }
 
     .project-card-icon {
@@ -2570,6 +2803,245 @@
       line-height: 1.5;
     }
 
+    .notes-panel,
+    .codex-panel {
+      min-height: 0;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .codex-panel {
+      height: 100%;
+      align-content: stretch;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .codex-pane-shell {
+      min-height: 0;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: minmax(0, 220px) minmax(0, 1.3fr) minmax(280px, 0.7fr);
+    }
+
+    .codex-session-tabs,
+    .codex-terminal-shell,
+    .codex-session-editor,
+    .codex-disabled-card {
+      min-height: 0;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      border-radius: 14px;
+      background: rgba(8, 15, 21, 0.42);
+    }
+
+    .codex-session-tabs {
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      overflow: auto;
+    }
+
+    .codex-session-tab {
+      width: 100%;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      border-radius: 12px;
+      background: rgba(10, 18, 25, 0.72);
+      color: var(--text);
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+      text-align: left;
+      transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+    }
+
+    .codex-session-tab:hover,
+    .codex-session-tab:focus-visible,
+    .codex-session-tab.active {
+      border-color: rgba(56, 189, 248, 0.28);
+      background: rgba(13, 28, 38, 0.84);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .codex-session-tab-head,
+    .codex-session-tab-meta {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .codex-session-tab-meta {
+      color: var(--muted);
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .codex-session-tab-title {
+      min-width: 0;
+      flex: 1 1 auto;
+      font-size: 13px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .codex-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(147, 184, 207, 0.16);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1;
+    }
+
+    .codex-status-pill.live {
+      color: #d5ffe9;
+      border-color: rgba(52, 211, 153, 0.28);
+      background: rgba(16, 84, 52, 0.22);
+    }
+
+    .codex-status-pill.launching {
+      color: #fde68a;
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(120, 53, 15, 0.22);
+    }
+
+    .codex-status-pill.resumable {
+      color: #d6f4ff;
+      border-color: rgba(56, 189, 248, 0.22);
+      background: rgba(14, 116, 144, 0.16);
+    }
+
+    .codex-terminal-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .codex-terminal-head {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(147, 184, 207, 0.12);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .codex-terminal-session,
+    .codex-terminal-meta {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .codex-terminal-body {
+      position: relative;
+      min-height: 0;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 24%),
+        linear-gradient(180deg, rgba(4, 9, 14, 0.96), rgba(3, 7, 12, 0.98));
+    }
+
+    .codex-terminal-host {
+      position: absolute;
+      inset: 0;
+      min-height: 0;
+      padding: 10px 12px;
+      overflow: hidden;
+    }
+
+    .codex-terminal-empty {
+      position: absolute;
+      inset: 12px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: rgba(8, 15, 21, 0.72);
+      border: 1px dashed rgba(147, 184, 207, 0.16);
+      z-index: 1;
+    }
+
+    .codex-terminal-host .xterm-viewport {
+      overflow-y: auto !important;
+    }
+
+    .codex-session-editor,
+    .codex-disabled-card {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      overflow: auto;
+    }
+
+    .codex-panel-copy {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .codex-session-editor-head {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .codex-session-editor-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .codex-session-editor-meta {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+      line-height: 1.5;
+    }
+
+    .codex-editor-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .codex-editor-actions .text-btn {
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .codex-editor-summary {
+      min-height: 220px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1420px) {
+      .codex-pane-shell {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .codex-session-tabs {
+        max-height: 220px;
+      }
+    }
+
     .note-toggle-caret,
     .note-collapse {
       width: 18px;
@@ -3361,9 +3833,12 @@
       <section class="pane pane-notes">
         <div class="pane-head">
           <div class="pane-head-main">
-            <span class="pane-title">Notes</span>
+            <div class="mode-toggle pane-mode-toggle" aria-label="Right pane mode">
+              <button class="mode-btn" type="button" data-right-pane-mode="notes" aria-label="Notes" title="Notes">Notes</button>
+              <button class="mode-btn" type="button" data-right-pane-mode="codex" aria-label="Codex" title="Codex">Codex</button>
+            </div>
           </div>
-          <div class="pane-head-context">
+          <div class="pane-head-context notes-head-context">
             <label class="pane-search" for="notes-search-input">
               <span class="pane-search-field">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3401,7 +3876,10 @@
               </div>
             </label>
           </div>
-          <div class="pane-head-actions pane-head-tools">
+          <div class="pane-head-context codex-head-context hidden">
+            <span class="muted codex-head-copy" id="codex-head-copy"></span>
+          </div>
+          <div class="pane-head-actions pane-head-tools notes-head-actions">
             <span class="muted" id="note-status"></span>
             <div class="tool-cluster compact-tools">
               <div class="mode-toggle" aria-label="Notes view mode">
@@ -3433,10 +3911,57 @@
               <button class="icon-btn" id="notes-add" type="button">+</button>
             </div>
           </div>
+          <div class="pane-head-actions pane-head-tools codex-head-actions hidden">
+            <span class="muted" id="codex-status"></span>
+            <div class="tool-cluster compact-tools">
+              <button class="icon-btn" id="codex-discover" type="button" aria-label="Refresh Codex history" title="Refresh Codex history">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 12a8 8 0 1 1-2.34-5.66"></path>
+                  <path d="M20 4v6h-6"></path>
+                </svg>
+              </button>
+              <button class="icon-btn" id="codex-new" type="button" aria-label="Start Codex session" title="Start Codex session">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14"></path>
+                  <path d="M5 12h14"></path>
+                </svg>
+              </button>
+              <button class="icon-btn" id="codex-resume" type="button" aria-label="Resume selected session" title="Resume selected session">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m8 6 10 6-10 6z"></path>
+                </svg>
+              </button>
+              <button class="icon-btn danger-btn" id="codex-end" type="button" aria-label="End selected session" title="End selected session">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12"></path>
+                  <path d="M18 6 6 18"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
         <div class="pane-body">
-          <div id="note-message"></div>
-          <div id="notes-list" class="notes-list"></div>
+          <div id="notes-panel" class="notes-panel">
+            <div id="note-message"></div>
+            <div id="notes-list" class="notes-list"></div>
+          </div>
+          <div id="codex-panel" class="codex-panel" hidden>
+            <div id="codex-message"></div>
+            <div id="codex-pane-shell" class="codex-pane-shell">
+              <div id="codex-session-tabs" class="codex-session-tabs"></div>
+              <div class="codex-terminal-shell">
+                <div class="codex-terminal-head">
+                  <span id="codex-terminal-session-label" class="codex-terminal-session"></span>
+                  <span id="codex-terminal-meta" class="codex-terminal-meta"></span>
+                </div>
+                <div class="codex-terminal-body">
+                  <div id="codex-terminal-host" class="codex-terminal-host"></div>
+                  <div id="codex-terminal-empty" class="empty-state codex-terminal-empty"></div>
+                </div>
+              </div>
+              <div id="codex-session-editor" class="codex-session-editor"></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -3491,6 +4016,8 @@
     })();
   </script>
   {% endif %}
+  <script src="/assets/xterm.js"></script>
+  <script src="/assets/xterm-fit.js"></script>
   <script>
     const initialState = JSON.parse(document.getElementById("initial-state").textContent);
     const noteModeKey = "topside-note-mode";
@@ -3533,6 +4060,7 @@
       projectMessage: "",
       taskMessage: "",
       noteMessage: "",
+      codexMessage: "",
       notesSearchQuery: "",
       pendingNoteSearchJump: null,
       noteSearchNavIndex: -1,
@@ -3549,6 +4077,20 @@
       noteHtmlEdits: {},
       noteRevisionConflict: null,
       selectedTaskId: null,
+      rightPaneMode: "notes",
+      codexSessionsByProject: initialState.workspace?.project?.id
+        ? { [initialState.workspace.project.id]: initialState.workspace.codex_sessions || [] }
+        : {},
+      codexExpandedProjects: {},
+      codexLoadingProjects: {},
+      openCodexSessionId: initialState.workspace?.codex_sessions?.[0]?.id || null,
+      codexSessionTitleEdits: {},
+      codexSessionSummaryEdits: {},
+      codexSocket: null,
+      codexSocketSessionId: null,
+      codexTerminal: null,
+      codexFitAddon: null,
+      codexTerminalResizeTimer: null,
       taskTimers: {},
       noteTimers: {},
       todoStatusTimer: null,
@@ -3670,6 +4212,7 @@
     const archiveBody = document.getElementById("archive-body");
     const taskMessage = document.getElementById("task-message");
     const noteMessage = document.getElementById("note-message");
+    const codexMessage = document.getElementById("codex-message");
     const activeTaskList = document.getElementById("active-task-list");
     const doneTaskList = document.getElementById("done-task-list");
     const notesList = document.getElementById("notes-list");
@@ -3703,6 +4246,21 @@
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
     const changelogBody = document.getElementById("changelog-body");
     const notesPaneBody = document.querySelector(".pane-notes .pane-body");
+    const notesPanel = document.getElementById("notes-panel");
+    const codexPanel = document.getElementById("codex-panel");
+    const codexPaneShell = document.getElementById("codex-pane-shell");
+    const codexSessionTabs = document.getElementById("codex-session-tabs");
+    const codexSessionEditor = document.getElementById("codex-session-editor");
+    const codexStatus = document.getElementById("codex-status");
+    const codexHeadCopy = document.getElementById("codex-head-copy");
+    const codexDiscoverButton = document.getElementById("codex-discover");
+    const codexNewButton = document.getElementById("codex-new");
+    const codexResumeButton = document.getElementById("codex-resume");
+    const codexEndButton = document.getElementById("codex-end");
+    const codexTerminalHost = document.getElementById("codex-terminal-host");
+    const codexTerminalEmpty = document.getElementById("codex-terminal-empty");
+    const codexTerminalSessionLabel = document.getElementById("codex-terminal-session-label");
+    const codexTerminalMeta = document.getElementById("codex-terminal-meta");
     const observedNoteBodyInputs = new WeakSet();
     const observedMarkdownOverlayInputs = new WeakSet();
     const noteBodyResizeObserver = typeof ResizeObserver !== "undefined"
@@ -4264,6 +4822,38 @@
       });
     });
 
+    document.querySelectorAll("[data-right-pane-mode]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const nextMode = button.dataset.rightPaneMode === "codex" ? "codex" : "notes";
+        if (nextMode === state.rightPaneMode) return;
+        if (nextMode === "notes") {
+          await saveOpenNote();
+        }
+        setRightPaneMode(nextMode);
+        render();
+      });
+    });
+
+    codexDiscoverButton.addEventListener("click", () => {
+      void discoverCodexSessions();
+    });
+
+    codexNewButton.addEventListener("click", () => {
+      void createCodexSession();
+    });
+
+    codexResumeButton.addEventListener("click", () => {
+      const session = getCurrentCodexSession();
+      if (!session) return;
+      void openCodexSession(session.id, { resumeIfNeeded: true });
+    });
+
+    codexEndButton.addEventListener("click", () => {
+      const session = getCurrentCodexSession();
+      if (!session) return;
+      void terminateCodexSession(session.id);
+    });
+
     document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState === "visible") {
         scheduleUiRefresh(50);
@@ -4277,12 +4867,14 @@
     window.addEventListener("pagehide", () => {
       void flushPendingEntitySaves();
       flushPendingRemoteUiState();
+      disconnectCodexSocket();
       persistSessionStateNow();
     });
 
     window.addEventListener("beforeunload", () => {
       void flushPendingEntitySaves();
       flushPendingRemoteUiState();
+      disconnectCodexSocket();
       persistSessionStateNow();
     });
 
@@ -6210,6 +6802,8 @@
 
         const openNoteId = normalizeSessionId(parsed.openNoteId);
         const selectedTaskId = normalizeSessionId(parsed.selectedTaskId);
+        const openCodexSessionId = normalizeSessionId(parsed.openCodexSessionId);
+        const rightPaneMode = parsed.rightPaneMode === "codex" ? "codex" : "notes";
         const shellScroll = Array.isArray(parsed.shellScroll)
           ? parsed.shellScroll.map((entry) => {
             const pane = normalizeSessionId(entry?.pane);
@@ -6230,6 +6824,8 @@
           selectedProjectId,
           openNoteId,
           selectedTaskId,
+          openCodexSessionId,
+          rightPaneMode,
           shellScroll,
         };
       } catch (_error) {
@@ -6288,6 +6884,8 @@
         selectedProjectId,
         openNoteId: normalizeSessionId(openNoteId),
         selectedTaskId: normalizeSessionId(selectedTaskId),
+        openCodexSessionId: normalizeSessionId(state.openCodexSessionId),
+        rightPaneMode: state.rightPaneMode === "codex" ? "codex" : "notes",
         shellScroll: buildPersistedShellScrollSnapshot(),
       };
     }
@@ -6350,6 +6948,16 @@
       } else {
         state.selectedTaskId = null;
       }
+
+      if (
+        snapshot.openCodexSessionId
+        && state.workspace.codex_sessions?.some((session) => session.id === snapshot.openCodexSessionId)
+      ) {
+        state.openCodexSessionId = snapshot.openCodexSessionId;
+      }
+      state.rightPaneMode = snapshot.rightPaneMode === "codex" && projectSupportsCodex(state.workspace.project)
+        ? "codex"
+        : "notes";
 
       state.pendingSessionScrollState = buildRuntimeShellScrollState(snapshot.shellScroll);
     }
@@ -6416,9 +7024,11 @@
       state.pendingActiveTaskAnimation = pendingAnimation;
       state.workspace = workspace;
       if (!workspace) {
+        disconnectCodexSocket(true);
         clearNoteSearchAutoJumpTimer();
         setSelectedTaskId(null);
         state.openNoteId = null;
+        state.openCodexSessionId = null;
         state.pendingNoteSearchJump = null;
         resetNoteSearchNavigationState();
         state.taskDrafts = [];
@@ -6429,15 +7039,31 @@
         scheduleUiRefresh();
         return;
       }
+      syncProjectSummary(workspace.project);
+      const codexSessions = syncCodexSessionCache(
+        workspace.project.id,
+        Array.isArray(workspace.codex_sessions) ? workspace.codex_sessions : []
+      );
+      state.workspace.codex_sessions = codexSessions;
       if (!workspace.active_tasks.some((task) => task.id === state.selectedTaskId)) {
         setSelectedTaskId(null);
       }
       state.openNoteId = preferredOpenNoteId || state.openNoteId || workspace?.suggested_open_note_id || null;
+      if (state.openCodexSessionId && !codexSessions.some((session) => session.id === state.openCodexSessionId)) {
+        state.openCodexSessionId = codexSessions[0]?.id || null;
+      }
+      if (!state.openCodexSessionId && codexSessions.length) {
+        state.openCodexSessionId = codexSessions[0].id;
+      }
       if (state.workspace && state.openNoteId) {
         const exists = state.workspace.notes.some((note) => note.id === state.openNoteId);
         if (!exists) {
           state.openNoteId = state.workspace.suggested_open_note_id || null;
         }
+      }
+      if (!projectSupportsCodex(workspace.project) && state.rightPaneMode === "codex") {
+        state.rightPaneMode = "notes";
+        disconnectCodexSocket();
       }
       if (
         state.noteRevisionConflict
@@ -8148,6 +8774,7 @@
       renderChangelogPane();
       renderChangelogArchiveConfirm();
       renderNotes();
+      renderCodexPane();
       renderPortViewer();
       bindNoteBodyResizeTracking();
       bindMarkdownSearchOverlayTracking();
@@ -8345,10 +8972,704 @@
     window.addEventListener("resize", () => {
       applyResponsiveLayoutMode();
       scheduleTaskRowSync();
+      scheduleCodexTerminalResize();
       syncMarkdownSearchOverlayMetrics();
       syncMarkdownSearchOverlayPosition();
       refreshScrollRevealBindings();
     });
+
+    function getProjectById(projectId) {
+      return state.projects.find((project) => project.id === projectId) || null;
+    }
+
+    function projectSupportsCodex(project) {
+      return Boolean(isDesktopShell && project?.source_kind === "local");
+    }
+
+    function syncProjectSummary(projectSummary) {
+      if (!projectSummary?.id) return;
+      let found = false;
+      state.projects = state.projects.map((project) => {
+        if (project.id !== projectSummary.id) return project;
+        found = true;
+        return { ...project, ...projectSummary };
+      });
+      if (!found) {
+        state.projects.push(projectSummary);
+      }
+    }
+
+    function syncProjectCodexCounts(projectId, sessions) {
+      if (!projectId) return;
+      const totalCount = Array.isArray(sessions) ? sessions.length : 0;
+      const liveCount = Array.isArray(sessions)
+        ? sessions.filter((session) => session.status === "live").length
+        : 0;
+      state.projects = state.projects.map((project) => project.id === projectId
+        ? {
+          ...project,
+          codex_session_count: totalCount,
+          codex_live_count: liveCount
+        }
+        : project);
+      if (state.workspace?.project?.id === projectId) {
+        state.workspace.project.codex_session_count = totalCount;
+        state.workspace.project.codex_live_count = liveCount;
+      }
+    }
+
+    function syncCodexSessionCache(projectId, sessions) {
+      if (!projectId) return [];
+      const normalizedSessions = Array.isArray(sessions)
+        ? sessions.map((session) => ({ ...session }))
+        : [];
+      state.codexSessionsByProject[projectId] = normalizedSessions;
+      syncProjectCodexCounts(projectId, normalizedSessions);
+      return normalizedSessions;
+    }
+
+    function getProjectCodexSessions(projectId = state.selectedProjectId) {
+      if (!projectId) return [];
+      if (state.workspace?.project?.id === projectId) {
+        return Array.isArray(state.workspace.codex_sessions) ? state.workspace.codex_sessions : [];
+      }
+      return Array.isArray(state.codexSessionsByProject[projectId])
+        ? state.codexSessionsByProject[projectId]
+        : [];
+    }
+
+    function getCurrentCodexSession() {
+      const sessions = getProjectCodexSessions();
+      if (!sessions.length) return null;
+      return sessions.find((session) => session.id === state.openCodexSessionId) || sessions[0];
+    }
+
+    function setRightPaneMode(mode) {
+      const nextMode = mode === "codex" ? "codex" : "notes";
+      const selectedProject = state.workspace?.project || getProjectById(state.selectedProjectId);
+      if (nextMode === "codex" && !projectSupportsCodex(selectedProject)) {
+        state.rightPaneMode = "notes";
+        state.codexMessage = isDesktopShell
+          ? "Codex sessions are available only on local-linked projects."
+          : "Codex sessions are available only inside the Topside desktop app.";
+        disconnectCodexSocket();
+        return;
+      }
+      state.rightPaneMode = nextMode;
+      if (nextMode !== "codex") {
+        disconnectCodexSocket();
+      }
+    }
+
+    function codexStatusLabel(status) {
+      if (status === "live") return "Running";
+      if (status === "launching") return "Launching";
+      return "Resumable";
+    }
+
+    function renderCodexStatusPill(status) {
+      const normalized = status === "live" || status === "launching" ? status : "resumable";
+      return `<span class="codex-status-pill ${normalized}">${escapeHtml(codexStatusLabel(normalized))}</span>`;
+    }
+
+    function pathLeaf(value) {
+      const normalized = String(value || "").replace(/[\\/]+$/, "");
+      if (!normalized) return "";
+      const parts = normalized.split(/[\\/]/).filter(Boolean);
+      return parts[parts.length - 1] || normalized;
+    }
+
+    function syncCurrentWorkspaceCodexSessionState(sessionId, patch) {
+      const projectId = state.selectedProjectId;
+      if (!projectId) return;
+      const currentSessions = getProjectCodexSessions(projectId).map((session) => session.id === sessionId
+        ? { ...session, ...patch }
+        : session);
+      syncCodexSessionCache(projectId, currentSessions);
+      if (state.workspace?.project?.id === projectId) {
+        state.workspace.codex_sessions = currentSessions;
+      }
+    }
+
+    function getCodexSessionTitleValue(session) {
+      if (!session) return "";
+      return Object.prototype.hasOwnProperty.call(state.codexSessionTitleEdits, session.id)
+        ? state.codexSessionTitleEdits[session.id]
+        : session.title;
+    }
+
+    function getCodexSessionSummaryValue(session) {
+      if (!session) return "";
+      return Object.prototype.hasOwnProperty.call(state.codexSessionSummaryEdits, session.id)
+        ? state.codexSessionSummaryEdits[session.id]
+        : session.summary;
+    }
+
+    async function ensureCodexProjectSessionsLoaded(projectId, options = {}) {
+      const normalizedProjectId = normalizeSessionId(projectId);
+      if (!normalizedProjectId || !projectSupportsCodex(getProjectById(normalizedProjectId))) {
+        return getProjectCodexSessions(normalizedProjectId);
+      }
+      if (!options.force && Array.isArray(state.codexSessionsByProject[normalizedProjectId])) {
+        return state.codexSessionsByProject[normalizedProjectId];
+      }
+      if (state.codexLoadingProjects[normalizedProjectId]) {
+        return state.codexSessionsByProject[normalizedProjectId] || [];
+      }
+      state.codexLoadingProjects[normalizedProjectId] = true;
+      render();
+      const sessions = await fetchJson(
+        `/api/projects/${encodeURIComponent(normalizedProjectId)}/codex-sessions`,
+        {},
+        "codex",
+        true
+      );
+      delete state.codexLoadingProjects[normalizedProjectId];
+      if (!sessions) {
+        render();
+        return state.codexSessionsByProject[normalizedProjectId] || [];
+      }
+      const normalized = syncCodexSessionCache(normalizedProjectId, sessions);
+      render();
+      return normalized;
+    }
+
+    function buildCodexSocketUrl(sessionId) {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const query = isDesktopShell ? "?desktop=true" : "";
+      return `${protocol}://${window.location.host}/api/codex-sessions/${encodeURIComponent(sessionId)}/pty${query}`;
+    }
+
+    function ensureCodexTerminal() {
+      if (state.codexTerminal) {
+        return true;
+      }
+      if (!(codexTerminalHost instanceof HTMLElement)) {
+        return false;
+      }
+      if (typeof window.Terminal !== "function" || typeof window.FitAddon?.FitAddon !== "function") {
+        return false;
+      }
+
+      state.codexTerminal = new window.Terminal({
+        fontFamily: "\"IBM Plex Mono\", monospace",
+        fontSize: 12,
+        lineHeight: 1.3,
+        cursorBlink: true,
+        scrollback: 5000,
+        theme: {
+          background: "#04090e",
+          foreground: "#e8f0f5",
+          cursor: "#38bdf8",
+          selectionBackground: "rgba(56, 189, 248, 0.28)",
+          black: "#081118",
+          red: "#f87171",
+          green: "#34d399",
+          yellow: "#f59e0b",
+          blue: "#38bdf8",
+          magenta: "#c084fc",
+          cyan: "#67e8f9",
+          white: "#e8f0f5",
+          brightBlack: "#64748b",
+          brightRed: "#fca5a5",
+          brightGreen: "#6ee7b7",
+          brightYellow: "#fcd34d",
+          brightBlue: "#7dd3fc",
+          brightMagenta: "#d8b4fe",
+          brightCyan: "#a5f3fc",
+          brightWhite: "#f8fbff"
+        }
+      });
+      state.codexFitAddon = new window.FitAddon.FitAddon();
+      state.codexTerminal.loadAddon(state.codexFitAddon);
+      state.codexTerminal.open(codexTerminalHost);
+      state.codexTerminal.onData((data) => {
+        if (!state.codexSocket || state.codexSocket.readyState !== WebSocket.OPEN) return;
+        state.codexSocket.send(JSON.stringify({ type: "input", data }));
+      });
+      scheduleCodexTerminalResize();
+      return true;
+    }
+
+    function disconnectCodexSocket(clearTerminal = false) {
+      if (state.codexSocket) {
+        try {
+          state.codexSocket.close();
+        } catch (_error) {
+          // Ignore socket close failures.
+        }
+      }
+      state.codexSocket = null;
+      state.codexSocketSessionId = null;
+      if (state.codexTerminalResizeTimer !== null) {
+        window.clearTimeout(state.codexTerminalResizeTimer);
+        state.codexTerminalResizeTimer = null;
+      }
+      if (clearTerminal && state.codexTerminal) {
+        try {
+          state.codexTerminal.reset();
+        } catch (_error) {
+          state.codexTerminal.clear();
+        }
+      }
+    }
+
+    function scheduleCodexTerminalResize() {
+      if (state.codexTerminalResizeTimer !== null) {
+        window.clearTimeout(state.codexTerminalResizeTimer);
+      }
+      state.codexTerminalResizeTimer = window.setTimeout(() => {
+        state.codexTerminalResizeTimer = null;
+        if (!state.codexTerminal || !state.codexFitAddon || codexPanel.hidden) return;
+        try {
+          state.codexFitAddon.fit();
+        } catch (_error) {
+          return;
+        }
+        if (state.codexSocket && state.codexSocket.readyState === WebSocket.OPEN) {
+          state.codexSocket.send(JSON.stringify({
+            type: "resize",
+            cols: state.codexTerminal.cols,
+            rows: state.codexTerminal.rows
+          }));
+        }
+      }, 60);
+    }
+
+    function attachCodexSocket(session) {
+      if (!session || state.rightPaneMode !== "codex") return;
+      if (session.status !== "live" && session.status !== "launching") {
+        disconnectCodexSocket();
+        return;
+      }
+      if (!ensureCodexTerminal()) {
+        state.codexMessage = "The embedded terminal failed to initialize.";
+        renderCodexPane();
+        return;
+      }
+      if (
+        state.codexSocketSessionId === session.id
+        && state.codexSocket
+        && (state.codexSocket.readyState === WebSocket.OPEN || state.codexSocket.readyState === WebSocket.CONNECTING)
+      ) {
+        scheduleCodexTerminalResize();
+        return;
+      }
+
+      disconnectCodexSocket(true);
+      state.codexSocketSessionId = session.id;
+      const socket = new WebSocket(buildCodexSocketUrl(session.id));
+      state.codexSocket = socket;
+
+      socket.addEventListener("open", () => {
+        if (state.codexSocket !== socket) return;
+        state.codexMessage = "";
+        scheduleCodexTerminalResize();
+        renderCodexPane();
+      });
+
+      socket.addEventListener("message", (event) => {
+        let payload = null;
+        try {
+          payload = JSON.parse(event.data);
+        } catch (_error) {
+          return;
+        }
+        if (payload?.type === "output" && state.codexTerminal) {
+          state.codexTerminal.write(String(payload.data || ""));
+          return;
+        }
+        if (payload?.type === "status") {
+          syncCurrentWorkspaceCodexSessionState(session.id, { status: String(payload.status || "resumable") });
+          renderCodexPane();
+          return;
+        }
+        if (payload?.type === "error") {
+          state.codexMessage = String(payload.message || "Codex terminal error");
+          renderCodexPane();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (state.codexSocket !== socket) return;
+        state.codexSocket = null;
+        state.codexSocketSessionId = null;
+        renderCodexPane();
+      });
+
+      socket.addEventListener("error", () => {
+        if (state.codexSocket !== socket) return;
+        state.codexMessage = "The embedded Codex terminal disconnected.";
+        renderCodexPane();
+      });
+    }
+
+    async function openCodexSession(sessionId, options = {}) {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      if (!normalizedSessionId || !state.selectedProjectId) return;
+      const resumeIfNeeded = options.resumeIfNeeded !== false;
+      setRightPaneMode("codex");
+      state.openCodexSessionId = normalizedSessionId;
+
+      let session = getProjectCodexSessions().find((item) => item.id === normalizedSessionId) || null;
+      if (!session) {
+        const sessions = await ensureCodexProjectSessionsLoaded(state.selectedProjectId, { force: true });
+        session = sessions.find((item) => item.id === normalizedSessionId) || null;
+      }
+      if (!session) {
+        state.codexMessage = "Codex session not found.";
+        render();
+        return;
+      }
+
+      if (session.status === "resumable") {
+        if (!session.resume_available) {
+          state.codexMessage = "This Codex session is still waiting for a resumable Codex id.";
+          render();
+          return;
+        }
+        if (resumeIfNeeded) {
+          const response = await fetchJson(
+            `/api/codex-sessions/${encodeURIComponent(session.id)}/resume`,
+            { method: "POST" },
+            "codex"
+          );
+          if (!response) return;
+          applyWorkspace(response.workspace);
+          state.openCodexSessionId = response.opened_session_id || session.id;
+          render();
+          return;
+        }
+      }
+
+      render();
+    }
+
+    async function openProjectCodexSession(projectId, sessionId) {
+      if (!projectId || !sessionId) return;
+      if (state.selectedProjectId !== projectId) {
+        await selectProject(projectId);
+      }
+      await openCodexSession(sessionId);
+    }
+
+    async function createCodexSession() {
+      if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
+      const response = await fetchJson(
+        `/api/projects/${encodeURIComponent(state.selectedProjectId)}/codex-sessions`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            task_id: state.selectedTaskId || null
+          })
+        },
+        "codex"
+      );
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      state.openCodexSessionId = response.opened_session_id || state.openCodexSessionId;
+      setRightPaneMode("codex");
+      render();
+    }
+
+    async function discoverCodexSessions() {
+      if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
+      const response = await fetchJson(
+        `/api/projects/${encodeURIComponent(state.selectedProjectId)}/codex-sessions/discover`,
+        { method: "POST" },
+        "codex"
+      );
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      state.codexMessage = response.message || "";
+      if (!state.openCodexSessionId && state.workspace?.codex_sessions?.length) {
+        state.openCodexSessionId = state.workspace.codex_sessions[0].id;
+      }
+      render();
+    }
+
+    async function saveCodexSessionDetails(sessionId) {
+      const session = getProjectCodexSessions().find((item) => item.id === sessionId) || null;
+      if (!session) return;
+      const response = await fetchJson(
+        `/api/codex-sessions/${encodeURIComponent(session.id)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: getCodexSessionTitleValue(session),
+            summary: getCodexSessionSummaryValue(session)
+          })
+        },
+        "codex"
+      );
+      if (!response) return;
+      delete state.codexSessionTitleEdits[session.id];
+      delete state.codexSessionSummaryEdits[session.id];
+      applyWorkspace(response.workspace);
+      state.codexMessage = response.message || "";
+      render();
+    }
+
+    async function terminateCodexSession(sessionId) {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      if (!normalizedSessionId) return;
+      disconnectCodexSocket();
+      const response = await fetchJson(
+        `/api/codex-sessions/${encodeURIComponent(normalizedSessionId)}/terminate`,
+        { method: "POST" },
+        "codex"
+      );
+      if (!response) return;
+      applyWorkspace(response.workspace);
+      state.codexMessage = response.message || "";
+      render();
+    }
+
+    function renderProjectCodexChildren(project) {
+      if (!projectSupportsCodex(project) || !state.codexExpandedProjects[project.id]) {
+        return "";
+      }
+      if (state.codexLoadingProjects[project.id]) {
+        return `<div class="project-codex-children"><div class="project-codex-empty">Loading Codex sessions...</div></div>`;
+      }
+      const sessions = getProjectCodexSessions(project.id);
+      if (!sessions.length) {
+        return `
+          <div class="project-codex-children">
+            <div class="project-codex-empty">No Codex sessions attached to this project yet.</div>
+            <div class="project-codex-inline-actions">
+              <button class="text-btn" type="button" data-project-codex-new="${escapeAttribute(project.id)}">New Session</button>
+              <button class="text-btn" type="button" data-project-codex-discover="${escapeAttribute(project.id)}">Discover</button>
+            </div>
+          </div>
+        `;
+      }
+      return `
+        <div class="project-codex-children">
+          <div class="project-codex-list">
+            ${sessions.map((session) => `
+              <button
+                class="project-codex-row ${state.selectedProjectId === project.id && state.openCodexSessionId === session.id ? "active" : ""}"
+                type="button"
+                data-project-codex-open="${escapeAttribute(project.id)}"
+                data-project-codex-session="${escapeAttribute(session.id)}"
+              >
+                <span class="project-codex-row-head">
+                  <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
+                  <span class="project-codex-row-title">${escapeHtml(session.title || "Untitled session")}</span>
+                </span>
+                <span class="project-codex-row-meta">
+                  <span>${escapeHtml(codexStatusLabel(session.status))}</span>
+                  <span>${escapeHtml(session.last_seen_at_label || "")}</span>
+                </span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCodexPane() {
+      const notesHeadContext = document.querySelector(".notes-head-context");
+      const notesHeadActions = document.querySelector(".notes-head-actions");
+      const codexHeadContextNode = document.querySelector(".codex-head-context");
+      const codexHeadActionsNode = document.querySelector(".codex-head-actions");
+      const showCodex = state.rightPaneMode === "codex";
+      notesPanel.hidden = showCodex;
+      codexPanel.hidden = !showCodex;
+      notesHeadContext?.classList.toggle("hidden", showCodex);
+      notesHeadActions?.classList.toggle("hidden", showCodex);
+      codexHeadContextNode?.classList.toggle("hidden", !showCodex);
+      codexHeadActionsNode?.classList.toggle("hidden", !showCodex);
+
+      if (!showCodex) {
+        return;
+      }
+
+      const project = state.workspace?.project || null;
+      const supportsCodex = projectSupportsCodex(project);
+      const sessions = supportsCodex ? getProjectCodexSessions() : [];
+      if (sessions.length && !sessions.some((session) => session.id === state.openCodexSessionId)) {
+        state.openCodexSessionId = sessions[0].id;
+      }
+      const activeSession = supportsCodex ? getCurrentCodexSession() : null;
+
+      codexMessage.innerHTML = state.codexMessage
+        ? `<div class="message">${escapeHtml(state.codexMessage)}</div>`
+        : "";
+      codexHeadCopy.textContent = project
+        ? supportsCodex
+          ? `${project.title} • ${pathLeaf(project.source_locator || "")}`
+          : project.title
+        : "No project selected";
+      codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
+
+      codexDiscoverButton.disabled = !supportsCodex;
+      codexNewButton.disabled = !supportsCodex;
+      codexResumeButton.disabled = !(activeSession && activeSession.resume_available && activeSession.status === "resumable");
+      codexEndButton.disabled = !(activeSession && (activeSession.status === "live" || activeSession.status === "launching"));
+
+      if (!supportsCodex) {
+        codexSessionTabs.innerHTML = `
+          <div class="codex-disabled-card">
+            <div class="codex-session-editor-title">Codex is disabled here</div>
+            <div class="codex-panel-copy">${escapeHtml(
+              isDesktopShell
+                ? "Link a local folder to this project to launch and resume Codex sessions inside Topside."
+                : "Codex sessions are available only inside the native Topside desktop app."
+            )}</div>
+          </div>
+        `;
+        codexSessionEditor.innerHTML = `
+          <div class="codex-disabled-card">
+            <div class="codex-session-editor-title">Session details</div>
+            <div class="codex-panel-copy">Choose a local-linked project in the desktop app to manage Codex sessions.</div>
+          </div>
+        `;
+        codexTerminalSessionLabel.textContent = "";
+        codexTerminalMeta.textContent = "";
+        codexTerminalEmpty.hidden = false;
+        codexTerminalEmpty.textContent = isDesktopShell
+          ? "Codex sessions need a local project source."
+          : "Codex sessions are available only in the desktop app.";
+        disconnectCodexSocket(true);
+        return;
+      }
+
+      codexSessionTabs.innerHTML = sessions.length
+        ? sessions.map((session) => `
+          <button
+            class="codex-session-tab ${activeSession?.id === session.id ? "active" : ""}"
+            type="button"
+            data-codex-tab-id="${escapeAttribute(session.id)}"
+          >
+            <span class="codex-session-tab-head">
+              <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
+              <span class="codex-session-tab-title">${escapeHtml(session.title || "Untitled session")}</span>
+            </span>
+            <span class="codex-session-tab-meta">
+              ${renderCodexStatusPill(session.status)}
+              <span>${escapeHtml(session.last_seen_at_label || "")}</span>
+            </span>
+          </button>
+        `).join("")
+        : `
+          <div class="codex-disabled-card">
+            <div class="codex-session-editor-title">No Codex sessions yet</div>
+            <div class="codex-panel-copy">Start a new session or discover existing Codex history for this project.</div>
+            <div class="codex-editor-actions">
+              <button class="text-btn" type="button" data-codex-inline-new>New Session</button>
+              <button class="text-btn" type="button" data-codex-inline-discover>Discover History</button>
+            </div>
+          </div>
+        `;
+
+      if (!activeSession) {
+        codexSessionEditor.innerHTML = `
+          <div class="codex-disabled-card">
+            <div class="codex-session-editor-title">Session details</div>
+            <div class="codex-panel-copy">Select a Codex session from the left or start a new one for ${escapeHtml(project.title)}.</div>
+          </div>
+        `;
+        codexTerminalSessionLabel.textContent = project.title;
+        codexTerminalMeta.textContent = pathLeaf(project.source_locator || "");
+        codexTerminalEmpty.hidden = false;
+        codexTerminalEmpty.textContent = "Start a session or choose a discovered session to open the embedded terminal.";
+        disconnectCodexSocket(true);
+      } else {
+        codexSessionEditor.innerHTML = `
+          <div class="codex-session-editor-head">
+            <span class="codex-session-editor-title">Session details</span>
+            ${renderCodexStatusPill(activeSession.status)}
+          </div>
+          <input
+            class="text-input"
+            type="text"
+            value="${escapeAttribute(getCodexSessionTitleValue(activeSession))}"
+            placeholder="Session title"
+            data-codex-title-input="${escapeAttribute(activeSession.id)}"
+          >
+          <div class="codex-session-editor-meta">
+            <div>Thread: ${escapeHtml(activeSession.codex_session_id || "Pending Codex session id")}</div>
+            <div>Task: ${escapeHtml(activeSession.task_id || "Project-linked")}</div>
+            <div>Started: ${escapeHtml(activeSession.started_at_label || "")}</div>
+            <div>Last seen: ${escapeHtml(activeSession.last_seen_at_label || "")}</div>
+            <div>CWD: ${escapeHtml(activeSession.cwd || "")}</div>
+          </div>
+          <textarea
+            class="markdown-input codex-editor-summary"
+            data-codex-summary-input="${escapeAttribute(activeSession.id)}"
+            placeholder="Editable session summary"
+          >${escapeHtml(getCodexSessionSummaryValue(activeSession))}</textarea>
+          <div class="codex-editor-actions">
+            <button class="text-btn" type="button" data-codex-save="${escapeAttribute(activeSession.id)}">Save</button>
+            ${activeSession.resume_available && activeSession.status === "resumable"
+              ? `<button class="text-btn" type="button" data-codex-inline-resume="${escapeAttribute(activeSession.id)}">Resume</button>`
+              : ""}
+            ${(activeSession.status === "live" || activeSession.status === "launching")
+              ? `<button class="text-btn danger-btn" type="button" data-codex-inline-end="${escapeAttribute(activeSession.id)}">End Session</button>`
+              : ""}
+          </div>
+        `;
+
+        codexTerminalSessionLabel.textContent = activeSession.title || "Codex session";
+        codexTerminalMeta.textContent = `${codexStatusLabel(activeSession.status)} • ${pathLeaf(activeSession.cwd || project.source_locator || "")}`;
+
+        if (activeSession.status === "live" || activeSession.status === "launching") {
+          codexTerminalEmpty.hidden = true;
+          window.requestAnimationFrame(() => {
+            attachCodexSocket(activeSession);
+          });
+        } else {
+          codexTerminalEmpty.hidden = false;
+          codexTerminalEmpty.textContent = activeSession.resume_available
+            ? "This session is resumable. Resume it to reopen the embedded Codex terminal."
+            : "This session is still waiting for a resumable Codex id.";
+          disconnectCodexSocket();
+        }
+      }
+
+      codexSessionTabs.querySelectorAll("[data-codex-tab-id]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          await openCodexSession(button.dataset.codexTabId, { resumeIfNeeded: true });
+        });
+      });
+      codexSessionTabs.querySelectorAll("[data-codex-inline-new]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void createCodexSession();
+        });
+      });
+      codexSessionTabs.querySelectorAll("[data-codex-inline-discover]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void discoverCodexSessions();
+        });
+      });
+      codexSessionEditor.querySelectorAll("[data-codex-title-input]").forEach((input) => {
+        input.addEventListener("input", () => {
+          state.codexSessionTitleEdits[input.dataset.codexTitleInput] = input.value || "";
+        });
+      });
+      codexSessionEditor.querySelectorAll("[data-codex-summary-input]").forEach((input) => {
+        input.addEventListener("input", () => {
+          state.codexSessionSummaryEdits[input.dataset.codexSummaryInput] = input.value || "";
+        });
+      });
+      codexSessionEditor.querySelectorAll("[data-codex-save]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void saveCodexSessionDetails(button.dataset.codexSave);
+        });
+      });
+      codexSessionEditor.querySelectorAll("[data-codex-inline-resume]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void openCodexSession(button.dataset.codexInlineResume, { resumeIfNeeded: true });
+        });
+      });
+      codexSessionEditor.querySelectorAll("[data-codex-inline-end]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void terminateCodexSession(button.dataset.codexInlineEnd);
+        });
+      });
+    }
 
     function renderProjectTray() {
       if (!state.projectTrayMode || state.projectTrayMode === "chooser") {
@@ -8768,14 +10089,35 @@
       }
 
       projectList.innerHTML = `${addProjectCard}${state.projects.map((project) => `
-        <div class="project-row">
+        <div class="project-row ${projectSupportsCodex(project) ? "has-codex" : ""} ${state.codexExpandedProjects[project.id] ? "expanded" : ""}">
+          ${projectSupportsCodex(project) ? `
+            <button
+              class="project-codex-toggle"
+              type="button"
+              aria-label="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
+              title="${state.codexExpandedProjects[project.id] ? "Collapse" : "Expand"} Codex sessions"
+              aria-expanded="${state.codexExpandedProjects[project.id] ? "true" : "false"}"
+              data-project-codex-toggle="${project.id}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+            </button>
+          ` : ""}
           <button
             class="project-card project-select ${highlightSelectedProject && project.id === state.selectedProjectId ? "active" : ""}"
             type="button"
             data-project-select-id="${project.id}"
           >
             ${renderProjectIconBadge(project.icon)}
-            <span class="project-card-title">${escapeHtml(project.title)}</span>
+            <span class="project-card-main">
+              <span class="project-card-title">${escapeHtml(project.title)}</span>
+              <span class="project-card-meta">
+                ${project.source_kind === "local" ? `<span class="project-card-hint">Local</span>` : ""}
+                ${project.codex_session_count > 0 ? `<span class="project-codex-badge">${project.codex_session_count} session${project.codex_session_count === 1 ? "" : "s"}</span>` : ""}
+                ${project.codex_live_count > 0 ? `<span class="project-codex-badge live">${project.codex_live_count} live</span>` : ""}
+              </span>
+            </span>
           </button>
           <button
             class="project-actions-btn"
@@ -8790,8 +10132,54 @@
               <circle cx="12" cy="19" r="1.8"></circle>
             </svg>
           </button>
+          ${renderProjectCodexChildren(project)}
         </div>
       `).join("")}`;
+
+      projectList.querySelectorAll("[data-project-codex-toggle]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const projectId = button.dataset.projectCodexToggle;
+          state.codexExpandedProjects[projectId] = !state.codexExpandedProjects[projectId];
+          render();
+          if (state.codexExpandedProjects[projectId]) {
+            await ensureCodexProjectSessionsLoaded(projectId);
+          }
+        });
+      });
+
+      projectList.querySelectorAll("[data-project-codex-open]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await openProjectCodexSession(button.dataset.projectCodexOpen, button.dataset.projectCodexSession);
+        });
+      });
+
+      projectList.querySelectorAll("[data-project-codex-new]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const projectId = button.dataset.projectCodexNew;
+          if (state.selectedProjectId !== projectId) {
+            await selectProject(projectId);
+          }
+          await createCodexSession();
+        });
+      });
+
+      projectList.querySelectorAll("[data-project-codex-discover]").forEach((button) => {
+        button.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const projectId = button.dataset.projectCodexDiscover;
+          if (state.selectedProjectId !== projectId) {
+            await selectProject(projectId);
+          }
+          await discoverCodexSessions();
+        });
+      });
 
       projectList.querySelectorAll("[data-project-menu-id]").forEach((button) => {
         button.addEventListener("click", (event) => {
@@ -10480,6 +11868,9 @@
       document.querySelectorAll("[data-note-mode]").forEach((button) => {
         button.classList.toggle("active", button.dataset.noteMode === activeMode);
       });
+      document.querySelectorAll("[data-right-pane-mode]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.rightPaneMode === state.rightPaneMode);
+      });
     }
 
     function applyFocus() {
@@ -10654,10 +12045,13 @@
 
     async function fetchJson(url, options = {}, channel = "task", allowFailure = false) {
       try {
+        const headers = {
+          "Content-Type": "application/json",
+          ...(isDesktopShell ? { "x-topside-desktop": "true" } : {}),
+          ...(options.headers || {})
+        };
         const response = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers,
           ...options
         });
         if (!response.ok) {
@@ -10669,6 +12063,7 @@
           }
           if (channel === "task") state.taskMessage = message;
           if (channel === "note") state.noteMessage = message;
+          if (channel === "codex") state.codexMessage = message;
           if (channel === "port") state.portViewerMessage = message;
           if (!allowFailure) render();
           return null;
@@ -10679,6 +12074,7 @@
         }
         if (channel === "task") state.taskMessage = "";
         if (channel === "note") state.noteMessage = "";
+        if (channel === "codex") state.codexMessage = "";
         if (channel === "port") state.portViewerMessage = "";
         return response.status === 204 ? null : response.json();
       } catch (error) {
@@ -10689,6 +12085,7 @@
         }
         if (channel === "task") state.taskMessage = message;
         if (channel === "note") state.noteMessage = message;
+        if (channel === "codex") state.codexMessage = message;
         if (channel === "port") state.portViewerMessage = message;
         if (!allowFailure) render();
         return null;

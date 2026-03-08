@@ -4,13 +4,20 @@ use std::process::Command;
 use std::sync::Arc;
 
 use askama::Template;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
+use axum::http::{HeaderMap, StatusCode, header};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
+use crate::codex::{
+    CodexSessionManager, CodexSessionPatch, CodexSessionRecord, CodexTerminalClientMessage,
+    CodexTerminalServerMessage,
+};
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::markdown::render_markdown_html;
 use crate::ports::{PortManager, PortManagerError, PortSession};
@@ -26,11 +33,15 @@ pub struct WebState {
     pub service: Arc<AppService>,
     pub dev_reload_token: Option<String>,
     pub port_manager: Arc<dyn PortManager>,
+    pub codex_manager: Arc<CodexSessionManager>,
 }
 
 pub fn router(state: Arc<WebState>) -> Router {
     Router::new()
         .route("/", get(dashboard))
+        .route("/assets/xterm.js", get(asset_xterm_js))
+        .route("/assets/xterm-fit.js", get(asset_xterm_fit_js))
+        .route("/assets/xterm.css", get(asset_xterm_css))
         .route("/__dev/reload-token", get(dev_reload_token))
         .route("/reindex", post(reindex_now))
         .route("/api/ui-state", get(api_ui_state))
@@ -73,6 +84,14 @@ pub fn router(state: Arc<WebState>) -> Router {
             post(api_link_note_file),
         )
         .route("/api/projects/{id}/workspace", get(api_project_workspace))
+        .route(
+            "/api/projects/{id}/codex-sessions",
+            get(api_project_codex_sessions).post(api_create_codex_session),
+        )
+        .route(
+            "/api/projects/{id}/codex-sessions/discover",
+            post(api_discover_codex_sessions),
+        )
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/archive", post(api_archive_tasks))
         .route("/api/tasks/{id}", patch(api_update_task))
@@ -96,6 +115,10 @@ pub fn router(state: Arc<WebState>) -> Router {
         )
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
+        .route("/api/codex-sessions/{id}", patch(api_update_codex_session))
+        .route("/api/codex-sessions/{id}/resume", post(api_resume_codex_session))
+        .route("/api/codex-sessions/{id}/terminate", post(api_terminate_codex_session))
+        .route("/api/codex-sessions/{id}/pty", get(api_codex_session_pty))
         .with_state(state)
 }
 
@@ -110,6 +133,12 @@ struct DashboardTemplate {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct ProjectQuery {
     project_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct DesktopQuery {
+    #[serde(default)]
+    desktop: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -155,6 +184,8 @@ struct ProjectSummary {
     title: String,
     revision: String,
     icon: Option<String>,
+    codex_session_count: usize,
+    codex_live_count: usize,
     source_kind: Option<String>,
     source_locator: Option<String>,
     last_synced_at_label: Option<String>,
@@ -175,6 +206,7 @@ struct WorkspacePayload {
     active_tasks: Vec<TaskPayload>,
     done_tasks: Vec<TaskPayload>,
     notes: Vec<NotePayload>,
+    codex_sessions: Vec<CodexSessionPayload>,
     suggested_open_note_id: Option<String>,
 }
 
@@ -226,6 +258,33 @@ struct NoteMutationResponse {
 }
 
 #[derive(Debug, Serialize)]
+struct CodexSessionPayload {
+    id: String,
+    project_id: String,
+    task_id: Option<String>,
+    title: String,
+    origin: String,
+    status: String,
+    cwd: String,
+    codex_session_id: Option<String>,
+    started_at_iso: String,
+    started_at_label: String,
+    last_seen_at_iso: String,
+    last_seen_at_label: String,
+    ended_at_iso: Option<String>,
+    ended_at_label: Option<String>,
+    summary: String,
+    resume_available: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CodexSessionMutationResponse {
+    workspace: WorkspacePayload,
+    opened_session_id: Option<String>,
+    message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 struct PortSessionPayload {
     pid: u32,
     port: u16,
@@ -237,6 +296,20 @@ struct PortSessionPayload {
     is_topside_process: bool,
     can_terminate: bool,
     is_likely_dev: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateCodexSessionRequest {
+    #[serde(default)]
+    task_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PatchCodexSessionRequest {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    summary: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -387,11 +460,15 @@ async fn dashboard(
         ),
         None => None,
     };
+    let counts = state.service.list_codex_session_counts().map_err(internal_err)?;
 
     let initial_state = UiStatePayload {
-        projects: projects.into_iter().map(map_project_summary).collect(),
+        projects: projects
+            .into_iter()
+            .map(|project| map_project_summary(project, &counts))
+            .collect(),
         selected_project_id: selected_project_id.clone(),
-        workspace: workspace.map(map_workspace_payload),
+        workspace: workspace.map(|workspace| map_workspace_payload_with_counts(workspace, &counts)),
         server_port: state.service.config.server.port,
     };
 
@@ -426,8 +503,15 @@ async fn api_projects(State(state): State<Arc<WebState>>) -> ApiResult<Vec<Proje
         .service
         .list_projects(UNBOUNDED_QUERY_LIMIT, false)
         .map_err(internal_api_err)?;
+    let counts = state
+        .service
+        .list_codex_session_counts()
+        .map_err(internal_api_err)?;
     Ok(Json(
-        projects.into_iter().map(map_project_summary).collect(),
+        projects
+            .into_iter()
+            .map(|project| map_project_summary(project, &counts))
+            .collect(),
     ))
 }
 
@@ -486,7 +570,66 @@ async fn api_project_workspace(
         .service
         .load_project_workspace(&id)
         .map_err(internal_api_err)?;
-    Ok(Json(map_workspace_payload(workspace)))
+    Ok(Json(
+        map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+    ))
+}
+
+async fn api_project_codex_sessions(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> ApiResult<Vec<CodexSessionPayload>> {
+    let sessions = state
+        .service
+        .list_codex_sessions(&id)
+        .map_err(internal_api_err)?;
+    Ok(Json(
+        sessions
+            .into_iter()
+            .map(map_codex_session_payload)
+            .collect(),
+    ))
+}
+
+async fn api_create_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateCodexSessionRequest>,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .codex_manager
+        .create_project_session(&id, normalize_optional(request.task_id))
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        opened_session_id: Some(session.id),
+        message: None,
+    }))
+}
+
+async fn api_discover_codex_sessions(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+) -> ApiResult<CodexSessionMutationResponse> {
+    let _sessions = state
+        .service
+        .discover_codex_sessions(&id)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        opened_session_id: None,
+        message: Some("Codex history refreshed".to_string()),
+    }))
 }
 
 async fn api_create_project(
@@ -688,7 +831,7 @@ async fn api_link_note_file(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: Some(linked.id),
     }))
 }
@@ -713,7 +856,7 @@ async fn api_create_task(
         .map_err(map_service_err_json)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_task_id: Some(created_task_id),
         archive: None,
     }))
@@ -756,7 +899,7 @@ async fn api_update_task(
         .map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_task_id: None,
         archive: None,
     }))
@@ -774,7 +917,9 @@ async fn api_reorder_tasks(
             Actor::human("operator"),
         )
         .map_err(map_service_err_json)?;
-    Ok(Json(map_workspace_payload(workspace)))
+    Ok(Json(
+        map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+    ))
 }
 
 async fn api_archive_task(
@@ -798,7 +943,7 @@ async fn api_archive_task(
         .map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_task_id: None,
         archive: None,
     }))
@@ -846,7 +991,7 @@ async fn api_archive_tasks(
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_task_id: None,
         archive: Some(archive),
     }))
@@ -881,7 +1026,7 @@ async fn api_create_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: Some(created.id),
     }))
 }
@@ -917,7 +1062,7 @@ async fn api_update_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: None,
     }))
 }
@@ -942,7 +1087,7 @@ async fn api_resolve_note_sync_file(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: Some(id),
     }))
 }
@@ -967,7 +1112,7 @@ async fn api_resolve_note_sync_local(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: Some(id),
     }))
 }
@@ -993,7 +1138,7 @@ async fn api_archive_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(workspace),
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
         created_note_id: None,
     }))
 }
@@ -1008,6 +1153,93 @@ async fn api_open_path(
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
     open_path(&request.path).map_err(internal_api_err)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn api_update_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Json(request): Json<PatchCodexSessionRequest>,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .service
+        .update_codex_session(
+            &id,
+            CodexSessionPatch {
+                title: normalize_optional(request.title),
+                summary: request.summary,
+                ..Default::default()
+            },
+        )
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        opened_session_id: None,
+        message: Some("Codex session saved".to_string()),
+    }))
+}
+
+async fn api_resume_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .codex_manager
+        .resume_session(&id)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        opened_session_id: Some(session.id),
+        message: None,
+    }))
+}
+
+async fn api_terminate_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .service
+        .get_codex_session(&id)
+        .map_err(internal_api_err)?
+        .ok_or_else(|| bad_request_json("codex session not found"))?;
+    state
+        .codex_manager
+        .terminate_session(&id)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        opened_session_id: None,
+        message: Some("Codex session ended".to_string()),
+    }))
+}
+
+async fn api_codex_session_pty(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    Query(query): Query<DesktopQuery>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> Result<Response, (StatusCode, Json<ApiError>)> {
+    require_desktop_access(&headers, query.desktop)?;
+    Ok(ws.on_upgrade(move |socket| handle_codex_session_socket(state, id, socket)))
 }
 
 async fn api_system_ports(State(state): State<Arc<WebState>>) -> ApiResult<PortSessionsPayload> {
@@ -1277,9 +1509,20 @@ fn format_archive_children_label(task_count: usize, note_count: usize) -> Option
     }
 }
 
-fn map_workspace_payload(workspace: ProjectWorkspace) -> WorkspacePayload {
+fn map_workspace_payload(
+    service: &AppService,
+    workspace: ProjectWorkspace,
+) -> Result<WorkspacePayload, anyhow::Error> {
+    let counts = service.list_codex_session_counts()?;
+    Ok(map_workspace_payload_with_counts(workspace, &counts))
+}
+
+fn map_workspace_payload_with_counts(
+    workspace: ProjectWorkspace,
+    counts: &HashMap<String, crate::codex::CodexSessionCounts>,
+) -> WorkspacePayload {
     WorkspacePayload {
-        project: map_project_summary(workspace.project),
+        project: map_project_summary(workspace.project, counts),
         active_tasks: workspace
             .active_tasks
             .into_iter()
@@ -1291,16 +1534,27 @@ fn map_workspace_payload(workspace: ProjectWorkspace) -> WorkspacePayload {
             .map(map_task_payload)
             .collect(),
         notes: workspace.notes.into_iter().map(map_note_payload).collect(),
+        codex_sessions: workspace
+            .codex_sessions
+            .into_iter()
+            .map(map_codex_session_payload)
+            .collect(),
         suggested_open_note_id: workspace.suggested_open_note_id,
     }
 }
 
-fn map_project_summary(project: ProjectItem) -> ProjectSummary {
+fn map_project_summary(
+    project: ProjectItem,
+    counts: &HashMap<String, crate::codex::CodexSessionCounts>,
+) -> ProjectSummary {
+    let session_counts = counts.get(&project.id).cloned().unwrap_or_default();
     ProjectSummary {
         id: project.id,
         title: project.title,
         revision: project.revision,
         icon: project.icon,
+        codex_session_count: session_counts.total_count,
+        codex_live_count: session_counts.live_count,
         source_kind: project.source_kind.map(|kind| kind.as_str().to_string()),
         source_locator: project.source_locator,
         last_synced_at_label: project.last_synced_at.map(format_timestamp),
@@ -1323,6 +1577,7 @@ fn build_ui_state_payload(
     requested_project_id: Option<String>,
 ) -> Result<UiStatePayload, anyhow::Error> {
     let projects = service.list_projects(UNBOUNDED_QUERY_LIMIT, false)?;
+    let counts = service.list_codex_session_counts()?;
     let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
     let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
     let workspace = match selected_project_id.as_deref() {
@@ -1331,9 +1586,12 @@ fn build_ui_state_payload(
     };
 
     Ok(UiStatePayload {
-        projects: projects.into_iter().map(map_project_summary).collect(),
+        projects: projects
+            .into_iter()
+            .map(|project| map_project_summary(project, &counts))
+            .collect(),
         selected_project_id,
-        workspace: workspace.map(map_workspace_payload),
+        workspace: workspace.map(|workspace| map_workspace_payload_with_counts(workspace, &counts)),
         server_port: service.config.server.port,
     })
 }
@@ -1391,6 +1649,27 @@ fn map_note_payload(note: crate::types::NoteDetail) -> NotePayload {
         revision: note.revision,
         updated_at_iso: note.updated_at.to_rfc3339(),
         updated_at_label: format_timestamp(note.updated_at),
+    }
+}
+
+fn map_codex_session_payload(session: CodexSessionRecord) -> CodexSessionPayload {
+    CodexSessionPayload {
+        id: session.id,
+        project_id: session.project_id,
+        task_id: session.task_id,
+        title: session.title,
+        origin: session.origin.as_str().to_string(),
+        status: session.status.as_str().to_string(),
+        cwd: session.cwd,
+        codex_session_id: session.codex_session_id.clone(),
+        started_at_iso: session.started_at.to_rfc3339(),
+        started_at_label: format_timestamp(session.started_at),
+        last_seen_at_iso: session.last_seen_at.to_rfc3339(),
+        last_seen_at_label: format_timestamp(session.last_seen_at),
+        ended_at_iso: session.ended_at.as_ref().map(chrono::DateTime::to_rfc3339),
+        ended_at_label: session.ended_at.map(format_timestamp),
+        summary: session.summary,
+        resume_available: session.codex_session_id.is_some(),
     }
 }
 
@@ -1489,6 +1768,139 @@ fn bad_request_json(message: impl Into<String>) -> (StatusCode, Json<ApiError>) 
             current_revision: None,
         }),
     )
+}
+
+fn require_desktop_client(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ApiError>)> {
+    require_desktop_access(headers, false)
+}
+
+fn require_desktop_access(
+    headers: &HeaderMap,
+    desktop_query: bool,
+) -> Result<(), (StatusCode, Json<ApiError>)> {
+    match headers.get("x-topside-desktop").and_then(|value| value.to_str().ok()) {
+        Some("true") => Ok(()),
+        _ if desktop_query => Ok(()),
+        _ => Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                error: "Codex sessions are available only inside the Topside desktop app".to_string(),
+                expected_revision: None,
+                current_revision: None,
+            }),
+        )),
+    }
+}
+
+async fn handle_codex_session_socket(state: Arc<WebState>, session_id: String, mut socket: WebSocket) {
+    let Ok((backlog, mut rx)) = state.codex_manager.subscribe(&session_id) else {
+        let _ = socket
+            .send(Message::Text(
+                serde_json::to_string(&CodexTerminalServerMessage::Error {
+                    message: "Codex session is not live".to_string(),
+                })
+                .unwrap_or_else(|_| "{\"type\":\"error\",\"message\":\"Codex session is not live\"}".to_string())
+                .into(),
+            ))
+            .await;
+        let _ = socket.close().await;
+        return;
+    };
+
+    for chunk in backlog {
+        if socket
+            .send(Message::Text(
+                serde_json::to_string(&CodexTerminalServerMessage::Output { data: chunk })
+                    .unwrap_or_else(|_| "{\"type\":\"output\",\"data\":\"\"}".to_string())
+                    .into(),
+            ))
+            .await
+            .is_err()
+        {
+            return;
+        }
+    }
+
+    loop {
+        tokio::select! {
+            recv = rx.recv() => {
+                let Ok(message) = recv else {
+                    break;
+                };
+                let payload = match serde_json::to_string(&message) {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        warn!(error = %error, "failed serializing codex terminal websocket payload");
+                        continue;
+                    }
+                };
+                if socket.send(Message::Text(payload.into())).await.is_err() {
+                    break;
+                }
+            }
+            incoming = socket.next() => {
+                let Some(Ok(message)) = incoming else {
+                    break;
+                };
+                match message {
+                    Message::Text(text) => {
+                        let Ok(request) = serde_json::from_str::<CodexTerminalClientMessage>(&text) else {
+                            continue;
+                        };
+                        match request {
+                            CodexTerminalClientMessage::Input { data } => {
+                                if let Err(error) = state.codex_manager.send_input(&session_id, &data) {
+                                    warn!(error = %error, session_id, "failed forwarding codex terminal input");
+                                }
+                            }
+                            CodexTerminalClientMessage::Resize { cols, rows } => {
+                                if let Err(error) = state.codex_manager.resize(&session_id, rows, cols) {
+                                    warn!(error = %error, session_id, "failed resizing codex terminal");
+                                }
+                            }
+                        }
+                    }
+                    Message::Binary(_) => {}
+                    Message::Ping(payload) => {
+                        if socket.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Pong(_) => {}
+                    Message::Close(_) => break,
+                }
+            }
+        }
+    }
+}
+
+async fn asset_xterm_js() -> Response {
+    asset_response(
+        include_str!("../vendor/xterm/xterm.js"),
+        "application/javascript; charset=utf-8",
+    )
+}
+
+async fn asset_xterm_fit_js() -> Response {
+    asset_response(
+        include_str!("../vendor/xterm/xterm-fit.js"),
+        "application/javascript; charset=utf-8",
+    )
+}
+
+async fn asset_xterm_css() -> Response {
+    asset_response(
+        include_str!("../vendor/xterm/xterm.css"),
+        "text/css; charset=utf-8",
+    )
+}
+
+fn asset_response(body: &'static str, content_type: &'static str) -> Response {
+    (
+        [(header::CONTENT_TYPE, content_type)],
+        body,
+    )
+        .into_response()
 }
 
 fn internal_api_err(err: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {

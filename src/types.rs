@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::codex::CodexSessionRecord;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityType {
@@ -886,6 +888,7 @@ pub struct ProjectWorkspace {
     pub active_tasks: Vec<TaskItem>,
     pub done_tasks: Vec<TaskItem>,
     pub notes: Vec<NoteDetail>,
+    pub codex_sessions: Vec<CodexSessionRecord>,
     pub suggested_open_note_id: Option<String>,
 }
 

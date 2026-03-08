@@ -3,22 +3,25 @@
 - [x] Sample task: verify new task sync animation appears in to-do pane
 - [ ] Project selection should initialize to-do.md in project workspace. Needs more work
 - [x] Sample task: create a task from agent prompt and confirm row animation timing
-## UI Polish
+- [ ] Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking
 - [x] Sample task: test multiple synced tasks arriving together
 - [x] Add port viewer/killer
 - [x] Move archive into a settings tab. Needs more formatting
-- [ ] Review YT Script #1
+## UI Polish
 - [x] When a task is dragged out of Topside, ensure the task content is pasted and not the taskID
 - [x] Sample task: confirm section collapse/expand animation runs at 150ms
 - [x] Allow custom icons per project
 - [x] Adjust changing section header heights with expand vs collapse
 - [x] Searchbar x is in weird spot, moves around on zoom needs better handling
-## Features for Later
-- [ ] Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.
+- [ ] Add collapsible sidebar button, leaves only icons exposed
 - [x] Do a pass on pane headers and buttons for consistent typecase
 - [x] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
+- [ ] Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)
+- [ ] Review YT Script #1
 - [x] Center headers in their borders
 - [x] Resolve pane names
+## Features for Later
+- [ ] Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.
 - [x] Add ability to copy rich html or markdown
 ## Section: Phase 6 - Visual Polish and Functionality
 - [x] to-do pane, collapse all expand all toggle

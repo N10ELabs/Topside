@@ -9,6 +9,7 @@ use tracing::info;
 
 use topside::bench::{run_bench, seed_synthetic_corpus};
 use topside::bundle::bundle_macos_app;
+use topside::codex::CodexSessionManager;
 use topside::config::{AppConfig, maybe_migrate_workspace_identity};
 use topside::constants::{CONFIG_FILE_NAME, PROJECT_CODENAME};
 use topside::desktop::{run_native_window, window_title};
@@ -130,7 +131,7 @@ async fn cmd_serve(workspace: Option<PathBuf>) -> Result<()> {
     let config = load_config(workspace)?;
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
-    let app = router(build_web_state(service));
+    let app = router(build_web_state(service)?);
     let (addr, listener) = bind_http_listener(&config.server.host, config.server.port).await?;
 
     info!(address = %addr, "topside server starting");
@@ -147,7 +148,7 @@ async fn cmd_open(workspace: Option<PathBuf>) -> Result<()> {
     let config = load_config(workspace)?;
     let service = Arc::new(AppService::bootstrap(config.clone())?);
     let _watcher = service.start_watcher()?;
-    let app = router(build_web_state(service));
+    let app = router(build_web_state(service)?);
     let (addr, listener) = bind_http_listener_for_open(&config).await?;
     let _http_task = spawn_http_server(listener, app);
     let url = format!("http://{addr}");
@@ -316,12 +317,14 @@ fn load_config(workspace_override: Option<PathBuf>) -> Result<AppConfig> {
     Ok(config)
 }
 
-fn build_web_state(service: Arc<AppService>) -> Arc<WebState> {
-    Arc::new(WebState {
+fn build_web_state(service: Arc<AppService>) -> Result<Arc<WebState>> {
+    let codex_manager = Arc::new(CodexSessionManager::new(Arc::clone(&service))?);
+    Ok(Arc::new(WebState {
         service,
         dev_reload_token: std::env::var("TOPSIDE_DEV_RELOAD_TOKEN").ok(),
         port_manager: Arc::new(DefaultPortManager::new(std::process::id())),
-    })
+        codex_manager,
+    }))
 }
 
 async fn bind_http_listener(

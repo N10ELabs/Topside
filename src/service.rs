@@ -11,6 +11,10 @@ use thiserror::Error;
 use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
+use crate::codex::{
+    CodexHistorySession, CodexSessionCounts, CodexSessionPatch, CodexSessionRecord,
+    CodexSessionStatus, CodexSessionStore, discover_codex_history_for_root,
+};
 use crate::config::AppConfig;
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::db::{Db, StoredEntityRecord};
@@ -199,14 +203,201 @@ impl AppService {
                 .list_note_details_for_project(project_id, UNBOUNDED_QUERY_LIMIT, false)?;
 
         let suggested_open_note_id = note_details.first().map(|note| note.id.clone());
+        let codex_sessions = self
+            .list_codex_sessions(project_id)
+            .map_err(ServiceError::Other)?;
 
         Ok(ProjectWorkspace {
             project,
             active_tasks,
             done_tasks,
             notes: note_details,
+            codex_sessions,
             suggested_open_note_id,
         })
+    }
+
+    pub fn list_codex_sessions(&self, project_id: &str) -> Result<Vec<CodexSessionRecord>> {
+        self.codex_session_store().list_project_sessions(project_id)
+    }
+
+    pub fn list_codex_session_counts(&self) -> Result<HashMap<String, CodexSessionCounts>> {
+        self.codex_session_store().list_counts_by_project()
+    }
+
+    pub fn get_codex_session(&self, session_id: &str) -> Result<Option<CodexSessionRecord>> {
+        self.codex_session_store().get_session(session_id)
+    }
+
+    pub fn update_codex_session(
+        &self,
+        session_id: &str,
+        patch: CodexSessionPatch,
+    ) -> Result<CodexSessionRecord, ServiceError> {
+        self.codex_session_store()
+            .update_session(session_id, patch)
+            .map_err(ServiceError::Other)
+    }
+
+    pub fn discover_codex_sessions(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<CodexSessionRecord>, ServiceError> {
+        let project_root = self.local_project_source_root(project_id)?;
+        let existing = self
+            .list_codex_sessions(project_id)
+            .map_err(ServiceError::Other)?;
+        let mut existing_by_codex_id = existing
+            .into_iter()
+            .filter_map(|session| {
+                session
+                    .codex_session_id
+                    .clone()
+                    .map(|codex_session_id| (codex_session_id, session))
+            })
+            .collect::<HashMap<_, _>>();
+        let store = self.codex_session_store();
+        let discovered = discover_codex_history_for_root(&project_root).map_err(ServiceError::Other)?;
+
+        for session in discovered {
+            if let Some(existing) = existing_by_codex_id.remove(&session.codex_session_id) {
+                let title = if existing.origin == crate::codex::CodexSessionOrigin::Topside
+                    && existing.title != "New Codex session"
+                {
+                    None
+                } else {
+                    Some(session.thread_name.clone())
+                };
+                store
+                    .update_session(
+                        &existing.id,
+                        CodexSessionPatch {
+                            title,
+                            status: Some(if existing.status == CodexSessionStatus::Live {
+                                CodexSessionStatus::Live
+                            } else {
+                                CodexSessionStatus::Resumable
+                            }),
+                            cwd: Some(session.cwd.to_string_lossy().to_string()),
+                            codex_session_id: Some(Some(session.codex_session_id.clone())),
+                            last_seen_at: Some(session.updated_at),
+                            summary: Some(self.build_codex_summary_from_history(&existing, &session)),
+                            ..Default::default()
+                        },
+                    )
+                    .map_err(ServiceError::Other)?;
+                continue;
+            }
+
+            let task_id = None;
+            store
+                .create_session(crate::codex::NewCodexSession {
+                    project_id: project_id.to_string(),
+                    task_id: task_id.clone(),
+                    title: session.thread_name.clone(),
+                    origin: crate::codex::CodexSessionOrigin::Discovered,
+                    status: CodexSessionStatus::Resumable,
+                    cwd: session.cwd.to_string_lossy().to_string(),
+                    codex_session_id: Some(session.codex_session_id.clone()),
+                    started_at: session.started_at,
+                    last_seen_at: session.updated_at,
+                    ended_at: Some(session.updated_at),
+                    summary: self.build_codex_history_summary(&session),
+                })
+                .map_err(ServiceError::Other)?;
+        }
+
+        self.list_codex_sessions(project_id).map_err(ServiceError::Other)
+    }
+
+    pub fn local_project_source_root(&self, project_id: &str) -> Result<PathBuf, ServiceError> {
+        let project = self.get_project_item(project_id)?;
+        if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
+            return Err(anyhow::anyhow!(
+                "Codex sessions require a project linked to a local folder"
+            )
+            .into());
+        }
+        let source_locator = project
+            .source_locator
+            .with_context(|| format!("project {project_id} is missing source_locator"))
+            .map_err(ServiceError::Other)?;
+        let path = PathBuf::from(&source_locator)
+            .canonicalize()
+            .with_context(|| format!("failed canonicalizing {}", source_locator))
+            .map_err(ServiceError::Other)?;
+        Ok(path)
+    }
+
+    pub fn suggest_codex_session_title(
+        &self,
+        project_id: &str,
+        task_id: Option<&str>,
+    ) -> Result<String, ServiceError> {
+        if let Some(task_id) = task_id {
+            if let Some(task) = self
+                .list_tasks(&TaskFilters {
+                    status: None,
+                    priority: None,
+                    project_id: Some(project_id.to_string()),
+                    assignee: None,
+                    include_archived: false,
+                    limit: Some(UNBOUNDED_QUERY_LIMIT),
+                })?
+                .into_iter()
+                .find(|task| task.id == task_id)
+            {
+                return Ok(task.title);
+            }
+        }
+        Ok("New Codex session".to_string())
+    }
+
+    pub fn build_codex_context_pack(
+        &self,
+        project_id: &str,
+        task_id: Option<&str>,
+    ) -> Result<String, ServiceError> {
+        let workspace = self.load_project_workspace(project_id).map_err(ServiceError::Other)?;
+        let project_root = self.local_project_source_root(project_id)?;
+        let selected_task = task_id.and_then(|task_id| {
+            workspace
+                .active_tasks
+                .iter()
+                .find(|task| task.id == task_id)
+                .or_else(|| workspace.done_tasks.iter().find(|task| task.id == task_id))
+        });
+        let mut lines = Vec::new();
+        lines.push(format!("You are working inside the Topside project \"{}\".", workspace.project.title));
+        lines.push(format!("Project repo cwd: {}", project_root.display()));
+        lines.push("Use the injected MCP server named \"topside\" when you need shared project context or task/note updates.".to_string());
+        lines.push(String::new());
+        if let Some(task) = selected_task {
+            lines.push("Selected task:".to_string());
+            lines.push(format!("- {} [{}]", task.title, task.status.as_str()));
+            lines.push(String::new());
+        }
+        if !workspace.active_tasks.is_empty() {
+            lines.push("Top active tasks:".to_string());
+            for task in workspace.active_tasks.iter().take(8) {
+                let linked = task_id.is_some_and(|selected| selected == task.id);
+                lines.push(crate::codex::summarize_task_for_context(
+                    &task.title,
+                    task.status.clone(),
+                    linked,
+                ));
+            }
+            lines.push(String::new());
+        }
+        if !workspace.notes.is_empty() {
+            lines.push("Relevant notes:".to_string());
+            for note in workspace.notes.iter().take(6) {
+                lines.push(format!("- {}", note.title));
+            }
+            lines.push(String::new());
+        }
+        lines.push("Start by orienting on the selected task if one is linked, then continue the work in this repository.".to_string());
+        Ok(lines.join("\n"))
     }
 
     pub fn create_task_after(
@@ -2137,6 +2328,33 @@ impl AppService {
             .find(|item| item.id == project_id)
             .with_context(|| format!("project {project_id} not found"))
             .map_err(ServiceError::Other)
+    }
+
+    fn codex_session_store(&self) -> CodexSessionStore {
+        CodexSessionStore::new(self.config.clone())
+    }
+
+    fn build_codex_history_summary(&self, session: &CodexHistorySession) -> String {
+        let mut lines = Vec::new();
+        lines.push(format!("# {}", session.thread_name));
+        lines.push(String::new());
+        lines.push("- Status: Resumable".to_string());
+        lines.push(format!("- Started: {}", session.started_at.to_rfc3339()));
+        lines.push(format!("- Last seen: {}", session.updated_at.to_rfc3339()));
+        lines.push(String::new());
+        lines.push("Imported from Codex history.".to_string());
+        lines.join("\n")
+    }
+
+    fn build_codex_summary_from_history(
+        &self,
+        existing: &CodexSessionRecord,
+        session: &CodexHistorySession,
+    ) -> String {
+        if !existing.summary.trim().is_empty() && existing.summary.trim() != "Summary pending." {
+            return existing.summary.clone();
+        }
+        self.build_codex_history_summary(session)
     }
 
     fn restore_target_path(
