@@ -221,6 +221,10 @@ impl AppService {
         self.codex_session_store().list_project_sessions(project_id)
     }
 
+    pub fn list_all_codex_sessions(&self) -> Result<Vec<CodexSessionRecord>> {
+        self.codex_session_store().list_all_sessions()
+    }
+
     pub fn list_codex_session_counts(&self) -> Result<HashMap<String, CodexSessionCounts>> {
         self.codex_session_store().list_counts_by_project()
     }

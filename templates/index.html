@@ -252,6 +252,10 @@
       display: none;
     }
 
+    .layout.empty-app .pane-codex {
+      display: none;
+    }
+
     .layout.project-starter .todo-stack {
       grid-column: 2 / -1;
     }
@@ -292,17 +296,38 @@
       display: none;
     }
 
+    .layout.project-starter .pane-codex {
+      display: none;
+    }
+
     .pane.pane-archive {
       display: none;
       min-height: 0;
     }
 
+    .pane.pane-codex {
+      display: none;
+      min-height: 0;
+    }
+
     .layout.archive-view .todo-stack,
-    .layout.archive-view .pane-notes {
+    .layout.archive-view .pane-notes,
+    .layout.archive-view .pane-codex {
       display: none;
     }
 
     .layout.archive-view .pane.pane-archive {
+      display: grid;
+      grid-column: 2 / -1;
+      grid-row: 1 / -1;
+    }
+
+    .layout.codex-view .todo-stack,
+    .layout.codex-view .pane-notes {
+      display: none;
+    }
+
+    .layout.codex-view .pane.pane-codex {
       display: grid;
       grid-column: 2 / -1;
       grid-row: 1 / -1;
@@ -605,22 +630,6 @@
       margin-left: 0;
     }
 
-    .pane-mode-toggle {
-      padding: 2px;
-      gap: 2px;
-    }
-
-    .pane-mode-toggle .mode-btn {
-      width: auto;
-      min-width: 72px;
-      padding: 0 12px;
-      font-size: 11px;
-      font-family: "IBM Plex Mono", monospace;
-      letter-spacing: 0.03em;
-    }
-
-    .notes-head-context,
-    .notes-head-actions,
     .codex-head-context,
     .codex-head-actions {
       min-width: 0;
@@ -845,6 +854,12 @@
       opacity: 1;
       transform: translateY(0);
       transition: opacity 160ms ease, transform 220ms ease;
+    }
+
+    .pane-codex .pane-body {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .pane-changelog.collapsed .pane-body {
@@ -2803,7 +2818,6 @@
       line-height: 1.5;
     }
 
-    .notes-panel,
     .codex-panel {
       min-height: 0;
       display: grid;
@@ -2821,7 +2835,9 @@
       min-height: 0;
       display: grid;
       gap: 10px;
-      grid-template-columns: minmax(0, 220px) minmax(0, 1.3fr) minmax(280px, 0.7fr);
+      height: 100%;
+      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+      grid-template-areas: "tabs main";
     }
 
     .codex-session-tabs,
@@ -2835,11 +2851,20 @@
     }
 
     .codex-session-tabs {
+      grid-area: tabs;
       padding: 10px;
       display: grid;
       gap: 8px;
       align-content: start;
       overflow: auto;
+    }
+
+    .codex-main-stack {
+      grid-area: main;
+      min-height: 0;
+      display: grid;
+      gap: 10px;
+      grid-template-rows: minmax(0, 1fr) auto;
     }
 
     .codex-session-tab {
@@ -2923,6 +2948,7 @@
     }
 
     .codex-terminal-shell {
+      min-height: 0;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       overflow: hidden;
@@ -2951,7 +2977,7 @@
 
     .codex-terminal-body {
       position: relative;
-      min-height: 0;
+      min-height: 420px;
       background:
         radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 24%),
         linear-gradient(180deg, rgba(4, 9, 14, 0.96), rgba(3, 7, 12, 0.98));
@@ -2987,6 +3013,10 @@
       gap: 10px;
       align-content: start;
       overflow: auto;
+    }
+
+    .codex-session-editor {
+      max-height: min(34vh, 320px);
     }
 
     .codex-panel-copy {
@@ -3027,14 +3057,17 @@
     }
 
     .codex-editor-summary {
-      min-height: 220px;
+      min-height: 150px;
       resize: vertical;
       line-height: 1.6;
     }
 
-    @media (max-width: 1420px) {
+    @media (max-width: 1180px) {
       .codex-pane-shell {
         grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "tabs"
+          "main";
       }
 
       .codex-session-tabs {
@@ -3655,6 +3688,7 @@
     html[data-layout-mode="two"] .pane-projects { grid-area: projects; }
     html[data-layout-mode="two"] .todo-stack { grid-area: todo; }
     html[data-layout-mode="two"] .pane-notes { grid-area: notes; }
+    html[data-layout-mode="two"] .pane-codex { grid-area: notes; }
     html[data-layout-mode="two"] .pane-archive { grid-area: auto; }
 
     html[data-layout-mode="one"] .shell {
@@ -3671,11 +3705,17 @@
     html[data-layout-mode="one"] .pane-projects,
     html[data-layout-mode="one"] .todo-stack,
     html[data-layout-mode="one"] .pane-notes,
+    html[data-layout-mode="one"] .pane-codex,
     html[data-layout-mode="one"] .pane-archive {
       grid-area: auto;
     }
 
     html[data-layout-mode="one"] .layout.archive-view .pane-archive {
+      grid-column: 1 / -1;
+      grid-row: auto;
+    }
+
+    html[data-layout-mode="one"] .layout.codex-view .pane-codex {
       grid-column: 1 / -1;
       grid-row: auto;
     }
@@ -3833,12 +3873,9 @@
       <section class="pane pane-notes">
         <div class="pane-head">
           <div class="pane-head-main">
-            <div class="mode-toggle pane-mode-toggle" aria-label="Right pane mode">
-              <button class="mode-btn" type="button" data-right-pane-mode="notes" aria-label="Notes" title="Notes">Notes</button>
-              <button class="mode-btn" type="button" data-right-pane-mode="codex" aria-label="Codex" title="Codex">Codex</button>
-            </div>
+            <span class="pane-title">Notes</span>
           </div>
-          <div class="pane-head-context notes-head-context">
+          <div class="pane-head-context">
             <label class="pane-search" for="notes-search-input">
               <span class="pane-search-field">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3876,10 +3913,7 @@
               </div>
             </label>
           </div>
-          <div class="pane-head-context codex-head-context hidden">
-            <span class="muted codex-head-copy" id="codex-head-copy"></span>
-          </div>
-          <div class="pane-head-actions pane-head-tools notes-head-actions">
+          <div class="pane-head-actions pane-head-tools">
             <span class="muted" id="note-status"></span>
             <div class="tool-cluster compact-tools">
               <div class="mode-toggle" aria-label="Notes view mode">
@@ -3911,7 +3945,22 @@
               <button class="icon-btn" id="notes-add" type="button">+</button>
             </div>
           </div>
-          <div class="pane-head-actions pane-head-tools codex-head-actions hidden">
+        </div>
+        <div class="pane-body">
+          <div id="note-message"></div>
+          <div id="notes-list" class="notes-list"></div>
+        </div>
+      </section>
+
+      <section class="pane pane-codex" id="codex-pane" hidden>
+        <div class="pane-head">
+          <div class="pane-head-main">
+            <span class="pane-title">Codex</span>
+          </div>
+          <div class="pane-head-context codex-head-context">
+            <span class="muted codex-head-copy" id="codex-head-copy"></span>
+          </div>
+          <div class="pane-head-actions pane-head-tools codex-head-actions">
             <span class="muted" id="codex-status"></span>
             <div class="tool-cluster compact-tools">
               <button class="icon-btn" id="codex-discover" type="button" aria-label="Refresh Codex history" title="Refresh Codex history">
@@ -3937,29 +3986,32 @@
                   <path d="M18 6 6 18"></path>
                 </svg>
               </button>
+              <button class="icon-btn" id="codex-close" type="button" aria-label="Back to workspace" title="Back to workspace">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m15 18-6-6 6-6"></path>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
         <div class="pane-body">
-          <div id="notes-panel" class="notes-panel">
-            <div id="note-message"></div>
-            <div id="notes-list" class="notes-list"></div>
-          </div>
-          <div id="codex-panel" class="codex-panel" hidden>
+          <div id="codex-panel" class="codex-panel">
             <div id="codex-message"></div>
             <div id="codex-pane-shell" class="codex-pane-shell">
               <div id="codex-session-tabs" class="codex-session-tabs"></div>
-              <div class="codex-terminal-shell">
-                <div class="codex-terminal-head">
-                  <span id="codex-terminal-session-label" class="codex-terminal-session"></span>
-                  <span id="codex-terminal-meta" class="codex-terminal-meta"></span>
+              <div class="codex-main-stack">
+                <div class="codex-terminal-shell">
+                  <div class="codex-terminal-head">
+                    <span id="codex-terminal-session-label" class="codex-terminal-session"></span>
+                    <span id="codex-terminal-meta" class="codex-terminal-meta"></span>
+                  </div>
+                  <div class="codex-terminal-body">
+                    <div id="codex-terminal-host" class="codex-terminal-host"></div>
+                    <div id="codex-terminal-empty" class="empty-state codex-terminal-empty"></div>
+                  </div>
                 </div>
-                <div class="codex-terminal-body">
-                  <div id="codex-terminal-host" class="codex-terminal-host"></div>
-                  <div id="codex-terminal-empty" class="empty-state codex-terminal-empty"></div>
-                </div>
+                <div id="codex-session-editor" class="codex-session-editor"></div>
               </div>
-              <div id="codex-session-editor" class="codex-session-editor"></div>
             </div>
           </div>
         </div>
@@ -4246,7 +4298,7 @@
     const projectsPaneBody = document.querySelector(".pane-projects .pane-body");
     const changelogBody = document.getElementById("changelog-body");
     const notesPaneBody = document.querySelector(".pane-notes .pane-body");
-    const notesPanel = document.getElementById("notes-panel");
+    const codexPane = document.getElementById("codex-pane");
     const codexPanel = document.getElementById("codex-panel");
     const codexPaneShell = document.getElementById("codex-pane-shell");
     const codexSessionTabs = document.getElementById("codex-session-tabs");
@@ -4257,6 +4309,7 @@
     const codexNewButton = document.getElementById("codex-new");
     const codexResumeButton = document.getElementById("codex-resume");
     const codexEndButton = document.getElementById("codex-end");
+    const codexCloseButton = document.getElementById("codex-close");
     const codexTerminalHost = document.getElementById("codex-terminal-host");
     const codexTerminalEmpty = document.getElementById("codex-terminal-empty");
     const codexTerminalSessionLabel = document.getElementById("codex-terminal-session-label");
@@ -4822,18 +4875,6 @@
       });
     });
 
-    document.querySelectorAll("[data-right-pane-mode]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const nextMode = button.dataset.rightPaneMode === "codex" ? "codex" : "notes";
-        if (nextMode === state.rightPaneMode) return;
-        if (nextMode === "notes") {
-          await saveOpenNote();
-        }
-        setRightPaneMode(nextMode);
-        render();
-      });
-    });
-
     codexDiscoverButton.addEventListener("click", () => {
       void discoverCodexSessions();
     });
@@ -4852,6 +4893,11 @@
       const session = getCurrentCodexSession();
       if (!session) return;
       void terminateCodexSession(session.id);
+    });
+
+    codexCloseButton.addEventListener("click", () => {
+      setRightPaneMode("notes");
+      render();
     });
 
     document.addEventListener("visibilitychange", async () => {
@@ -5649,9 +5695,10 @@
 
     async function selectProject(projectId) {
       if (state.selectedProjectId === projectId) {
-        if (!isAlternateProjectViewOpen()) return;
+        if (!isAlternateProjectViewOpen() && state.rightPaneMode !== "codex") return;
         closeArchiveMenu();
         state.projectTrayMode = null;
+        setRightPaneMode("notes");
         render();
         return;
       }
@@ -5659,6 +5706,7 @@
       const workspace = await fetchJson(`/api/projects/${projectId}/workspace`, {}, "project");
       if (!workspace) return;
       closeArchiveMenu();
+      closePortViewer({ render: false });
       state.noteLinkableFiles = [];
       state.noteLinkableFilesLoaded = false;
       state.noteFilePickerLoading = false;
@@ -5667,6 +5715,7 @@
       applyWorkspace(workspace);
       state.taskDrafts = [];
       state.projectTrayMode = null;
+      setRightPaneMode("notes");
       syncLocation();
       render();
     }
@@ -8765,6 +8814,7 @@
       layout.classList.toggle("empty-app", state.projects.length === 0);
       layout.classList.toggle("project-starter", state.projectTrayMode === "chooser" && !state.archiveMenuOpen);
       layout.classList.toggle("archive-view", state.archiveMenuOpen);
+      layout.classList.toggle("codex-view", state.rightPaneMode === "codex" && !state.archiveMenuOpen);
       renderProjectTray();
       renderProjects();
       renderPortMenu();
@@ -9091,6 +9141,12 @@
       }
     }
 
+    function markCodexSessionResumable(sessionId, message = "") {
+      syncCurrentWorkspaceCodexSessionState(sessionId, { status: "resumable" });
+      state.codexMessage = message || "This Codex session is not attached right now. Resume it to reopen the embedded chat.";
+      disconnectCodexSocket();
+    }
+
     function getCodexSessionTitleValue(session) {
       if (!session) return "";
       return Object.prototype.hasOwnProperty.call(state.codexSessionTitleEdits, session.id)
@@ -9220,7 +9276,7 @@
       }
       state.codexTerminalResizeTimer = window.setTimeout(() => {
         state.codexTerminalResizeTimer = null;
-        if (!state.codexTerminal || !state.codexFitAddon || codexPanel.hidden) return;
+        if (!state.codexTerminal || !state.codexFitAddon || state.rightPaneMode !== "codex") return;
         try {
           state.codexFitAddon.fit();
         } catch (_error) {
@@ -9285,7 +9341,15 @@
           return;
         }
         if (payload?.type === "error") {
-          state.codexMessage = String(payload.message || "Codex terminal error");
+          const message = String(payload.message || "Codex terminal error");
+          if (message.toLowerCase().includes("not live")) {
+            markCodexSessionResumable(
+              session.id,
+              "This Codex session is not attached right now. Resume it to reopen the embedded chat."
+            );
+          } else {
+            state.codexMessage = message;
+          }
           renderCodexPane();
         }
       });
@@ -9294,12 +9358,18 @@
         if (state.codexSocket !== socket) return;
         state.codexSocket = null;
         state.codexSocketSessionId = null;
+        if (state.openCodexSessionId === session.id && state.rightPaneMode === "codex") {
+          syncCurrentWorkspaceCodexSessionState(session.id, { status: "resumable" });
+        }
         renderCodexPane();
       });
 
       socket.addEventListener("error", () => {
         if (state.codexSocket !== socket) return;
-        state.codexMessage = "The embedded Codex terminal disconnected.";
+        markCodexSessionResumable(
+          session.id,
+          "The embedded Codex terminal disconnected. Resume the session to reopen chat."
+        );
         renderCodexPane();
       });
     }
@@ -9308,6 +9378,9 @@
       const normalizedSessionId = normalizeSessionId(sessionId);
       if (!normalizedSessionId || !state.selectedProjectId) return;
       const resumeIfNeeded = options.resumeIfNeeded !== false;
+      closeArchiveMenu({ render: false });
+      closePortViewer({ render: false });
+      state.projectTrayMode = null;
       setRightPaneMode("codex");
       state.openCodexSessionId = normalizedSessionId;
 
@@ -9355,6 +9428,9 @@
 
     async function createCodexSession() {
       if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
+      closeArchiveMenu({ render: false });
+      closePortViewer({ render: false });
+      state.projectTrayMode = null;
       const response = await fetchJson(
         `/api/projects/${encodeURIComponent(state.selectedProjectId)}/codex-sessions`,
         {
@@ -9470,17 +9546,8 @@
     }
 
     function renderCodexPane() {
-      const notesHeadContext = document.querySelector(".notes-head-context");
-      const notesHeadActions = document.querySelector(".notes-head-actions");
-      const codexHeadContextNode = document.querySelector(".codex-head-context");
-      const codexHeadActionsNode = document.querySelector(".codex-head-actions");
       const showCodex = state.rightPaneMode === "codex";
-      notesPanel.hidden = showCodex;
-      codexPanel.hidden = !showCodex;
-      notesHeadContext?.classList.toggle("hidden", showCodex);
-      notesHeadActions?.classList.toggle("hidden", showCodex);
-      codexHeadContextNode?.classList.toggle("hidden", !showCodex);
-      codexHeadActionsNode?.classList.toggle("hidden", !showCodex);
+      codexPane.hidden = !showCodex;
 
       if (!showCodex) {
         return;
@@ -11867,9 +11934,6 @@
       const activeMode = getEffectiveNoteRenderMode();
       document.querySelectorAll("[data-note-mode]").forEach((button) => {
         button.classList.toggle("active", button.dataset.noteMode === activeMode);
-      });
-      document.querySelectorAll("[data-right-pane-mode]").forEach((button) => {
-        button.classList.toggle("active", button.dataset.rightPaneMode === state.rightPaneMode);
       });
     }
 

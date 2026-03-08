@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::codex::{
-    CodexSessionManager, CodexSessionPatch, CodexSessionRecord, CodexTerminalClientMessage,
-    CodexTerminalServerMessage,
+    CodexSessionCounts, CodexSessionManager, CodexSessionPatch, CodexSessionRecord,
+    CodexSessionStatus, CodexTerminalClientMessage, CodexTerminalServerMessage,
 };
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::markdown::render_markdown_html;
@@ -460,7 +460,8 @@ async fn dashboard(
         ),
         None => None,
     };
-    let counts = state.service.list_codex_session_counts().map_err(internal_err)?;
+    let counts = build_effective_codex_counts(&state.service, &state.codex_manager)
+        .map_err(internal_err)?;
 
     let initial_state = UiStatePayload {
         projects: projects
@@ -468,7 +469,9 @@ async fn dashboard(
             .map(|project| map_project_summary(project, &counts))
             .collect(),
         selected_project_id: selected_project_id.clone(),
-        workspace: workspace.map(|workspace| map_workspace_payload_with_counts(workspace, &counts)),
+        workspace: workspace.map(|workspace| {
+            map_workspace_payload_with_counts_and_manager(workspace, &counts, &state.codex_manager)
+        }),
         server_port: state.service.config.server.port,
     };
 
@@ -503,9 +506,7 @@ async fn api_projects(State(state): State<Arc<WebState>>) -> ApiResult<Vec<Proje
         .service
         .list_projects(UNBOUNDED_QUERY_LIMIT, false)
         .map_err(internal_api_err)?;
-    let counts = state
-        .service
-        .list_codex_session_counts()
+    let counts = build_effective_codex_counts(&state.service, &state.codex_manager)
         .map_err(internal_api_err)?;
     Ok(Json(
         projects
@@ -519,8 +520,8 @@ async fn api_ui_state(
     State(state): State<Arc<WebState>>,
     Query(query): Query<ProjectQuery>,
 ) -> ApiResult<UiStatePayload> {
-    let payload =
-        build_ui_state_payload(&state.service, query.project_id).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, query.project_id)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -541,7 +542,11 @@ async fn api_restore_archived_entity(
         .restore_entity(&id, &request.expected_revision, Actor::human("operator"))
         .map_err(map_service_err_json)?;
 
-    let ui_state = build_ui_state_payload(&state.service, request.current_project_id)
+    let ui_state = build_ui_state_payload(
+        &state.service,
+        &state.codex_manager,
+        request.current_project_id,
+    )
         .map_err(internal_api_err)?;
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
     Ok(Json(ArchiveMutationResponse { archive, ui_state }))
@@ -556,7 +561,11 @@ async fn api_empty_archive(
         .empty_archive()
         .map_err(map_service_err_json)?;
 
-    let ui_state = build_ui_state_payload(&state.service, request.current_project_id)
+    let ui_state = build_ui_state_payload(
+        &state.service,
+        &state.codex_manager,
+        request.current_project_id,
+    )
         .map_err(internal_api_err)?;
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
     Ok(Json(ArchiveMutationResponse { archive, ui_state }))
@@ -571,7 +580,8 @@ async fn api_project_workspace(
         .load_project_workspace(&id)
         .map_err(internal_api_err)?;
     Ok(Json(
-        map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
     ))
 }
 
@@ -586,7 +596,7 @@ async fn api_project_codex_sessions(
     Ok(Json(
         sessions
             .into_iter()
-            .map(map_codex_session_payload)
+            .map(|session| map_codex_session_payload(session, &state.codex_manager))
             .collect(),
     ))
 }
@@ -607,7 +617,8 @@ async fn api_create_codex_session(
         .load_project_workspace(&id)
         .map_err(internal_api_err)?;
     Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         opened_session_id: Some(session.id),
         message: None,
     }))
@@ -626,7 +637,8 @@ async fn api_discover_codex_sessions(
         .load_project_workspace(&id)
         .map_err(internal_api_err)?;
     Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         opened_session_id: None,
         message: Some("Codex history refreshed".to_string()),
     }))
@@ -668,8 +680,12 @@ async fn api_create_project(
         }
     }
 
-    let payload =
-        build_ui_state_payload(&state.service, Some(created.id)).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(
+        &state.service,
+        &state.codex_manager,
+        Some(created.id),
+    )
+    .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -691,7 +707,8 @@ async fn api_update_project(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or_else(|| Some(id.clone()));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -705,7 +722,11 @@ async fn api_archive_project(
         .archive_entity(&id, &request.expected_revision, Actor::human("operator"))
         .map_err(map_service_err_json)?;
 
-    let payload = build_ui_state_payload(&state.service, request.current_project_id)
+    let payload = build_ui_state_payload(
+        &state.service,
+        &state.codex_manager,
+        request.current_project_id,
+    )
         .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
@@ -721,7 +742,8 @@ async fn api_sync_project(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -736,7 +758,8 @@ async fn api_enable_task_sync(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -751,7 +774,8 @@ async fn api_pause_task_sync(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -766,7 +790,8 @@ async fn api_resume_task_sync(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -781,7 +806,8 @@ async fn api_resolve_task_sync_file(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -796,7 +822,8 @@ async fn api_resolve_task_sync_local(
         .map_err(map_service_err_json)?;
 
     let selected = request.current_project_id.or(Some(id));
-    let payload = build_ui_state_payload(&state.service, selected).map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, selected)
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -831,7 +858,8 @@ async fn api_link_note_file(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: Some(linked.id),
     }))
 }
@@ -856,7 +884,8 @@ async fn api_create_task(
         .map_err(map_service_err_json)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_task_id: Some(created_task_id),
         archive: None,
     }))
@@ -899,7 +928,8 @@ async fn api_update_task(
         .map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_task_id: None,
         archive: None,
     }))
@@ -918,7 +948,8 @@ async fn api_reorder_tasks(
         )
         .map_err(map_service_err_json)?;
     Ok(Json(
-        map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
     ))
 }
 
@@ -943,7 +974,8 @@ async fn api_archive_task(
         .map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_task_id: None,
         archive: None,
     }))
@@ -991,7 +1023,8 @@ async fn api_archive_tasks(
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
 
     Ok(Json(TaskMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_task_id: None,
         archive: Some(archive),
     }))
@@ -1026,7 +1059,8 @@ async fn api_create_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: Some(created.id),
     }))
 }
@@ -1062,7 +1096,8 @@ async fn api_update_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: None,
     }))
 }
@@ -1087,7 +1122,8 @@ async fn api_resolve_note_sync_file(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: Some(id),
     }))
 }
@@ -1112,7 +1148,8 @@ async fn api_resolve_note_sync_local(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: Some(id),
     }))
 }
@@ -1138,7 +1175,8 @@ async fn api_archive_note(
         .map_err(internal_api_err)?;
 
     Ok(Json(NoteMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         created_note_id: None,
     }))
 }
@@ -1178,7 +1216,8 @@ async fn api_update_codex_session(
         .load_project_workspace(&session.project_id)
         .map_err(internal_api_err)?;
     Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         opened_session_id: None,
         message: Some("Codex session saved".to_string()),
     }))
@@ -1199,7 +1238,8 @@ async fn api_resume_codex_session(
         .load_project_workspace(&session.project_id)
         .map_err(internal_api_err)?;
     Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         opened_session_id: Some(session.id),
         message: None,
     }))
@@ -1225,7 +1265,8 @@ async fn api_terminate_codex_session(
         .load_project_workspace(&session.project_id)
         .map_err(internal_api_err)?;
     Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, workspace).map_err(internal_api_err)?,
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
         opened_session_id: None,
         message: Some("Codex session ended".to_string()),
     }))
@@ -1511,15 +1552,21 @@ fn format_archive_children_label(task_count: usize, note_count: usize) -> Option
 
 fn map_workspace_payload(
     service: &AppService,
+    codex_manager: &CodexSessionManager,
     workspace: ProjectWorkspace,
 ) -> Result<WorkspacePayload, anyhow::Error> {
-    let counts = service.list_codex_session_counts()?;
-    Ok(map_workspace_payload_with_counts(workspace, &counts))
+    let counts = build_effective_codex_counts(service, codex_manager)?;
+    Ok(map_workspace_payload_with_counts_and_manager(
+        workspace,
+        &counts,
+        codex_manager,
+    ))
 }
 
-fn map_workspace_payload_with_counts(
+fn map_workspace_payload_with_counts_and_manager(
     workspace: ProjectWorkspace,
-    counts: &HashMap<String, crate::codex::CodexSessionCounts>,
+    counts: &HashMap<String, CodexSessionCounts>,
+    codex_manager: &CodexSessionManager,
 ) -> WorkspacePayload {
     WorkspacePayload {
         project: map_project_summary(workspace.project, counts),
@@ -1537,7 +1584,7 @@ fn map_workspace_payload_with_counts(
         codex_sessions: workspace
             .codex_sessions
             .into_iter()
-            .map(map_codex_session_payload)
+            .map(|session| map_codex_session_payload(session, codex_manager))
             .collect(),
         suggested_open_note_id: workspace.suggested_open_note_id,
     }
@@ -1545,7 +1592,7 @@ fn map_workspace_payload_with_counts(
 
 fn map_project_summary(
     project: ProjectItem,
-    counts: &HashMap<String, crate::codex::CodexSessionCounts>,
+    counts: &HashMap<String, CodexSessionCounts>,
 ) -> ProjectSummary {
     let session_counts = counts.get(&project.id).cloned().unwrap_or_default();
     ProjectSummary {
@@ -1574,10 +1621,11 @@ fn map_project_summary(
 
 fn build_ui_state_payload(
     service: &AppService,
+    codex_manager: &CodexSessionManager,
     requested_project_id: Option<String>,
 ) -> Result<UiStatePayload, anyhow::Error> {
     let projects = service.list_projects(UNBOUNDED_QUERY_LIMIT, false)?;
-    let counts = service.list_codex_session_counts()?;
+    let counts = build_effective_codex_counts(service, codex_manager)?;
     let selected_project = resolve_selected_project(&projects, requested_project_id.as_deref());
     let selected_project_id = selected_project.as_ref().map(|project| project.id.clone());
     let workspace = match selected_project_id.as_deref() {
@@ -1591,7 +1639,9 @@ fn build_ui_state_payload(
             .map(|project| map_project_summary(project, &counts))
             .collect(),
         selected_project_id,
-        workspace: workspace.map(|workspace| map_workspace_payload_with_counts(workspace, &counts)),
+        workspace: workspace.map(|workspace| {
+            map_workspace_payload_with_counts_and_manager(workspace, &counts, codex_manager)
+        }),
         server_port: service.config.server.port,
     })
 }
@@ -1652,14 +1702,18 @@ fn map_note_payload(note: crate::types::NoteDetail) -> NotePayload {
     }
 }
 
-fn map_codex_session_payload(session: CodexSessionRecord) -> CodexSessionPayload {
+fn map_codex_session_payload(
+    session: CodexSessionRecord,
+    codex_manager: &CodexSessionManager,
+) -> CodexSessionPayload {
+    let status = effective_codex_status(&session, codex_manager);
     CodexSessionPayload {
         id: session.id,
         project_id: session.project_id,
         task_id: session.task_id,
         title: session.title,
         origin: session.origin.as_str().to_string(),
-        status: session.status.as_str().to_string(),
+        status: status.as_str().to_string(),
         cwd: session.cwd,
         codex_session_id: session.codex_session_id.clone(),
         started_at_iso: session.started_at.to_rfc3339(),
@@ -1670,6 +1724,36 @@ fn map_codex_session_payload(session: CodexSessionRecord) -> CodexSessionPayload
         ended_at_label: session.ended_at.map(format_timestamp),
         summary: session.summary,
         resume_available: session.codex_session_id.is_some(),
+    }
+}
+
+fn build_effective_codex_counts(
+    service: &AppService,
+    codex_manager: &CodexSessionManager,
+) -> Result<HashMap<String, CodexSessionCounts>, anyhow::Error> {
+    let mut counts = HashMap::<String, CodexSessionCounts>::new();
+    for session in service.list_all_codex_sessions()? {
+        let entry = counts.entry(session.project_id.clone()).or_default();
+        entry.total_count += 1;
+        if effective_codex_status(&session, codex_manager) == CodexSessionStatus::Live {
+            entry.live_count += 1;
+        }
+    }
+    Ok(counts)
+}
+
+fn effective_codex_status(
+    session: &CodexSessionRecord,
+    codex_manager: &CodexSessionManager,
+) -> CodexSessionStatus {
+    if codex_manager.is_live(&session.id) {
+        if session.status == CodexSessionStatus::Launching {
+            CodexSessionStatus::Launching
+        } else {
+            CodexSessionStatus::Live
+        }
+    } else {
+        CodexSessionStatus::Resumable
     }
 }
 
