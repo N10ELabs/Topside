@@ -2863,8 +2863,8 @@
       grid-area: main;
       min-height: 0;
       display: grid;
-      gap: 10px;
-      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 0;
+      grid-template-rows: minmax(0, 1fr);
     }
 
     .codex-session-tab {
@@ -2977,10 +2977,8 @@
 
     .codex-terminal-body {
       position: relative;
-      min-height: 420px;
-      background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 24%),
-        linear-gradient(180deg, rgba(4, 9, 14, 0.96), rgba(3, 7, 12, 0.98));
+      min-height: 320px;
+      background: #04090e;
     }
 
     .codex-terminal-host {
@@ -2989,6 +2987,17 @@
       min-height: 0;
       padding: 10px 12px;
       overflow: hidden;
+      background: #04090e;
+    }
+
+    .codex-terminal-host .xterm {
+      height: 100%;
+      background: #04090e;
+    }
+
+    .codex-terminal-host .xterm-screen,
+    .codex-terminal-host .xterm-rows {
+      background: #04090e;
     }
 
     .codex-terminal-empty {
@@ -2996,14 +3005,93 @@
       inset: 12px;
       display: grid;
       place-items: center;
-      text-align: center;
       background: rgba(8, 15, 21, 0.72);
       border: 1px dashed rgba(147, 184, 207, 0.16);
       z-index: 1;
     }
 
+    .codex-terminal-empty-card {
+      width: min(100%, 520px);
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .codex-terminal-empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .codex-terminal-empty-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
     .codex-terminal-host .xterm-viewport {
       overflow-y: auto !important;
+      background-color: #04090e !important;
+      opacity: 1 !important;
+    }
+
+    .codex-terminal-host .xterm-screen canvas {
+      filter: none !important;
+      opacity: 1 !important;
+    }
+
+    .codex-composer {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid rgba(147, 184, 207, 0.12);
+      background: rgba(6, 12, 18, 0.76);
+    }
+
+    .codex-terminal-helper {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border-top: 1px solid rgba(147, 184, 207, 0.12);
+      background: rgba(9, 18, 25, 0.84);
+    }
+
+    .codex-terminal-helper-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .codex-terminal-helper-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .codex-terminal-helper-actions .text-btn {
+      padding-inline: 12px;
+    }
+
+    .codex-composer-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .codex-compose-input {
+      min-width: 0;
+    }
+
+    .codex-composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .codex-composer-hint {
+      min-height: 18px;
     }
 
     .codex-session-editor,
@@ -3017,6 +3105,12 @@
 
     .codex-session-editor {
       max-height: min(34vh, 320px);
+    }
+
+    .codex-terminal-helper,
+    .codex-composer,
+    .codex-session-editor {
+      display: none !important;
     }
 
     .codex-panel-copy {
@@ -4009,6 +4103,22 @@
                     <div id="codex-terminal-host" class="codex-terminal-host"></div>
                     <div id="codex-terminal-empty" class="empty-state codex-terminal-empty"></div>
                   </div>
+                  <div id="codex-terminal-helper" class="codex-terminal-helper" hidden></div>
+                  <div id="codex-composer" class="codex-composer" hidden>
+                    <form id="codex-compose-form" class="codex-composer-form">
+                      <input
+                        id="codex-compose-input"
+                        class="text-input codex-compose-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Ask Codex about this project"
+                      >
+                      <div class="codex-composer-actions">
+                        <button id="codex-compose-send" class="text-btn" type="submit">Send</button>
+                      </div>
+                    </form>
+                    <div id="codex-compose-hint" class="codex-panel-copy codex-composer-hint"></div>
+                  </div>
                 </div>
                 <div id="codex-session-editor" class="codex-session-editor"></div>
               </div>
@@ -4138,6 +4248,10 @@
       openCodexSessionId: initialState.workspace?.codex_sessions?.[0]?.id || null,
       codexSessionTitleEdits: {},
       codexSessionSummaryEdits: {},
+      codexPromptEdits: {},
+      codexPendingPrompt: null,
+      codexTerminalPrompt: null,
+      codexTerminalTails: {},
       codexSocket: null,
       codexSocketSessionId: null,
       codexTerminal: null,
@@ -4312,8 +4426,14 @@
     const codexCloseButton = document.getElementById("codex-close");
     const codexTerminalHost = document.getElementById("codex-terminal-host");
     const codexTerminalEmpty = document.getElementById("codex-terminal-empty");
+    const codexTerminalHelper = document.getElementById("codex-terminal-helper");
     const codexTerminalSessionLabel = document.getElementById("codex-terminal-session-label");
     const codexTerminalMeta = document.getElementById("codex-terminal-meta");
+    const codexComposer = document.getElementById("codex-composer");
+    const codexComposeForm = document.getElementById("codex-compose-form");
+    const codexComposeInput = document.getElementById("codex-compose-input");
+    const codexComposeSend = document.getElementById("codex-compose-send");
+    const codexComposeHint = document.getElementById("codex-compose-hint");
     const observedNoteBodyInputs = new WeakSet();
     const observedMarkdownOverlayInputs = new WeakSet();
     const noteBodyResizeObserver = typeof ResizeObserver !== "undefined"
@@ -4898,6 +5018,21 @@
     codexCloseButton.addEventListener("click", () => {
       setRightPaneMode("notes");
       render();
+    });
+
+    codexComposeInput.addEventListener("input", () => {
+      const session = getCurrentCodexSession();
+      if (!session) return;
+      state.codexPromptEdits[session.id] = codexComposeInput.value || "";
+      const hasPendingPrompt = state.codexPendingPrompt?.sessionId === session.id;
+      codexComposeSend.disabled = !codexComposeInput.value.trim() || hasPendingPrompt || codexComposeInput.disabled;
+    });
+
+    codexComposeForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const session = getCurrentCodexSession();
+      if (!session) return;
+      void submitCodexPrompt(session.id);
     });
 
     document.addEventListener("visibilitychange", async () => {
@@ -7049,6 +7184,9 @@
       }
 
       applySessionSnapshotToWorkspace(snapshot);
+      if (state.rightPaneMode === "codex" && state.openCodexSessionId) {
+        await openCodexSession(state.openCodexSessionId, { resumeIfNeeded: true });
+      }
     }
 
     function workspaceHasBackgroundNoteSync(workspace) {
@@ -9143,6 +9281,8 @@
 
     function markCodexSessionResumable(sessionId, message = "") {
       syncCurrentWorkspaceCodexSessionState(sessionId, { status: "resumable" });
+      restorePendingCodexPrompt(sessionId);
+      clearCodexTerminalPrompt(sessionId);
       state.codexMessage = message || "This Codex session is not attached right now. Resume it to reopen the embedded chat.";
       disconnectCodexSocket();
     }
@@ -9159,6 +9299,203 @@
       return Object.prototype.hasOwnProperty.call(state.codexSessionSummaryEdits, session.id)
         ? state.codexSessionSummaryEdits[session.id]
         : session.summary;
+    }
+
+    function getCodexPromptValue(session) {
+      if (!session) return "";
+      return Object.prototype.hasOwnProperty.call(state.codexPromptEdits, session.id)
+        ? state.codexPromptEdits[session.id]
+        : "";
+    }
+
+    function stripTerminalControlSequences(value) {
+      return String(value || "")
+        .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "")
+        .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+        .replace(/\u001b[@-Z\\-_]/g, "")
+        .replace(/\u200a/g, " ");
+    }
+
+    function normalizeCodexTerminalOutput(value) {
+      return String(value || "").replace(/\u001b\[([0-9;]*)m/g, (match, params) => {
+        if (!params) return match;
+        const filtered = params
+          .split(";")
+          .filter((part) => part !== "2");
+        if (filtered.length === params.split(";").length) {
+          return match;
+        }
+        return filtered.length ? `\u001b[${filtered.join(";")}m` : "";
+      });
+    }
+
+    function clearCodexTerminalPrompt(sessionId = null) {
+      if (!sessionId) {
+        state.codexTerminalPrompt = null;
+        return;
+      }
+      delete state.codexTerminalTails[sessionId];
+      if (state.codexTerminalPrompt?.sessionId === sessionId) {
+        state.codexTerminalPrompt = null;
+      }
+    }
+
+    function focusCodexTerminal() {
+      if (!state.codexTerminal) return;
+      try {
+        state.codexTerminal.focus();
+      } catch (_error) {
+        // Ignore focus failures on detached terminals.
+      }
+    }
+
+    function sendCodexTerminalInput(sessionId, data) {
+      if (!sessionId || !data) return false;
+      if (state.codexSocketSessionId !== sessionId) return false;
+      if (!state.codexSocket || state.codexSocket.readyState !== WebSocket.OPEN) return false;
+      state.codexSocket.send(JSON.stringify({ type: "input", data }));
+      window.requestAnimationFrame(() => {
+        focusCodexTerminal();
+      });
+      return true;
+    }
+
+    function encodeCodexPromptInput(value) {
+      const normalized = String(value || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .trim();
+      if (!normalized) return "";
+      return `${normalized.replace(/\n/g, "\r")}\r`;
+    }
+
+    function restorePendingCodexPrompt(sessionId) {
+      const pending = state.codexPendingPrompt;
+      if (!pending || pending.sessionId !== sessionId) return false;
+      state.codexPromptEdits[sessionId] = pending.text;
+      state.codexPendingPrompt = null;
+      return true;
+    }
+
+    function flushPendingCodexPrompt(sessionId) {
+      const pending = state.codexPendingPrompt;
+      if (!pending || pending.sessionId !== sessionId) return false;
+      const data = encodeCodexPromptInput(pending.text);
+      if (!data) {
+        state.codexPendingPrompt = null;
+        return false;
+      }
+      const sent = sendCodexTerminalInput(sessionId, data);
+      if (sent) {
+        state.codexPendingPrompt = null;
+      }
+      return sent;
+    }
+
+    function recordCodexTerminalOutput(sessionId, chunk) {
+      const stripped = stripTerminalControlSequences(chunk)
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!stripped) return false;
+
+      const nextTail = `${state.codexTerminalTails[sessionId] || ""} ${stripped}`
+        .slice(-4000)
+        .toLowerCase();
+      state.codexTerminalTails[sessionId] = nextTail;
+
+      if (
+        nextTail.includes("update available!")
+        && nextTail.includes("press enter to continue")
+        && nextTail.includes("update now")
+        && nextTail.includes("skip")
+      ) {
+        const changed = state.codexTerminalPrompt?.sessionId !== sessionId
+          || state.codexTerminalPrompt?.kind !== "update_available";
+        state.codexTerminalPrompt = {
+          sessionId,
+          kind: "update_available",
+        };
+        return changed;
+      }
+
+      if (
+        state.codexTerminalPrompt?.sessionId === sessionId
+        && (nextTail.includes("openai codex") || nextTail.includes("starting mcp servers"))
+      ) {
+        state.codexTerminalPrompt = null;
+        return true;
+      }
+
+      return false;
+    }
+
+    function handleCodexTerminalPromptAction(action) {
+      const session = getCurrentCodexSession();
+      if (!session) return;
+      const sequences = {
+        focus: null,
+        enter: "\r",
+        escape: "\u001b",
+        arrow_up: "\u001b[A",
+        arrow_down: "\u001b[B",
+        ctrl_c: "\u0003",
+        update_skip: "2\r",
+        update_skip_version: "3\r",
+        update_now: "1\r",
+      };
+      const sequence = sequences[action];
+      if (action === "focus") {
+        focusCodexTerminal();
+        return;
+      }
+      if (!sequence) return;
+      if (!sendCodexTerminalInput(session.id, sequence)) return;
+      if (action.startsWith("update_")) {
+        clearCodexTerminalPrompt(session.id);
+      }
+      renderCodexPane();
+    }
+
+    async function submitCodexPrompt(sessionId) {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      if (!normalizedSessionId) return;
+      const session = getProjectCodexSessions().find((item) => item.id === normalizedSessionId) || null;
+      if (!session) {
+        state.codexMessage = "Codex session not found.";
+        render();
+        return;
+      }
+      const draft = getCodexPromptValue(session).trim();
+      if (!draft) {
+        focusCodexTerminal();
+        return;
+      }
+      if (session.status === "resumable" && !session.resume_available) {
+        state.codexMessage = "This Codex session is still waiting for a resumable Codex id.";
+        render();
+        return;
+      }
+      state.codexPromptEdits[normalizedSessionId] = "";
+      state.codexPendingPrompt = {
+        sessionId: normalizedSessionId,
+        text: draft,
+      };
+      renderCodexPane();
+      if (session.status === "resumable") {
+        await openCodexSession(normalizedSessionId, { resumeIfNeeded: true });
+        return;
+      }
+      if (
+        state.codexSocketSessionId === normalizedSessionId
+        && state.codexSocket
+        && state.codexSocket.readyState === WebSocket.OPEN
+      ) {
+        flushPendingCodexPrompt(normalizedSessionId);
+        renderCodexPane();
+        return;
+      }
+      attachCodexSocket(session);
+      renderCodexPane();
     }
 
     async function ensureCodexProjectSessionsLoaded(projectId, options = {}) {
@@ -9211,22 +9548,26 @@
         fontFamily: "\"IBM Plex Mono\", monospace",
         fontSize: 12,
         lineHeight: 1.3,
+        fontWeight: 500,
+        fontWeightBold: 700,
         cursorBlink: true,
+        allowTransparency: false,
+        minimumContrastRatio: 5.5,
         scrollback: 5000,
         theme: {
           background: "#04090e",
-          foreground: "#e8f0f5",
-          cursor: "#38bdf8",
+          foreground: "#f8fcff",
+          cursor: "#56d5ff",
           selectionBackground: "rgba(56, 189, 248, 0.28)",
-          black: "#081118",
+          black: "#5c7183",
           red: "#f87171",
           green: "#34d399",
           yellow: "#f59e0b",
           blue: "#38bdf8",
           magenta: "#c084fc",
           cyan: "#67e8f9",
-          white: "#e8f0f5",
-          brightBlack: "#64748b",
+          white: "#f8fcff",
+          brightBlack: "#c0d0db",
           brightRed: "#fca5a5",
           brightGreen: "#6ee7b7",
           brightYellow: "#fcd34d",
@@ -9238,7 +9579,20 @@
       });
       state.codexFitAddon = new window.FitAddon.FitAddon();
       state.codexTerminal.loadAddon(state.codexFitAddon);
+      codexTerminalHost.tabIndex = 0;
+      codexTerminalHost.setAttribute("role", "application");
+      codexTerminalHost.setAttribute("aria-label", "Codex terminal");
+      codexTerminalHost.title = "Click to focus the live Codex terminal";
       state.codexTerminal.open(codexTerminalHost);
+      if (codexTerminalHost.dataset.codexTerminalFocusBound !== "true") {
+        codexTerminalHost.dataset.codexTerminalFocusBound = "true";
+        codexTerminalHost.addEventListener("click", () => {
+          focusCodexTerminal();
+        });
+        codexTerminalHost.addEventListener("pointerdown", () => {
+          focusCodexTerminal();
+        });
+      }
       state.codexTerminal.onData((data) => {
         if (!state.codexSocket || state.codexSocket.readyState !== WebSocket.OPEN) return;
         state.codexSocket.send(JSON.stringify({ type: "input", data }));
@@ -9321,6 +9675,8 @@
         if (state.codexSocket !== socket) return;
         state.codexMessage = "";
         scheduleCodexTerminalResize();
+        flushPendingCodexPrompt(session.id);
+        focusCodexTerminal();
         renderCodexPane();
       });
 
@@ -9332,7 +9688,11 @@
           return;
         }
         if (payload?.type === "output" && state.codexTerminal) {
-          state.codexTerminal.write(String(payload.data || ""));
+          const output = normalizeCodexTerminalOutput(String(payload.data || ""));
+          state.codexTerminal.write(output);
+          if (recordCodexTerminalOutput(session.id, output)) {
+            renderCodexPane();
+          }
           return;
         }
         if (payload?.type === "status") {
@@ -9407,7 +9767,11 @@
             { method: "POST" },
             "codex"
           );
-          if (!response) return;
+          if (!response) {
+            restorePendingCodexPrompt(session.id);
+            renderCodexPane();
+            return;
+          }
           applyWorkspace(response.workspace);
           state.openCodexSessionId = response.opened_session_id || session.id;
           render();
@@ -9501,6 +9865,21 @@
       render();
     }
 
+    function setCodexTerminalEmptyMarkup(markup) {
+      codexTerminalEmpty.innerHTML = markup || "";
+      codexTerminalEmpty.hidden = !markup;
+    }
+
+    function renderCodexComposerState(_activeSession) {
+      if (!codexComposer || !codexComposeInput || !codexComposeSend || !codexComposeHint) return;
+      codexComposer.hidden = true;
+      codexComposeInput.value = "";
+      codexComposeInput.disabled = true;
+      codexComposeSend.disabled = true;
+      codexComposeSend.textContent = "Send";
+      codexComposeHint.textContent = "";
+    }
+
     function renderProjectCodexChildren(project) {
       if (!projectSupportsCodex(project) || !state.codexExpandedProjects[project.id]) {
         return "";
@@ -9560,7 +9939,6 @@
         state.openCodexSessionId = sessions[0].id;
       }
       const activeSession = supportsCodex ? getCurrentCodexSession() : null;
-
       codexMessage.innerHTML = state.codexMessage
         ? `<div class="message">${escapeHtml(state.codexMessage)}</div>`
         : "";
@@ -9575,6 +9953,8 @@
       codexNewButton.disabled = !supportsCodex;
       codexResumeButton.disabled = !(activeSession && activeSession.resume_available && activeSession.status === "resumable");
       codexEndButton.disabled = !(activeSession && (activeSession.status === "live" || activeSession.status === "launching"));
+      codexTerminalHelper.hidden = true;
+      codexTerminalHelper.innerHTML = "";
 
       if (!supportsCodex) {
         codexSessionTabs.innerHTML = `
@@ -9595,10 +9975,17 @@
         `;
         codexTerminalSessionLabel.textContent = "";
         codexTerminalMeta.textContent = "";
-        codexTerminalEmpty.hidden = false;
-        codexTerminalEmpty.textContent = isDesktopShell
-          ? "Codex sessions need a local project source."
-          : "Codex sessions are available only in the desktop app.";
+        setCodexTerminalEmptyMarkup(`
+          <div class="codex-terminal-empty-card">
+            <div class="codex-terminal-empty-title">Embedded Codex chat is unavailable</div>
+            <div class="codex-panel-copy">${escapeHtml(
+              isDesktopShell
+                ? "Link a local folder to this project to launch and resume Codex sessions in Topside."
+                : "Codex sessions are available only in the native Topside desktop app."
+            )}</div>
+          </div>
+        `);
+        renderCodexComposerState(null);
         disconnectCodexSocket(true);
         return;
       }
@@ -9640,8 +10027,17 @@
         `;
         codexTerminalSessionLabel.textContent = project.title;
         codexTerminalMeta.textContent = pathLeaf(project.source_locator || "");
-        codexTerminalEmpty.hidden = false;
-        codexTerminalEmpty.textContent = "Start a session or choose a discovered session to open the embedded terminal.";
+        setCodexTerminalEmptyMarkup(`
+          <div class="codex-terminal-empty-card">
+            <div class="codex-terminal-empty-title">Open a Codex chat for ${escapeHtml(project.title)}</div>
+            <div class="codex-panel-copy">Choose a session from the left rail, start a new one, or discover Codex history for this project.</div>
+            <div class="codex-terminal-empty-actions">
+              <button class="text-btn" type="button" data-codex-empty-new>New Session</button>
+              <button class="text-btn" type="button" data-codex-empty-discover>Discover History</button>
+            </div>
+          </div>
+        `);
+        renderCodexComposerState(null);
         disconnectCodexSocket(true);
       } else {
         codexSessionEditor.innerHTML = `
@@ -9681,17 +10077,31 @@
 
         codexTerminalSessionLabel.textContent = activeSession.title || "Codex session";
         codexTerminalMeta.textContent = `${codexStatusLabel(activeSession.status)} • ${pathLeaf(activeSession.cwd || project.source_locator || "")}`;
+        renderCodexComposerState(activeSession);
 
         if (activeSession.status === "live" || activeSession.status === "launching") {
-          codexTerminalEmpty.hidden = true;
+          setCodexTerminalEmptyMarkup("");
           window.requestAnimationFrame(() => {
             attachCodexSocket(activeSession);
+            focusCodexTerminal();
           });
         } else {
-          codexTerminalEmpty.hidden = false;
-          codexTerminalEmpty.textContent = activeSession.resume_available
-            ? "This session is resumable. Resume it to reopen the embedded Codex terminal."
-            : "This session is still waiting for a resumable Codex id.";
+          setCodexTerminalEmptyMarkup(`
+            <div class="codex-terminal-empty-card">
+              <div class="codex-terminal-empty-title">${escapeHtml(activeSession.title || "Codex session")}</div>
+              <div class="codex-panel-copy">${escapeHtml(
+                activeSession.resume_available
+                  ? "This session is resumable. Resume it to reopen the embedded Codex chat, or send a message below and Topside will reopen it for you."
+                  : "This session is still waiting for a resumable Codex id, so Topside cannot reopen the chat yet."
+              )}</div>
+              <div class="codex-terminal-empty-actions">
+                ${activeSession.resume_available
+                  ? `<button class="text-btn" type="button" data-codex-empty-resume="${escapeAttribute(activeSession.id)}">Resume Session</button>`
+                  : ""}
+                <button class="text-btn" type="button" data-codex-empty-new>New Session</button>
+              </div>
+            </div>
+          `);
           disconnectCodexSocket();
         }
       }
@@ -9709,6 +10119,26 @@
       codexSessionTabs.querySelectorAll("[data-codex-inline-discover]").forEach((button) => {
         button.addEventListener("click", () => {
           void discoverCodexSessions();
+        });
+      });
+      codexTerminalEmpty.querySelectorAll("[data-codex-empty-new]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void createCodexSession();
+        });
+      });
+      codexTerminalEmpty.querySelectorAll("[data-codex-empty-discover]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void discoverCodexSessions();
+        });
+      });
+      codexTerminalEmpty.querySelectorAll("[data-codex-empty-resume]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void openCodexSession(button.dataset.codexEmptyResume, { resumeIfNeeded: true });
+        });
+      });
+      codexTerminalHelper.querySelectorAll("[data-codex-terminal-prompt]").forEach((button) => {
+        button.addEventListener("click", () => {
+          handleCodexTerminalPromptAction(button.dataset.codexTerminalPrompt);
         });
       });
       codexSessionEditor.querySelectorAll("[data-codex-title-input]").forEach((input) => {

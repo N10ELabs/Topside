@@ -548,10 +548,8 @@ impl CodexSessionManager {
         mark_live_immediately: bool,
     ) -> Result<(), ServiceError> {
         let cwd = PathBuf::from(&record.cwd);
-        let shell = codex_binary();
-        let mut command = CommandBuilder::new(shell);
-        append_codex_args(
-            &mut command,
+        let command = build_codex_command(
+            &codex_binary(),
             &cwd,
             &self.service.config.workspace_root,
             prompt.as_deref(),
@@ -980,7 +978,16 @@ fn append_codex_args(
 ) {
     command.arg("-C");
     command.arg(cwd.to_string_lossy().to_string());
-    command.arg("--skip-git-repo-check");
+    for server_name in configured_codex_mcp_server_names() {
+        if server_name == "topside" {
+            continue;
+        }
+        command.arg("-c");
+        command.arg(format!(
+            "mcp_servers.{}.enabled=false",
+            codex_config_key_segment(&server_name)
+        ));
+    }
     command.arg("-c");
     command.arg(format!(
         "mcp_servers.topside.command={}",
@@ -1006,8 +1013,61 @@ fn append_codex_args(
     }
 }
 
+fn build_codex_command(
+    binary: &str,
+    cwd: &Path,
+    workspace_root: &Path,
+    prompt: Option<&str>,
+    resume_session_id: Option<&str>,
+) -> CommandBuilder {
+    let mut command = CommandBuilder::new(binary);
+    command.cwd(cwd.as_os_str());
+    command.env("TERM", "xterm-256color");
+    command.env("COLORTERM", "truecolor");
+    command.env("TERM_PROGRAM", "Topside");
+    append_codex_args(
+        &mut command,
+        cwd,
+        workspace_root,
+        prompt,
+        resume_session_id,
+    );
+    command
+}
+
 fn codex_binary() -> String {
     env::var("TOPSIDE_CODEX_BIN").unwrap_or_else(|_| "codex".to_string())
+}
+
+fn configured_codex_mcp_server_names() -> Vec<String> {
+    let config_path = match codex_home_dir() {
+        Ok(path) => path.join("config.toml"),
+        Err(_) => return Vec::new(),
+    };
+    let raw = match fs::read_to_string(config_path) {
+        Ok(raw) => raw,
+        Err(_) => return Vec::new(),
+    };
+    let value = match toml::from_str::<toml::Value>(&raw) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+    let Some(table) = value.get("mcp_servers").and_then(|entry| entry.as_table()) else {
+        return Vec::new();
+    };
+    table.keys().cloned().collect()
+}
+
+fn codex_config_key_segment(value: &str) -> String {
+    if !value.is_empty()
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+    {
+        value.to_string()
+    } else {
+        toml_basic_string(value)
+    }
 }
 
 fn toml_basic_string(value: &str) -> String {
@@ -1258,6 +1318,95 @@ mod tests {
             discovered[0].codex_session_id,
             "019bfd79-5282-7551-95ce-cb61664a2993"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn build_codex_command_uses_supported_interactive_flags() {
+        let project_root = PathBuf::from("/tmp/project");
+        let workspace_root = PathBuf::from("/tmp/workspace");
+        let command = build_codex_command(
+            "codex",
+            &project_root,
+            &workspace_root,
+            Some("Investigate the failing session"),
+            Some("019bfd79-5282-7551-95ce-cb61664a2993"),
+        );
+
+        let argv = command
+            .get_argv()
+            .iter()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(argv[0], "codex");
+        assert!(argv.windows(2).any(|pair| pair == ["resume", "019bfd79-5282-7551-95ce-cb61664a2993"]));
+        assert!(argv.contains(&"-C".to_string()));
+        assert!(!argv.iter().any(|value| value == "--skip-git-repo-check"));
+        assert_eq!(
+            command.get_env("TERM").map(|value| value.to_string_lossy().to_string()),
+            Some("xterm-256color".to_string())
+        );
+        assert_eq!(
+            command
+                .get_env("COLORTERM")
+                .map(|value| value.to_string_lossy().to_string()),
+            Some("truecolor".to_string())
+        );
+        assert_eq!(
+            command
+                .get_env("TERM_PROGRAM")
+                .map(|value| value.to_string_lossy().to_string()),
+            Some("Topside".to_string())
+        );
+    }
+
+    #[test]
+    fn build_codex_command_disables_user_mcp_servers() -> Result<()> {
+        let temp = TempDir::new()?;
+        let codex_home = temp.path().join(".codex");
+        fs::create_dir_all(&codex_home)?;
+        fs::write(
+            codex_home.join("config.toml"),
+            r#"
+[mcp_servers.n10e]
+command = "n10e"
+
+[mcp_servers.other]
+command = "other"
+"#,
+        )?;
+
+        let original = env::var_os("TOPSIDE_CODEX_HOME");
+        unsafe {
+            env::set_var("TOPSIDE_CODEX_HOME", &codex_home);
+        }
+
+        let command = build_codex_command(
+            "codex",
+            Path::new("/tmp/project"),
+            Path::new("/tmp/workspace"),
+            None,
+            None,
+        );
+
+        if let Some(original) = original {
+            unsafe {
+                env::set_var("TOPSIDE_CODEX_HOME", original);
+            }
+        } else {
+            unsafe {
+                env::remove_var("TOPSIDE_CODEX_HOME");
+            }
+        }
+
+        let argv = command
+            .get_argv()
+            .iter()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert!(argv.iter().any(|value| value == "mcp_servers.n10e.enabled=false"));
+        assert!(argv.iter().any(|value| value == "mcp_servers.other.enabled=false"));
+        assert!(argv.iter().any(|value| value.contains("mcp_servers.topside.command")));
         Ok(())
     }
 }
