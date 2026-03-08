@@ -1,5 +1,5 @@
 ---
-id: ags_01KK5PGM7KJ4KPENCXW4SXSPX5
+id: ags_01KK78EQM2N5FDRZGJM8G8KRBY
 type: codex_session
 project_id: prj_01KJEH7ERYN87F9NFNZW7N12A4
 title: Report current app size

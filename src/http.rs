@@ -88,10 +88,6 @@ pub fn router(state: Arc<WebState>) -> Router {
             "/api/projects/{id}/codex-sessions",
             get(api_project_codex_sessions).post(api_create_codex_session),
         )
-        .route(
-            "/api/projects/{id}/codex-sessions/discover",
-            post(api_discover_codex_sessions),
-        )
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/archive", post(api_archive_tasks))
         .route("/api/tasks/{id}", patch(api_update_task))
@@ -116,9 +112,18 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
         .route("/api/codex-sessions/{id}", patch(api_update_codex_session))
-        .route("/api/codex-sessions/{id}/resume", post(api_resume_codex_session))
-        .route("/api/codex-sessions/{id}/terminate", post(api_terminate_codex_session))
-        .route("/api/codex-sessions/{id}/archive", post(api_archive_codex_session))
+        .route(
+            "/api/codex-sessions/{id}/resume",
+            post(api_resume_codex_session),
+        )
+        .route(
+            "/api/codex-sessions/{id}/terminate",
+            post(api_terminate_codex_session),
+        )
+        .route(
+            "/api/codex-sessions/{id}/archive",
+            post(api_archive_codex_session),
+        )
         .route("/api/codex-sessions/{id}/pty", get(api_codex_session_pty))
         .with_state(state)
 }
@@ -461,8 +466,8 @@ async fn dashboard(
         ),
         None => None,
     };
-    let counts = build_effective_codex_counts(&state.service, &state.codex_manager)
-        .map_err(internal_err)?;
+    let counts =
+        build_effective_codex_counts(&state.service, &state.codex_manager).map_err(internal_err)?;
 
     let initial_state = UiStatePayload {
         projects: projects
@@ -548,7 +553,7 @@ async fn api_restore_archived_entity(
         &state.codex_manager,
         request.current_project_id,
     )
-        .map_err(internal_api_err)?;
+    .map_err(internal_api_err)?;
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
     Ok(Json(ArchiveMutationResponse { archive, ui_state }))
 }
@@ -567,7 +572,7 @@ async fn api_empty_archive(
         &state.codex_manager,
         request.current_project_id,
     )
-        .map_err(internal_api_err)?;
+    .map_err(internal_api_err)?;
     let archive = build_archive_payload(&state.service).map_err(internal_api_err)?;
     Ok(Json(ArchiveMutationResponse { archive, ui_state }))
 }
@@ -625,26 +630,6 @@ async fn api_create_codex_session(
     }))
 }
 
-async fn api_discover_codex_sessions(
-    Path(id): Path<String>,
-    State(state): State<Arc<WebState>>,
-) -> ApiResult<CodexSessionMutationResponse> {
-    let _sessions = state
-        .service
-        .discover_codex_sessions(&id)
-        .map_err(map_service_err_json)?;
-    let workspace = state
-        .service
-        .load_project_workspace(&id)
-        .map_err(internal_api_err)?;
-    Ok(Json(CodexSessionMutationResponse {
-        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
-            .map_err(internal_api_err)?,
-        opened_session_id: None,
-        message: Some("Codex history refreshed".to_string()),
-    }))
-}
-
 async fn api_create_project(
     State(state): State<Arc<WebState>>,
     Json(request): Json<CreateProjectRequest>,
@@ -681,12 +666,8 @@ async fn api_create_project(
         }
     }
 
-    let payload = build_ui_state_payload(
-        &state.service,
-        &state.codex_manager,
-        Some(created.id),
-    )
-    .map_err(internal_api_err)?;
+    let payload = build_ui_state_payload(&state.service, &state.codex_manager, Some(created.id))
+        .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -728,7 +709,7 @@ async fn api_archive_project(
         &state.codex_manager,
         request.current_project_id,
     )
-        .map_err(internal_api_err)?;
+    .map_err(internal_api_err)?;
     Ok(Json(payload))
 }
 
@@ -1294,7 +1275,10 @@ async fn api_archive_codex_session(
         .map_err(internal_api_err)?;
     let workspace = map_workspace_payload(&state.service, &state.codex_manager, workspace)
         .map_err(internal_api_err)?;
-    let opened_session_id = workspace.codex_sessions.first().map(|session| session.id.clone());
+    let opened_session_id = workspace
+        .codex_sessions
+        .first()
+        .map(|session| session.id.clone());
     Ok(Json(CodexSessionMutationResponse {
         workspace,
         opened_session_id,
@@ -1892,13 +1876,17 @@ fn require_desktop_access(
     headers: &HeaderMap,
     desktop_query: bool,
 ) -> Result<(), (StatusCode, Json<ApiError>)> {
-    match headers.get("x-topside-desktop").and_then(|value| value.to_str().ok()) {
+    match headers
+        .get("x-topside-desktop")
+        .and_then(|value| value.to_str().ok())
+    {
         Some("true") => Ok(()),
         _ if desktop_query => Ok(()),
         _ => Err((
             StatusCode::FORBIDDEN,
             Json(ApiError {
-                error: "Codex sessions are available only inside the Topside desktop app".to_string(),
+                error: "Codex sessions are available only inside the Topside desktop app"
+                    .to_string(),
                 expected_revision: None,
                 current_revision: None,
             }),
@@ -1906,14 +1894,20 @@ fn require_desktop_access(
     }
 }
 
-async fn handle_codex_session_socket(state: Arc<WebState>, session_id: String, mut socket: WebSocket) {
+async fn handle_codex_session_socket(
+    state: Arc<WebState>,
+    session_id: String,
+    mut socket: WebSocket,
+) {
     let Ok((backlog, mut rx)) = state.codex_manager.subscribe(&session_id) else {
         let _ = socket
             .send(Message::Text(
                 serde_json::to_string(&CodexTerminalServerMessage::Error {
                     message: "Codex session is not live".to_string(),
                 })
-                .unwrap_or_else(|_| "{\"type\":\"error\",\"message\":\"Codex session is not live\"}".to_string())
+                .unwrap_or_else(|_| {
+                    "{\"type\":\"error\",\"message\":\"Codex session is not live\"}".to_string()
+                })
                 .into(),
             ))
             .await;
@@ -2010,11 +2004,7 @@ async fn asset_xterm_css() -> Response {
 }
 
 fn asset_response(body: &'static str, content_type: &'static str) -> Response {
-    (
-        [(header::CONTENT_TYPE, content_type)],
-        body,
-    )
-        .into_response()
+    ([(header::CONTENT_TYPE, content_type)], body).into_response()
 }
 
 fn internal_api_err(err: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {

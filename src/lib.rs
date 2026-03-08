@@ -1,9 +1,9 @@
 pub mod activity;
 pub mod bench;
 pub mod bundle;
+pub mod codex;
 pub mod config;
 pub mod constants;
-pub mod codex;
 pub mod db;
 pub mod desktop;
 pub mod dev;

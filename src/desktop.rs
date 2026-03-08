@@ -98,9 +98,14 @@ fn save_window_state(workspace_root: &Path, state: DesktopWindowState) -> Result
     let parent = path
         .parent()
         .context("desktop window state path has no parent directory")?;
-    std::fs::create_dir_all(parent)
-        .with_context(|| format!("failed creating desktop state directory {}", parent.display()))?;
-    let raw = serde_json::to_string_pretty(&state).context("failed serializing desktop window state")?;
+    std::fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed creating desktop state directory {}",
+            parent.display()
+        )
+    })?;
+    let raw =
+        serde_json::to_string_pretty(&state).context("failed serializing desktop window state")?;
     std::fs::write(&path, raw)
         .with_context(|| format!("failed writing desktop window state {}", path.display()))?;
     Ok(())
@@ -230,17 +235,28 @@ pub fn run_native_window(url: &str, title: &str, workspace_root: &Path) -> Resul
         }));
 
         let menu = DesktopMenu::install()?;
-        let initial_window_state = load_window_state(&workspace_root).unwrap_or_else(default_window_state);
-        let initial_window_size = PhysicalSize::new(initial_window_state.width, initial_window_state.height);
+        let initial_window_state =
+            load_window_state(&workspace_root).unwrap_or_else(default_window_state);
+        let initial_window_size =
+            PhysicalSize::new(initial_window_state.width, initial_window_state.height);
         let mut window_builder = WindowBuilder::new()
             .with_title(title)
             .with_inner_size(initial_window_size)
             .with_min_inner_size(LogicalSize::new(1100.0, 720.0))
             .with_transparent(true);
-        window_builder = window_builder.with_position(PhysicalPosition::new(initial_window_state.x, initial_window_state.y));
+        window_builder = window_builder.with_position(PhysicalPosition::new(
+            initial_window_state.x,
+            initial_window_state.y,
+        ));
         let window = window_builder.build(&event_loop)?;
-        window.set_outer_position(PhysicalPosition::new(initial_window_state.x, initial_window_state.y));
-        window.set_inner_size(PhysicalSize::new(initial_window_state.width, initial_window_state.height));
+        window.set_outer_position(PhysicalPosition::new(
+            initial_window_state.x,
+            initial_window_state.y,
+        ));
+        window.set_inner_size(PhysicalSize::new(
+            initial_window_state.width,
+            initial_window_state.height,
+        ));
 
         let allowed_origin = app_origin(url);
         let webview = WebViewBuilder::new()

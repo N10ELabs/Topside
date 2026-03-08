@@ -238,6 +238,25 @@ async fn dashboard_and_api_workspace_endpoints_work() -> Result<()> {
 }
 
 #[tokio::test]
+async fn codex_discover_endpoint_is_not_exposed() -> Result<()> {
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/projects/prj_hidden/codex-sessions/discover")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+#[tokio::test]
 async fn task_http_mutations_and_conflict_path() -> Result<()> {
     let (_tmp, service) = common::setup_service_workspace()?;
 
@@ -1334,7 +1353,10 @@ async fn codex_session_create_and_websocket_stream_work_with_mock_cli() -> Resul
         }
         tokio::time::sleep(Duration::from_millis(150)).await;
     }
-    assert!(attached_codex_id.is_some(), "expected reconciled codex session id");
+    assert!(
+        attached_codex_id.is_some(),
+        "expected reconciled codex session id"
+    );
 
     let socket_url = format!(
         "ws://{}/api/codex-sessions/{}/pty?desktop=true",

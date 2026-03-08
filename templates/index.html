@@ -2882,6 +2882,20 @@
       transform: translateY(-1px);
     }
 
+    .codex-session-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .codex-session-group + .codex-session-group {
+      margin-top: 14px;
+    }
+
+    .codex-session-group-label {
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
     .codex-session-tab-head,
     .codex-session-tab-meta {
       min-width: 0;
@@ -4126,12 +4140,6 @@
           <div class="pane-head-actions pane-head-tools codex-head-actions">
             <span class="muted" id="codex-status"></span>
             <div class="tool-cluster compact-tools">
-              <button class="icon-btn" id="codex-discover" type="button" aria-label="Refresh Codex history" title="Refresh Codex history">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M20 12a8 8 0 1 1-2.34-5.66"></path>
-                  <path d="M20 4v6h-6"></path>
-                </svg>
-              </button>
               <button class="icon-btn" id="codex-new" type="button" aria-label="Start Codex session" title="Start Codex session">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5v14"></path>
@@ -4490,7 +4498,6 @@
     const codexSessionEditor = document.getElementById("codex-session-editor");
     const codexStatus = document.getElementById("codex-status");
     const codexHeadCopy = document.getElementById("codex-head-copy");
-    const codexDiscoverButton = document.getElementById("codex-discover");
     const codexNewButton = document.getElementById("codex-new");
     const codexResumeButton = document.getElementById("codex-resume");
     const codexEndButton = document.getElementById("codex-end");
@@ -5094,10 +5101,6 @@
         localStorage.setItem(noteModeKey, nextMode);
         render();
       });
-    });
-
-    codexDiscoverButton.addEventListener("click", () => {
-      void discoverCodexSessions();
     });
 
     codexNewButton.addEventListener("click", () => {
@@ -9312,11 +9315,15 @@
       }
     }
 
+    function filterTopsideCodexSessions(sessions) {
+      return (Array.isArray(sessions) ? sessions : [])
+        .filter((session) => session?.origin === "topside")
+        .map((session) => ({ ...session }));
+    }
+
     function syncCodexSessionCache(projectId, sessions) {
       if (!projectId) return [];
-      const normalizedSessions = Array.isArray(sessions)
-        ? sessions.map((session) => ({ ...session }))
-        : [];
+      const normalizedSessions = filterTopsideCodexSessions(sessions);
       state.codexSessionsByProject[projectId] = normalizedSessions;
       syncProjectCodexCounts(projectId, normalizedSessions);
       return normalizedSessions;
@@ -9325,17 +9332,20 @@
     function getProjectCodexSessions(projectId = state.selectedProjectId) {
       if (!projectId) return [];
       if (state.workspace?.project?.id === projectId) {
-        return Array.isArray(state.workspace.codex_sessions) ? state.workspace.codex_sessions : [];
+        return filterTopsideCodexSessions(state.workspace.codex_sessions);
       }
-      return Array.isArray(state.codexSessionsByProject[projectId])
-        ? state.codexSessionsByProject[projectId]
-        : [];
+      return filterTopsideCodexSessions(state.codexSessionsByProject[projectId]);
+    }
+
+    function getDefaultCodexSession(sessions = getProjectCodexSessions()) {
+      return (Array.isArray(sessions) ? sessions : [])[0] || null;
     }
 
     function getCurrentCodexSession() {
       const sessions = getProjectCodexSessions();
       if (!sessions.length) return null;
-      return sessions.find((session) => session.id === state.openCodexSessionId) || sessions[0];
+      return sessions.find((session) => session.id === state.openCodexSessionId)
+        || getDefaultCodexSession(sessions);
     }
 
     function setRightPaneMode(mode) {
@@ -9366,6 +9376,34 @@
     function renderCodexStatusPill(status) {
       const normalized = status === "live" || status === "launching" ? status : "resumable";
       return `<span class="codex-status-pill ${normalized}">${escapeHtml(codexStatusLabel(normalized))}</span>`;
+    }
+
+    function renderCodexSessionTab(session, activeSessionId) {
+      return `
+        <button
+          class="codex-session-tab ${activeSessionId === session.id ? "active" : ""}"
+          type="button"
+          data-codex-tab-id="${escapeAttribute(session.id)}"
+        >
+          <span class="codex-session-tab-head">
+            <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
+            <span class="codex-session-tab-title">${escapeHtml(session.title || "Untitled session")}</span>
+          </span>
+          <span class="codex-session-tab-meta">
+            <span>${escapeHtml(session.last_seen_at_label || "")}</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderCodexSessionGroup(label, sessions, activeSessionId) {
+      if (!sessions.length) return "";
+      return `
+        <div class="codex-session-group">
+          <div class="small-label codex-session-group-label">${escapeHtml(label)}</div>
+          ${sessions.map((session) => renderCodexSessionTab(session, activeSessionId)).join("")}
+        </div>
+      `;
     }
 
     function pathLeaf(value) {
@@ -9909,22 +9947,6 @@
       render();
     }
 
-    async function discoverCodexSessions() {
-      if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
-      const response = await fetchJson(
-        `/api/projects/${encodeURIComponent(state.selectedProjectId)}/codex-sessions/discover`,
-        { method: "POST" },
-        "codex"
-      );
-      if (!response) return;
-      applyWorkspace(response.workspace);
-      state.codexHeadNotice = response.message || "";
-      if (!state.openCodexSessionId && state.workspace?.codex_sessions?.length) {
-        state.openCodexSessionId = state.workspace.codex_sessions[0].id;
-      }
-      render();
-    }
-
     async function saveCodexSessionDetails(sessionId) {
       const session = getProjectCodexSessions().find((item) => item.id === sessionId) || null;
       if (!session) return;
@@ -9965,13 +9987,21 @@
     async function archiveCodexSession(sessionId) {
       const normalizedSessionId = normalizeSessionId(sessionId);
       if (!normalizedSessionId) return;
-      disconnectCodexSocket();
+      const archivedWasOpen = state.openCodexSessionId === normalizedSessionId;
+      disconnectCodexSocket(archivedWasOpen);
       const response = await fetchJson(
         `/api/codex-sessions/${encodeURIComponent(normalizedSessionId)}/archive`,
         { method: "POST" },
         "codex"
       );
       if (!response) return;
+      delete state.codexTerminalTails[normalizedSessionId];
+      delete state.codexSessionTitleEdits[normalizedSessionId];
+      delete state.codexSessionSummaryEdits[normalizedSessionId];
+      delete state.codexPromptEdits[normalizedSessionId];
+      if (state.codexPendingPrompt?.sessionId === normalizedSessionId) {
+        state.codexPendingPrompt = null;
+      }
       applyWorkspace(response.workspace);
       state.openCodexSessionId = response.opened_session_id || null;
       state.codexHeadNotice = response.message || "";
@@ -10032,8 +10062,9 @@
       const project = state.workspace?.project || null;
       const supportsCodex = projectSupportsCodex(project);
       const sessions = supportsCodex ? getProjectCodexSessions() : [];
-      if (sessions.length && !sessions.some((session) => session.id === state.openCodexSessionId)) {
-        state.openCodexSessionId = sessions[0].id;
+      const defaultSession = getDefaultCodexSession(sessions);
+      if (defaultSession && !sessions.some((session) => session.id === state.openCodexSessionId)) {
+        state.openCodexSessionId = defaultSession.id;
       }
       const activeSession = supportsCodex ? getCurrentCodexSession() : null;
       const codexHeaderNotice = !state.codexMessage ? state.codexHeadNotice : "";
@@ -10044,7 +10075,6 @@
       codexHeadCopy.hidden = !codexHeaderNotice;
       codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
 
-      codexDiscoverButton.disabled = !supportsCodex;
       codexNewButton.disabled = !supportsCodex;
       codexResumeButton.disabled = !(activeSession && activeSession.resume_available && activeSession.status === "resumable");
       codexEndButton.disabled = !activeSession;
@@ -10086,28 +10116,15 @@
       }
 
       codexSessionTabs.innerHTML = sessions.length
-        ? sessions.map((session) => `
-          <button
-            class="codex-session-tab ${activeSession?.id === session.id ? "active" : ""}"
-            type="button"
-            data-codex-tab-id="${escapeAttribute(session.id)}"
-          >
-            <span class="codex-session-tab-head">
-              <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
-              <span class="codex-session-tab-title">${escapeHtml(session.title || "Untitled session")}</span>
-            </span>
-            <span class="codex-session-tab-meta">
-              <span>${escapeHtml(session.last_seen_at_label || "")}</span>
-            </span>
-          </button>
-        `).join("")
+        ? `
+          ${renderCodexSessionGroup("Topside Sessions", sessions, activeSession?.id)}
+        `
         : `
           <div class="codex-disabled-card">
             <div class="codex-session-editor-title">No Codex sessions yet</div>
-            <div class="codex-panel-copy">Start a new session or discover existing Codex history for this project.</div>
+            <div class="codex-panel-copy">Start a new Topside Codex session for this project.</div>
             <div class="codex-editor-actions">
               <button class="text-btn" type="button" data-codex-inline-new>New Session</button>
-              <button class="text-btn" type="button" data-codex-inline-discover>Discover History</button>
             </div>
           </div>
         `;
@@ -10124,10 +10141,9 @@
         setCodexTerminalEmptyMarkup(`
           <div class="codex-terminal-empty-card">
             <div class="codex-terminal-empty-title">Open a Codex chat for ${escapeHtml(project.title)}</div>
-            <div class="codex-panel-copy">Choose a session from the left rail, start a new one, or discover Codex history for this project.</div>
+            <div class="codex-panel-copy">Choose a Topside session from the left rail or start a new one for this project.</div>
             <div class="codex-terminal-empty-actions">
               <button class="text-btn" type="button" data-codex-empty-new>New Session</button>
-              <button class="text-btn" type="button" data-codex-empty-discover>Discover History</button>
             </div>
           </div>
         `);
@@ -10208,19 +10224,9 @@
           void createCodexSession();
         });
       });
-      codexSessionTabs.querySelectorAll("[data-codex-inline-discover]").forEach((button) => {
-        button.addEventListener("click", () => {
-          void discoverCodexSessions();
-        });
-      });
       codexTerminalEmpty.querySelectorAll("[data-codex-empty-new]").forEach((button) => {
         button.addEventListener("click", () => {
           void createCodexSession();
-        });
-      });
-      codexTerminalEmpty.querySelectorAll("[data-codex-empty-discover]").forEach((button) => {
-        button.addEventListener("click", () => {
-          void discoverCodexSessions();
         });
       });
       codexTerminalEmpty.querySelectorAll("[data-codex-empty-resume]").forEach((button) => {

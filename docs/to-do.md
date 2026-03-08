@@ -3,7 +3,7 @@
 - [x] Sample task: verify new task sync animation appears in to-do pane
 - [ ] Continue to refine UI and UX
 - [x] Sample task: create a task from agent prompt and confirm row animation timing
-- [ ] Update project documentation
+- [x] Update project documentation
 - [x] Sample task: test multiple synced tasks arriving together
 - [x] Add port viewer/killer
 - [x] Move archive into a settings tab. Needs more formatting
@@ -21,7 +21,7 @@
 - [ ] Establish UX flow for setting up codex if not already done
 - [x] Resolve pane names
 - [ ] Verify Topside is getting codex from correct file source
-- [ ] Review terminal implementation and decide whether current stack is best fit
+- [x] Review terminal implementation and decide whether current stack is best fit
 ## Phase 7 - Hub as Interactive Codebase
 - [ ] Project selection should initialize to-do.md in project workspace. Needs more work
 - [x] Add ability to copy rich html or markdown

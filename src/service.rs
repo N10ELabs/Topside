@@ -11,10 +11,7 @@ use thiserror::Error;
 use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
-use crate::codex::{
-    CodexHistorySession, CodexSessionCounts, CodexSessionPatch, CodexSessionRecord,
-    CodexSessionStatus, CodexSessionStore, discover_codex_history_for_root,
-};
+use crate::codex::{CodexSessionCounts, CodexSessionPatch, CodexSessionRecord, CodexSessionStore};
 use crate::config::AppConfig;
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::db::{Db, StoredEntityRecord};
@@ -243,77 +240,6 @@ impl AppService {
             .map_err(ServiceError::Other)
     }
 
-    pub fn discover_codex_sessions(
-        &self,
-        project_id: &str,
-    ) -> Result<Vec<CodexSessionRecord>, ServiceError> {
-        let project_root = self.local_project_source_root(project_id)?;
-        let existing = self
-            .list_codex_sessions(project_id)
-            .map_err(ServiceError::Other)?;
-        let mut existing_by_codex_id = existing
-            .into_iter()
-            .filter_map(|session| {
-                session
-                    .codex_session_id
-                    .clone()
-                    .map(|codex_session_id| (codex_session_id, session))
-            })
-            .collect::<HashMap<_, _>>();
-        let store = self.codex_session_store();
-        let discovered = discover_codex_history_for_root(&project_root).map_err(ServiceError::Other)?;
-
-        for session in discovered {
-            if let Some(existing) = existing_by_codex_id.remove(&session.codex_session_id) {
-                let title = if existing.origin == crate::codex::CodexSessionOrigin::Topside
-                    && existing.title != "New Codex session"
-                {
-                    None
-                } else {
-                    Some(session.thread_name.clone())
-                };
-                store
-                    .update_session(
-                        &existing.id,
-                        CodexSessionPatch {
-                            title,
-                            status: Some(if existing.status == CodexSessionStatus::Live {
-                                CodexSessionStatus::Live
-                            } else {
-                                CodexSessionStatus::Resumable
-                            }),
-                            cwd: Some(session.cwd.to_string_lossy().to_string()),
-                            codex_session_id: Some(Some(session.codex_session_id.clone())),
-                            last_seen_at: Some(session.updated_at),
-                            summary: Some(self.build_codex_summary_from_history(&existing, &session)),
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(ServiceError::Other)?;
-                continue;
-            }
-
-            let task_id = None;
-            store
-                .create_session(crate::codex::NewCodexSession {
-                    project_id: project_id.to_string(),
-                    task_id: task_id.clone(),
-                    title: session.thread_name.clone(),
-                    origin: crate::codex::CodexSessionOrigin::Discovered,
-                    status: CodexSessionStatus::Resumable,
-                    cwd: session.cwd.to_string_lossy().to_string(),
-                    codex_session_id: Some(session.codex_session_id.clone()),
-                    started_at: session.started_at,
-                    last_seen_at: session.updated_at,
-                    ended_at: Some(session.updated_at),
-                    summary: self.build_codex_history_summary(&session),
-                })
-                .map_err(ServiceError::Other)?;
-        }
-
-        self.list_codex_sessions(project_id).map_err(ServiceError::Other)
-    }
-
     pub fn local_project_source_root(&self, project_id: &str) -> Result<PathBuf, ServiceError> {
         let project = self.get_project_item(project_id)?;
         if project.source_kind != Some(crate::types::ProjectSourceKind::Local) {
@@ -362,7 +288,9 @@ impl AppService {
         project_id: &str,
         task_id: Option<&str>,
     ) -> Result<String, ServiceError> {
-        let workspace = self.load_project_workspace(project_id).map_err(ServiceError::Other)?;
+        let workspace = self
+            .load_project_workspace(project_id)
+            .map_err(ServiceError::Other)?;
         let project_root = self.local_project_source_root(project_id)?;
         let selected_task = task_id.and_then(|task_id| {
             workspace
@@ -372,7 +300,10 @@ impl AppService {
                 .or_else(|| workspace.done_tasks.iter().find(|task| task.id == task_id))
         });
         let mut lines = Vec::new();
-        lines.push(format!("You are working inside the Topside project \"{}\".", workspace.project.title));
+        lines.push(format!(
+            "You are working inside the Topside project \"{}\".",
+            workspace.project.title
+        ));
         lines.push(format!("Project repo cwd: {}", project_root.display()));
         lines.push("Use the injected MCP server named \"topside\" when you need shared project context or task/note updates.".to_string());
         lines.push(String::new());
@@ -2336,29 +2267,6 @@ impl AppService {
 
     fn codex_session_store(&self) -> CodexSessionStore {
         CodexSessionStore::new(self.config.clone())
-    }
-
-    fn build_codex_history_summary(&self, session: &CodexHistorySession) -> String {
-        let mut lines = Vec::new();
-        lines.push(format!("# {}", session.thread_name));
-        lines.push(String::new());
-        lines.push("- Status: Resumable".to_string());
-        lines.push(format!("- Started: {}", session.started_at.to_rfc3339()));
-        lines.push(format!("- Last seen: {}", session.updated_at.to_rfc3339()));
-        lines.push(String::new());
-        lines.push("Imported from Codex history.".to_string());
-        lines.join("\n")
-    }
-
-    fn build_codex_summary_from_history(
-        &self,
-        existing: &CodexSessionRecord,
-        session: &CodexHistorySession,
-    ) -> String {
-        if !existing.summary.trim().is_empty() && existing.summary.trim() != "Summary pending." {
-            return existing.summary.clone();
-        }
-        self.build_codex_history_summary(session)
     }
 
     fn restore_target_path(

@@ -42,7 +42,7 @@
       "title": "Update project documentation",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK742BS741YB0DHQH2RS7V2A"
@@ -204,7 +204,7 @@
       "title": "Review terminal implementation and decide whether current stack is best fit",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK76YABHYV179B5FXSKN1ATJ"

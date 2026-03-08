@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,7 @@ const DEFAULT_PTY_ROWS: u16 = 30;
 const DEFAULT_PTY_COLS: u16 = 110;
 const CODEX_RECONCILE_TIMEOUT: Duration = Duration::from_secs(12);
 const CODEX_RECONCILE_POLL_INTERVAL: Duration = Duration::from_millis(600);
-const CODEX_ARCHIVE_TIMEOUT: Duration = Duration::from_secs(4);
-const CODEX_ARCHIVE_POLL_INTERVAL: Duration = Duration::from_millis(60);
+const CODEX_HISTORY_MATCH_GRACE_SECONDS: i64 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -176,14 +175,29 @@ impl CodexSessionStore {
     }
 
     pub fn list_project_sessions(&self, project_id: &str) -> Result<Vec<CodexSessionRecord>> {
+        let mut sessions = keep_topside_codex_sessions(dedupe_codex_sessions(
+            self.list_project_sessions_raw(project_id)?,
+        ));
+        sort_sessions(&mut sessions);
+        Ok(sessions)
+    }
+
+    pub fn list_all_sessions(&self) -> Result<Vec<CodexSessionRecord>> {
+        let mut sessions =
+            keep_topside_codex_sessions(dedupe_codex_sessions(self.list_all_sessions_raw()?));
+        sort_sessions(&mut sessions);
+        Ok(sessions)
+    }
+
+    fn list_project_sessions_raw(&self, project_id: &str) -> Result<Vec<CodexSessionRecord>> {
         let dir = self.project_dir(project_id);
         if !dir.exists() {
             return Ok(Vec::new());
         }
 
         let mut sessions = Vec::new();
-        for entry in fs::read_dir(&dir)
-            .with_context(|| format!("failed reading {}", dir.display()))?
+        for entry in
+            fs::read_dir(&dir).with_context(|| format!("failed reading {}", dir.display()))?
         {
             let entry = entry?;
             let path = entry.path();
@@ -192,11 +206,10 @@ impl CodexSessionStore {
             }
             sessions.push(self.read_record(&path)?);
         }
-        sort_sessions(&mut sessions);
         Ok(sessions)
     }
 
-    pub fn list_all_sessions(&self) -> Result<Vec<CodexSessionRecord>> {
+    fn list_all_sessions_raw(&self) -> Result<Vec<CodexSessionRecord>> {
         let agents_dir = self.config.agents_dir();
         if !agents_dir.exists() {
             return Ok(Vec::new());
@@ -216,7 +229,6 @@ impl CodexSessionStore {
             }
             sessions.push(self.read_record(path)?);
         }
-        sort_sessions(&mut sessions);
         Ok(sessions)
     }
 
@@ -233,7 +245,7 @@ impl CodexSessionStore {
     }
 
     pub fn get_session(&self, session_id: &str) -> Result<Option<CodexSessionRecord>> {
-        for session in self.list_all_sessions()? {
+        for session in self.list_all_sessions_raw()? {
             if session.id == session_id {
                 return Ok(Some(session));
             }
@@ -353,7 +365,7 @@ impl CodexSessionStore {
 
     pub fn normalize_statuses_on_boot(&self) -> Result<usize> {
         let mut updated = 0usize;
-        for session in self.list_all_sessions()? {
+        for session in self.list_all_sessions_raw()? {
             if session.status != CodexSessionStatus::Live
                 && session.status != CodexSessionStatus::Launching
             {
@@ -379,7 +391,8 @@ impl CodexSessionStore {
     }
 
     fn session_path(&self, project_id: &str, session_id: &str) -> PathBuf {
-        self.project_dir(project_id).join(format!("{session_id}.md"))
+        self.project_dir(project_id)
+            .join(format!("{session_id}.md"))
     }
 
     fn read_record(&self, path: &Path) -> Result<CodexSessionRecord> {
@@ -425,13 +438,22 @@ impl CodexSessionManager {
             .contains_key(session_id)
     }
 
+    fn take_runtime(&self, session_id: &str) -> Option<Arc<LiveCodexSession>> {
+        self.runtimes
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .remove(session_id)
+    }
+
     pub fn create_project_session(
         &self,
         project_id: &str,
         task_id: Option<String>,
     ) -> Result<CodexSessionRecord, ServiceError> {
         let cwd = self.service.local_project_source_root(project_id)?;
-        let title = self.service.suggest_codex_session_title(project_id, task_id.as_deref())?;
+        let title = self
+            .service
+            .suggest_codex_session_title(project_id, task_id.as_deref())?;
         let now = Utc::now();
         let record = self
             .store
@@ -480,12 +502,7 @@ impl CodexSessionManager {
             .clone()
             .with_context(|| format!("codex session {} cannot be resumed yet", record.id))
             .map_err(ServiceError::Other)?;
-        self.spawn_runtime(
-            &record,
-            None,
-            Some(codex_session_id.as_str()),
-            true,
-        )?;
+        self.spawn_runtime(&record, None, Some(codex_session_id.as_str()), true)?;
         self.store
             .update_session(
                 &record.id,
@@ -522,30 +539,49 @@ impl CodexSessionManager {
                 },
             )
             .map_err(ServiceError::Other)?;
-        runtime
-            .push_message(CodexTerminalServerMessage::Status {
-                status: CodexSessionStatus::Resumable.as_str().to_string(),
-            });
+        runtime.push_message(CodexTerminalServerMessage::Status {
+            status: CodexSessionStatus::Resumable.as_str().to_string(),
+        });
         runtime.terminate().map_err(ServiceError::Other)
     }
 
     pub fn archive_session(&self, session_id: &str) -> Result<(), ServiceError> {
-        self.store
+        let record = self
+            .store
             .get_session(session_id)
             .map_err(ServiceError::Other)?
             .with_context(|| format!("codex session {session_id} not found"))
             .map_err(ServiceError::Other)?;
 
-        if self.is_live(session_id) {
-            self.terminate_session(session_id)?;
-            let started = Instant::now();
-            while self.is_live(session_id) && started.elapsed() < CODEX_ARCHIVE_TIMEOUT {
-                std::thread::sleep(CODEX_ARCHIVE_POLL_INTERVAL);
-            }
-            if self.is_live(session_id) {
-                return Err(ServiceError::Other(anyhow::anyhow!(
-                    "timed out waiting for codex session {session_id} to exit before archiving"
-                )));
+        let runtime = self.take_runtime(session_id);
+        let should_normalize_exit = runtime.is_some()
+            || record.status == CodexSessionStatus::Live
+            || record.status == CodexSessionStatus::Launching;
+        if should_normalize_exit {
+            let now = Utc::now();
+            self.store
+                .update_session(
+                    session_id,
+                    CodexSessionPatch {
+                        status: Some(CodexSessionStatus::Resumable),
+                        ended_at: Some(Some(now)),
+                        last_seen_at: Some(now),
+                        ..Default::default()
+                    },
+                )
+                .map_err(ServiceError::Other)?;
+        }
+
+        if let Some(runtime) = runtime {
+            runtime.push_message(CodexTerminalServerMessage::Status {
+                status: CodexSessionStatus::Resumable.as_str().to_string(),
+            });
+            if let Err(error) = runtime.terminate() {
+                warn!(
+                    error = %error,
+                    session_id,
+                    "failed terminating codex session during archive; continuing with archive"
+                );
             }
         }
 
@@ -746,16 +782,6 @@ impl CodexSessionManager {
                 let Ok(canonical_cwd) = cwd.canonicalize() else {
                     continue;
                 };
-                let Ok(history) = discover_codex_history_for_root(&canonical_cwd) else {
-                    continue;
-                };
-                let Some(found) = history
-                    .into_iter()
-                    .find(|item| item.cwd == canonical_cwd)
-                else {
-                    continue;
-                };
-
                 let current = match store.get_session(&session_id) {
                     Ok(Some(record)) => record,
                     Ok(None) => return,
@@ -764,7 +790,28 @@ impl CodexSessionManager {
                         return;
                     }
                 };
-                let title = if current.title == "New Codex session" && !found.thread_name.trim().is_empty() {
+                let Ok(history) = discover_codex_history_for_root(&canonical_cwd) else {
+                    continue;
+                };
+                let existing_sessions = match store.list_all_sessions() {
+                    Ok(sessions) => sessions,
+                    Err(error) => {
+                        warn!(error = %error, session_id, "failed listing codex sessions during launch reconciliation");
+                        continue;
+                    }
+                };
+                // Avoid attaching a new launch to an older thread from the same cwd.
+                let Some(found) = select_codex_launch_history_candidate(
+                    &current,
+                    &canonical_cwd,
+                    &history,
+                    &existing_sessions,
+                ) else {
+                    continue;
+                };
+                let title = if current.title == "New Codex session"
+                    && !found.thread_name.trim().is_empty()
+                {
                     Some(found.thread_name.clone())
                 } else {
                     None
@@ -773,7 +820,7 @@ impl CodexSessionManager {
                     &session_id,
                     CodexSessionPatch {
                         title,
-                        codex_session_id: Some(Some(found.codex_session_id)),
+                        codex_session_id: Some(Some(found.codex_session_id.clone())),
                         status: Some(CodexSessionStatus::Live),
                         last_seen_at: Some(found.updated_at),
                         summary: Some(build_summary_stub(
@@ -843,7 +890,10 @@ impl LiveCodexSession {
 
     fn push_output(&self, data: String) {
         {
-            let mut backlog = self.backlog.lock().unwrap_or_else(|poison| poison.into_inner());
+            let mut backlog = self
+                .backlog
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
             backlog.push_back(data.clone());
             while backlog.len() > OUTPUT_BACKLOG_CHUNKS {
                 backlog.pop_front();
@@ -857,7 +907,10 @@ impl LiveCodexSession {
     }
 
     fn write_input(&self, data: &str) -> Result<()> {
-        let mut writer = self.writer.lock().unwrap_or_else(|poison| poison.into_inner());
+        let mut writer = self
+            .writer
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         writer
             .write_all(data.as_bytes())
             .context("failed writing terminal input")?;
@@ -899,10 +952,13 @@ impl LiveCodexSession {
 
 pub fn parse_codex_session_markdown(content: &str, path: &Path) -> Result<CodexSessionRecord> {
     let (frontmatter_raw, body) = split_frontmatter(content)?;
-    let frontmatter: CodexSessionFrontmatter =
-        serde_yaml::from_str(&frontmatter_raw).context("failed parsing codex session frontmatter")?;
+    let frontmatter: CodexSessionFrontmatter = serde_yaml::from_str(&frontmatter_raw)
+        .context("failed parsing codex session frontmatter")?;
     if frontmatter.session_type != CODEX_SESSION_TYPE {
-        anyhow::bail!("unsupported codex session type: {}", frontmatter.session_type);
+        anyhow::bail!(
+            "unsupported codex session type: {}",
+            frontmatter.session_type
+        );
     }
     Ok(CodexSessionRecord {
         id: frontmatter.id.clone(),
@@ -928,7 +984,10 @@ pub fn render_codex_session_markdown(
     let mut yaml = String::new();
     yaml.push_str(&format!("id: {}\n", yaml_scalar(&frontmatter.id)));
     yaml.push_str(&format!("type: {}\n", CODEX_SESSION_TYPE));
-    yaml.push_str(&format!("project_id: {}\n", yaml_scalar(&frontmatter.project_id)));
+    yaml.push_str(&format!(
+        "project_id: {}\n",
+        yaml_scalar(&frontmatter.project_id)
+    ));
     if let Some(task_id) = &frontmatter.task_id {
         yaml.push_str(&format!("task_id: {}\n", yaml_scalar(task_id)));
     }
@@ -942,8 +1001,14 @@ pub fn render_codex_session_markdown(
             yaml_scalar(codex_session_id)
         ));
     }
-    yaml.push_str(&format!("started_at: {}\n", frontmatter.started_at.to_rfc3339()));
-    yaml.push_str(&format!("last_seen_at: {}\n", frontmatter.last_seen_at.to_rfc3339()));
+    yaml.push_str(&format!(
+        "started_at: {}\n",
+        frontmatter.started_at.to_rfc3339()
+    ));
+    yaml.push_str(&format!(
+        "last_seen_at: {}\n",
+        frontmatter.last_seen_at.to_rfc3339()
+    ));
     if let Some(ended_at) = frontmatter.ended_at {
         yaml.push_str(&format!("ended_at: {}\n", ended_at.to_rfc3339()));
     }
@@ -974,6 +1039,25 @@ pub fn build_summary_stub(
     lines.push(String::new());
     lines.push("Summary pending.".to_string());
     lines.join("\n")
+}
+
+fn select_codex_launch_history_candidate<'a>(
+    current: &CodexSessionRecord,
+    canonical_cwd: &Path,
+    history: &'a [CodexHistorySession],
+    existing_sessions: &[CodexSessionRecord],
+) -> Option<&'a CodexHistorySession> {
+    let launch_cutoff =
+        current.started_at - ChronoDuration::seconds(CODEX_HISTORY_MATCH_GRACE_SECONDS);
+    history.iter().find(|item| {
+        if item.cwd.as_path() != canonical_cwd || item.updated_at < launch_cutoff {
+            return false;
+        }
+        !existing_sessions.iter().any(|session| {
+            session.id != current.id
+                && session.codex_session_id.as_deref() == Some(item.codex_session_id.as_str())
+        })
+    })
 }
 
 pub fn discover_codex_history_for_root(project_root: &Path) -> Result<Vec<CodexHistorySession>> {
@@ -1087,13 +1171,7 @@ fn build_codex_command(
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");
     command.env("TERM_PROGRAM", "Topside");
-    append_codex_args(
-        &mut command,
-        cwd,
-        workspace_root,
-        prompt,
-        resume_session_id,
-    );
+    append_codex_args(&mut command, cwd, workspace_root, prompt, resume_session_id);
     command
 }
 
@@ -1122,9 +1200,9 @@ fn configured_codex_mcp_server_names() -> Vec<String> {
 
 fn codex_config_key_segment(value: &str) -> String {
     if !value.is_empty()
-        && value
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+        && value.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
     {
         value.to_string()
     } else {
@@ -1133,9 +1211,7 @@ fn codex_config_key_segment(value: &str) -> String {
 }
 
 fn toml_basic_string(value: &str) -> String {
-    let escaped = value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"");
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
     format!("\"{escaped}\"")
 }
 
@@ -1217,10 +1293,7 @@ fn parse_session_meta(path: &Path) -> Result<Option<SessionMeta>> {
         let started_at = parse_datetime_value(payload.get("timestamp"))
             .or_else(|_| parse_datetime_value(value.get("timestamp")))
             .context("session_meta missing timestamp")?;
-        return Ok(Some(SessionMeta {
-            cwd,
-            started_at,
-        }));
+        return Ok(Some(SessionMeta { cwd, started_at }));
     }
     Ok(None)
 }
@@ -1241,6 +1314,60 @@ fn sort_sessions(sessions: &mut [CodexSessionRecord]) {
             .then(right.last_seen_at.cmp(&left.last_seen_at))
             .then(left.title.cmp(&right.title))
     });
+}
+
+fn dedupe_codex_sessions(sessions: Vec<CodexSessionRecord>) -> Vec<CodexSessionRecord> {
+    let mut canonical_by_codex_id = HashMap::<String, CodexSessionRecord>::new();
+    let mut passthrough = Vec::new();
+
+    for session in sessions {
+        let Some(codex_session_id) = session.codex_session_id.clone() else {
+            passthrough.push(session);
+            continue;
+        };
+        match canonical_by_codex_id.entry(codex_session_id) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(session);
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                if codex_session_record_preference(&session)
+                    > codex_session_record_preference(entry.get())
+                {
+                    entry.insert(session);
+                }
+            }
+        }
+    }
+
+    passthrough.extend(canonical_by_codex_id.into_values());
+    passthrough
+}
+
+fn keep_topside_codex_sessions(sessions: Vec<CodexSessionRecord>) -> Vec<CodexSessionRecord> {
+    sessions
+        .into_iter()
+        .filter(|session| session.origin == CodexSessionOrigin::Topside)
+        .collect()
+}
+
+fn codex_session_record_preference(
+    session: &CodexSessionRecord,
+) -> (
+    std::cmp::Reverse<u8>,
+    bool,
+    bool,
+    DateTime<Utc>,
+    DateTime<Utc>,
+    &str,
+) {
+    (
+        std::cmp::Reverse(session_sort_weight(&session.status)),
+        session.origin == CodexSessionOrigin::Topside,
+        session.title != "New Codex session",
+        session.last_seen_at,
+        session.started_at,
+        session.id.as_str(),
+    )
 }
 
 fn session_sort_weight(status: &CodexSessionStatus) -> u8 {
@@ -1291,11 +1418,7 @@ struct SessionMeta {
     started_at: DateTime<Utc>,
 }
 
-pub fn summarize_task_for_context(
-    title: &str,
-    status: TaskStatus,
-    linked: bool,
-) -> String {
+pub fn summarize_task_for_context(title: &str, status: TaskStatus, linked: bool) -> String {
     if linked {
         format!("- [{}] {title} ({})", status.as_str(), "linked")
     } else {
@@ -1309,7 +1432,7 @@ mod tests {
     use std::fs;
     use std::sync::{Mutex, MutexGuard, OnceLock};
 
-    use chrono::{TimeZone, Utc};
+    use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
     use tempfile::TempDir;
 
     use super::*;
@@ -1353,6 +1476,42 @@ mod tests {
         }
     }
 
+    fn test_codex_session_record(
+        id: &str,
+        started_at: DateTime<Utc>,
+        codex_session_id: Option<&str>,
+    ) -> CodexSessionRecord {
+        CodexSessionRecord {
+            id: id.to_string(),
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "New Codex session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Launching,
+            cwd: "/tmp/project".to_string(),
+            codex_session_id: codex_session_id.map(str::to_string),
+            started_at,
+            last_seen_at: started_at,
+            ended_at: None,
+            summary: "Summary pending.".to_string(),
+            path: format!("/tmp/{id}.md"),
+        }
+    }
+
+    fn test_codex_history_session(
+        codex_session_id: &str,
+        updated_at: DateTime<Utc>,
+        cwd: &Path,
+    ) -> CodexHistorySession {
+        CodexHistorySession {
+            codex_session_id: codex_session_id.to_string(),
+            thread_name: format!("Thread {codex_session_id}"),
+            cwd: cwd.to_path_buf(),
+            started_at: updated_at,
+            updated_at,
+        }
+    }
+
     #[test]
     fn codex_session_markdown_round_trip() -> Result<()> {
         let path = PathBuf::from("/tmp/agents/prj_1/ags_1.md");
@@ -1376,7 +1535,10 @@ mod tests {
         assert_eq!(parsed.project_id, "prj_1");
         assert_eq!(parsed.task_id.as_deref(), Some("tsk_1"));
         assert_eq!(parsed.status, CodexSessionStatus::Live);
-        assert_eq!(parsed.codex_session_id.as_deref(), Some("019bfd79-5282-7551-95ce-cb61664a2993"));
+        assert_eq!(
+            parsed.codex_session_id.as_deref(),
+            Some("019bfd79-5282-7551-95ce-cb61664a2993")
+        );
         assert_eq!(parsed.summary.trim(), "Summary pending.");
         Ok(())
     }
@@ -1413,6 +1575,215 @@ mod tests {
     }
 
     #[test]
+    fn select_codex_launch_history_candidate_skips_claimed_threads() {
+        let cwd = Path::new("/tmp/project");
+        let current = test_codex_session_record(
+            "ags_new",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap(),
+            None,
+        );
+        let existing_sessions = vec![
+            test_codex_session_record(
+                "ags_old",
+                Utc.with_ymd_and_hms(2026, 3, 8, 16, 57, 31).unwrap(),
+                Some("claimed-thread"),
+            ),
+            current.clone(),
+        ];
+        let history = vec![
+            test_codex_history_session(
+                "claimed-thread",
+                Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 40).unwrap(),
+                cwd,
+            ),
+            test_codex_history_session(
+                "fresh-thread",
+                Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 39).unwrap(),
+                cwd,
+            ),
+        ];
+
+        let selected =
+            select_codex_launch_history_candidate(&current, cwd, &history, &existing_sessions)
+                .expect("expected a fresh unclaimed history item");
+
+        assert_eq!(selected.codex_session_id, "fresh-thread");
+    }
+
+    #[test]
+    fn select_codex_launch_history_candidate_ignores_entries_before_launch() {
+        let cwd = Path::new("/tmp/project");
+        let current = test_codex_session_record(
+            "ags_new",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap(),
+            None,
+        );
+        let existing_sessions = vec![current.clone()];
+        let history = vec![test_codex_history_session(
+            "older-thread",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 26).unwrap(),
+            cwd,
+        )];
+
+        assert!(
+            select_codex_launch_history_candidate(&current, cwd, &history, &existing_sessions)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn select_codex_launch_history_candidate_allows_second_precision_launch_matches() {
+        let cwd = Path::new("/tmp/project");
+        let current = test_codex_session_record(
+            "ags_new",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap()
+                + ChronoDuration::milliseconds(500),
+            None,
+        );
+        let existing_sessions = vec![current.clone()];
+        let history = vec![test_codex_history_session(
+            "fresh-thread",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap(),
+            cwd,
+        )];
+
+        let selected =
+            select_codex_launch_history_candidate(&current, cwd, &history, &existing_sessions)
+                .expect("expected a second-precision history item to match the launch");
+
+        assert_eq!(selected.codex_session_id, "fresh-thread");
+    }
+
+    #[test]
+    fn dedupe_codex_sessions_prefers_live_record_for_duplicate_thread() {
+        let mut live = test_codex_session_record(
+            "ags_live",
+            Utc.with_ymd_and_hms(2026, 3, 8, 16, 57, 31).unwrap(),
+            Some("shared-thread"),
+        );
+        live.status = CodexSessionStatus::Live;
+        live.title = "Update README for Topside scope".to_string();
+        live.last_seen_at = Utc.with_ymd_and_hms(2026, 3, 8, 17, 26, 20).unwrap();
+
+        let mut duplicate = test_codex_session_record(
+            "ags_dup",
+            Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap(),
+            Some("shared-thread"),
+        );
+        duplicate.status = CodexSessionStatus::Resumable;
+        duplicate.title = "Update README for Topside scope".to_string();
+        duplicate.last_seen_at = Utc.with_ymd_and_hms(2026, 3, 8, 17, 26, 57).unwrap();
+        duplicate.ended_at = Some(Utc.with_ymd_and_hms(2026, 3, 8, 17, 26, 57).unwrap());
+
+        let deduped = dedupe_codex_sessions(vec![duplicate, live.clone()]);
+
+        assert_eq!(deduped.len(), 1);
+        assert_eq!(deduped[0].id, live.id);
+    }
+
+    #[test]
+    fn keep_topside_codex_sessions_drops_discovered_records() {
+        let started_at = Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap();
+        let topside = test_codex_session_record("ags_topside", started_at, Some("thread-1"));
+        let mut discovered =
+            test_codex_session_record("ags_discovered", started_at, Some("thread-2"));
+        discovered.origin = CodexSessionOrigin::Discovered;
+
+        let sessions = keep_topside_codex_sessions(vec![topside.clone(), discovered]);
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, topside.id);
+    }
+
+    #[test]
+    fn public_codex_session_queries_exclude_discovered_records() -> Result<()> {
+        let temp = TempDir::new()?;
+        let config = AppConfig::default_for_workspace(temp.path().to_path_buf());
+        config.ensure_workspace_dirs()?;
+        let store = CodexSessionStore::new(config);
+        let started_at = Utc.with_ymd_and_hms(2026, 3, 8, 17, 14, 29).unwrap();
+
+        let topside = store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "Topside session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Live,
+            cwd: "/tmp/project".to_string(),
+            codex_session_id: Some("thread-topside".to_string()),
+            started_at,
+            last_seen_at: started_at,
+            ended_at: None,
+            summary: "Summary pending.".to_string(),
+        })?;
+        let _discovered = store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "Discovered session".to_string(),
+            origin: CodexSessionOrigin::Discovered,
+            status: CodexSessionStatus::Resumable,
+            cwd: "/tmp/project".to_string(),
+            codex_session_id: Some("thread-discovered".to_string()),
+            started_at,
+            last_seen_at: started_at,
+            ended_at: Some(started_at),
+            summary: "Imported from Codex history.".to_string(),
+        })?;
+
+        let project_sessions = store.list_project_sessions("prj_1")?;
+        let all_sessions = store.list_all_sessions()?;
+        let counts = store.list_counts_by_project()?;
+
+        assert_eq!(project_sessions.len(), 1);
+        assert_eq!(project_sessions[0].id, topside.id);
+        assert_eq!(all_sessions.len(), 1);
+        assert_eq!(all_sessions[0].id, topside.id);
+        assert_eq!(counts.get("prj_1").map(|entry| entry.total_count), Some(1));
+        assert_eq!(counts.get("prj_1").map(|entry| entry.live_count), Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn archive_session_normalizes_launching_record_before_moving() -> Result<()> {
+        let temp = TempDir::new()?;
+        let workspace_root = temp.path().to_path_buf();
+        let config = AppConfig::default_for_workspace(workspace_root.clone());
+        let service = Arc::new(AppService::bootstrap(config.clone())?);
+        let manager = CodexSessionManager::new(service)?;
+        let now = Utc.with_ymd_and_hms(2026, 3, 8, 17, 44, 8).unwrap();
+
+        let record = manager.store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "New Codex session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Launching,
+            cwd: "/tmp/project".to_string(),
+            codex_session_id: None,
+            started_at: now,
+            last_seen_at: now,
+            ended_at: None,
+            summary: build_summary_stub(None, None, now, "Launching"),
+        })?;
+
+        manager.archive_session(&record.id)?;
+
+        assert!(manager.store.get_session(&record.id)?.is_none());
+        let archived_path = config
+            .archive_dir()
+            .join("codex_sessions")
+            .join("prj_1")
+            .join(format!("{}.md", record.id));
+        assert!(archived_path.exists());
+
+        let archived = manager.store.read_record(&archived_path)?;
+        assert_eq!(archived.status, CodexSessionStatus::Resumable);
+        assert!(archived.ended_at.is_some());
+        assert!(archived.last_seen_at >= now);
+        Ok(())
+    }
+
+    #[test]
     fn build_codex_command_uses_supported_interactive_flags() {
         let project_root = PathBuf::from("/tmp/project");
         let workspace_root = PathBuf::from("/tmp/workspace");
@@ -1430,11 +1801,16 @@ mod tests {
             .map(|value| value.to_string_lossy().to_string())
             .collect::<Vec<_>>();
         assert_eq!(argv[0], "codex");
-        assert!(argv.windows(2).any(|pair| pair == ["resume", "019bfd79-5282-7551-95ce-cb61664a2993"]));
+        assert!(
+            argv.windows(2)
+                .any(|pair| pair == ["resume", "019bfd79-5282-7551-95ce-cb61664a2993"])
+        );
         assert!(argv.contains(&"-C".to_string()));
         assert!(!argv.iter().any(|value| value == "--skip-git-repo-check"));
         assert_eq!(
-            command.get_env("TERM").map(|value| value.to_string_lossy().to_string()),
+            command
+                .get_env("TERM")
+                .map(|value| value.to_string_lossy().to_string()),
             Some("xterm-256color".to_string())
         );
         assert_eq!(
@@ -1482,9 +1858,18 @@ command = "other"
             .iter()
             .map(|value| value.to_string_lossy().to_string())
             .collect::<Vec<_>>();
-        assert!(argv.iter().any(|value| value == "mcp_servers.n10e.enabled=false"));
-        assert!(argv.iter().any(|value| value == "mcp_servers.other.enabled=false"));
-        assert!(argv.iter().any(|value| value.contains("mcp_servers.topside.command")));
+        assert!(
+            argv.iter()
+                .any(|value| value == "mcp_servers.n10e.enabled=false")
+        );
+        assert!(
+            argv.iter()
+                .any(|value| value == "mcp_servers.other.enabled=false")
+        );
+        assert!(
+            argv.iter()
+                .any(|value| value.contains("mcp_servers.topside.command"))
+        );
         Ok(())
     }
 }

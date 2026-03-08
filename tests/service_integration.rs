@@ -1027,16 +1027,10 @@ fn linked_note_sync_links_files_and_reconciles_conflicts() -> Result<()> {
     assert_eq!(files.len(), 1);
     assert_eq!(files[0].relative_path, "docs/PROJECT.md");
 
-    let linked = service.link_note_to_repo_file(
-        &project.id,
-        "docs/PROJECT.md",
-        Actor::human("tester"),
-    )?;
-    let linked_again = service.link_note_to_repo_file(
-        &project.id,
-        "docs/PROJECT.md",
-        Actor::human("tester"),
-    )?;
+    let linked =
+        service.link_note_to_repo_file(&project.id, "docs/PROJECT.md", Actor::human("tester"))?;
+    let linked_again =
+        service.link_note_to_repo_file(&project.id, "docs/PROJECT.md", Actor::human("tester"))?;
     assert_eq!(linked.id, linked_again.id);
 
     let workspace = service.load_project_workspace(&project.id)?;
@@ -1203,11 +1197,8 @@ fn linked_note_watchers_follow_project_source_updates() -> Result<()> {
         Actor::human("tester"),
     )?;
 
-    let linked = service.link_note_to_repo_file(
-        &project.id,
-        "docs/PROJECT.md",
-        Actor::human("tester"),
-    )?;
+    let linked =
+        service.link_note_to_repo_file(&project.id, "docs/PROJECT.md", Actor::human("tester"))?;
 
     let current_project = project_by_id(&service, &project.id)?;
     let _updated_project = service.update_project(
@@ -1253,11 +1244,8 @@ fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
         Actor::human("tester"),
     )?;
 
-    let linked = service.link_note_to_repo_file(
-        &project.id,
-        "docs/PROJECT.md",
-        Actor::human("tester"),
-    )?;
+    let linked =
+        service.link_note_to_repo_file(&project.id, "docs/PROJECT.md", Actor::human("tester"))?;
 
     for index in 0..5_001 {
         let _ = service.create_note(
@@ -1271,11 +1259,8 @@ fn linked_note_dedup_ignores_note_list_pagination() -> Result<()> {
         )?;
     }
 
-    let relinked = service.link_note_to_repo_file(
-        &project.id,
-        "docs/PROJECT.md",
-        Actor::human("tester"),
-    )?;
+    let relinked =
+        service.link_note_to_repo_file(&project.id, "docs/PROJECT.md", Actor::human("tester"))?;
     assert_eq!(relinked.id, linked.id);
 
     Ok(())
