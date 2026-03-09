@@ -7,13 +7,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
 use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use regex::Regex;
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::broadcast;
-use tracing::warn;
+use tracing::{info, warn};
 use ulid::Ulid;
 use walkdir::WalkDir;
 
@@ -497,10 +498,18 @@ impl CodexSessionManager {
             .map_err(ServiceError::Other)?
             .with_context(|| format!("codex session {session_id} not found"))
             .map_err(ServiceError::Other)?;
+        let record = self
+            .attach_discovered_session_id(&record)
+            .map_err(ServiceError::Other)?;
         let codex_session_id = record
             .codex_session_id
             .clone()
-            .with_context(|| format!("codex session {} cannot be resumed yet", record.id))
+            .with_context(|| {
+                format!(
+                    "codex session {} has no persisted Codex thread id yet; it can only be resumed after Codex writes local history for it",
+                    record.id
+                )
+            })
             .map_err(ServiceError::Other)?;
         self.spawn_runtime(&record, None, Some(codex_session_id.as_str()), true)?;
         self.store
@@ -514,6 +523,52 @@ impl CodexSessionManager {
                 },
             )
             .map_err(ServiceError::Other)
+    }
+
+    fn attach_discovered_session_id(
+        &self,
+        record: &CodexSessionRecord,
+    ) -> Result<CodexSessionRecord> {
+        if record.codex_session_id.is_some() {
+            return Ok(record.clone());
+        }
+
+        let canonical_cwd = record.cwd.as_str();
+        let canonical_cwd = Path::new(canonical_cwd)
+            .canonicalize()
+            .with_context(|| format!("failed canonicalizing {}", record.cwd))?;
+        let history = discover_codex_history_for_root(&canonical_cwd)?;
+        let existing_sessions = self.store.list_all_sessions()?;
+        let Some(found) = select_codex_launch_history_candidate(
+            record,
+            &canonical_cwd,
+            &history,
+            &existing_sessions,
+        ) else {
+            return Ok(record.clone());
+        };
+
+        let title = if record.title == "New Codex session" && !found.thread_name.trim().is_empty() {
+            Some(found.thread_name.clone())
+        } else {
+            None
+        };
+        self.store.update_session(
+            &record.id,
+            CodexSessionPatch {
+                title,
+                codex_session_id: Some(Some(found.codex_session_id.clone())),
+                last_seen_at: Some(found.updated_at),
+                ..Default::default()
+            },
+        )?;
+
+        self.store.get_session(&record.id)?.with_context(|| {
+            format!(
+                "codex session {} missing after attaching history",
+                record.id
+            )
+        })
     }
 
     pub fn terminate_session(&self, session_id: &str) -> Result<(), ServiceError> {
@@ -543,6 +598,74 @@ impl CodexSessionManager {
             status: CodexSessionStatus::Resumable.as_str().to_string(),
         });
         runtime.terminate().map_err(ServiceError::Other)
+    }
+
+    pub fn restart_session(&self, session_id: &str) -> Result<CodexSessionRecord, ServiceError> {
+        let record = self
+            .store
+            .get_session(session_id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("codex session {session_id} not found"))
+            .map_err(ServiceError::Other)?;
+
+        let runtime = self.take_runtime(session_id);
+        if let Some(runtime) = runtime {
+            if let Err(error) = runtime.terminate() {
+                warn!(
+                    error = %error,
+                    session_id,
+                    "failed terminating codex session during restart; continuing with restart"
+                );
+            }
+        }
+
+        let now = Utc::now();
+        let resume_session_id = record.codex_session_id.clone();
+        let restarts_existing_thread = resume_session_id.is_some();
+        let next_status = if restarts_existing_thread {
+            CodexSessionStatus::Live
+        } else {
+            CodexSessionStatus::Launching
+        };
+        let summary = if restarts_existing_thread {
+            None
+        } else {
+            Some(build_summary_stub(
+                Some(record.title.as_str()),
+                record.task_id.as_deref(),
+                record.started_at,
+                "Launching",
+            ))
+        };
+
+        self.store
+            .update_session(
+                session_id,
+                CodexSessionPatch {
+                    status: Some(next_status),
+                    ended_at: Some(None),
+                    last_seen_at: Some(now),
+                    summary,
+                    ..Default::default()
+                },
+            )
+            .map_err(ServiceError::Other)?;
+
+        self.spawn_runtime(
+            &record,
+            None,
+            resume_session_id.as_deref(),
+            restarts_existing_thread,
+        )?;
+        if !restarts_existing_thread {
+            self.spawn_codex_session_reconciler(record.id.clone(), PathBuf::from(&record.cwd));
+        }
+
+        self.store
+            .get_session(&record.id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("codex session {} missing after restart", record.id))
+            .map_err(ServiceError::Other)
     }
 
     pub fn archive_session(&self, session_id: &str) -> Result<(), ServiceError> {
@@ -644,12 +767,22 @@ impl CodexSessionManager {
         mark_live_immediately: bool,
     ) -> Result<(), ServiceError> {
         let cwd = PathBuf::from(&record.cwd);
+        let binary = codex_binary();
         let command = build_codex_command(
-            &codex_binary(),
+            &binary,
             &cwd,
             &self.service.config.workspace_root,
             prompt.as_deref(),
             resume_session_id,
+        );
+        info!(
+            session_id = %record.id,
+            project_id = %record.project_id,
+            cwd = %cwd.display(),
+            binary,
+            resume_session_id,
+            mark_live_immediately,
+            "starting codex session"
         );
 
         let pty = native_pty_system()
@@ -736,14 +869,26 @@ impl CodexSessionManager {
         std::thread::spawn(move || {
             let wait_result = runtime.wait();
             let ended_at = Utc::now();
-            {
+            let should_persist_exit = {
                 let mut guard = runtimes.lock().unwrap_or_else(|poison| poison.into_inner());
-                guard.remove(&session_id);
+                match guard.get(&session_id) {
+                    Some(current) if Arc::ptr_eq(current, &runtime) => {
+                        guard.remove(&session_id);
+                        true
+                    }
+                    _ => false,
+                }
+            };
+            if !should_persist_exit {
+                return;
             }
             if let Err(error) = wait_result {
                 runtime.push_message(CodexTerminalServerMessage::Error {
                     message: format!("codex session exited with an error: {error}"),
                 });
+                warn!(error = %error, session_id, "codex session wait failed");
+            } else {
+                info!(session_id, "codex session exited");
             }
             if let Err(error) = store.update_session(
                 &session_id,
@@ -850,6 +995,81 @@ impl CodexSessionManager {
             }
         });
     }
+}
+
+pub fn reconcile_project_codex_history(
+    store: &CodexSessionStore,
+    project_id: &str,
+    project_root: &Path,
+) -> Result<usize> {
+    let history = discover_codex_history_for_root(project_root)?;
+    if history.is_empty() {
+        return Ok(0);
+    }
+
+    let mut sessions = keep_topside_codex_sessions(dedupe_codex_sessions(
+        store.list_project_sessions_raw(project_id)?,
+    ));
+    sessions.sort_by(|left, right| {
+        right
+            .started_at
+            .cmp(&left.started_at)
+            .then(right.last_seen_at.cmp(&left.last_seen_at))
+            .then(left.id.cmp(&right.id))
+    });
+
+    let mut existing_sessions = store.list_all_sessions_raw()?;
+    let mut reconciled = 0usize;
+
+    for session in sessions {
+        if session.codex_session_id.is_some() {
+            continue;
+        }
+
+        let canonical_cwd = match Path::new(&session.cwd).canonicalize() {
+            Ok(path) => path,
+            Err(_) => continue,
+        };
+        let Some(found) = select_codex_launch_history_candidate(
+            &session,
+            &canonical_cwd,
+            &history,
+            &existing_sessions,
+        ) else {
+            continue;
+        };
+
+        let title = if session.title == "New Codex session" && !found.thread_name.trim().is_empty()
+        {
+            Some(found.thread_name.clone())
+        } else {
+            None
+        };
+        let last_seen_at = if found.updated_at > session.last_seen_at {
+            found.updated_at
+        } else {
+            session.last_seen_at
+        };
+        let updated = store.update_session(
+            &session.id,
+            CodexSessionPatch {
+                title,
+                codex_session_id: Some(Some(found.codex_session_id.clone())),
+                last_seen_at: Some(last_seen_at),
+                ..Default::default()
+            },
+        )?;
+
+        if let Some(existing) = existing_sessions
+            .iter_mut()
+            .find(|existing| existing.id == updated.id)
+        {
+            *existing = updated;
+        }
+        reconciled += 1;
+    }
+
+    Ok(reconciled)
 }
 
 struct LiveCodexSession {
@@ -1069,6 +1289,41 @@ pub fn discover_codex_history_for_root(project_root: &Path) -> Result<Vec<CodexH
         .canonicalize()
         .with_context(|| format!("failed canonicalizing {}", project_root.display()))?;
     let codex_home = codex_home_dir()?;
+    let mut discovered_by_id = HashMap::<String, CodexHistorySession>::new();
+
+    for session in discover_codex_history_from_thread_store(&canonical_root, &codex_home)? {
+        discovered_by_id.insert(session.codex_session_id.clone(), session);
+    }
+    for session in discover_codex_history_from_session_index(&canonical_root, &codex_home)? {
+        match discovered_by_id.entry(session.codex_session_id.clone()) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(session);
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let existing = entry.get_mut();
+                if existing.thread_name.trim().is_empty() && !session.thread_name.trim().is_empty()
+                {
+                    existing.thread_name = session.thread_name;
+                }
+                if session.updated_at > existing.updated_at {
+                    existing.updated_at = session.updated_at;
+                }
+                if session.started_at < existing.started_at {
+                    existing.started_at = session.started_at;
+                }
+            }
+        }
+    }
+
+    let mut discovered = discovered_by_id.into_values().collect::<Vec<_>>();
+    discovered.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    Ok(discovered)
+}
+
+fn discover_codex_history_from_session_index(
+    canonical_root: &Path,
+    codex_home: &Path,
+) -> Result<Vec<CodexHistorySession>> {
     let session_index_path = codex_home.join("session_index.jsonl");
     if !session_index_path.exists() {
         return Ok(Vec::new());
@@ -1096,7 +1351,7 @@ pub fn discover_codex_history_for_root(project_root: &Path) -> Result<Vec<CodexH
             Ok(cwd) => cwd,
             Err(_) => continue,
         };
-        if canonical_cwd == canonical_root || canonical_cwd.starts_with(&canonical_root) {
+        if canonical_cwd == canonical_root || canonical_cwd.starts_with(canonical_root) {
             discovered.push(CodexHistorySession {
                 codex_session_id: index_entry.id,
                 thread_name: index_entry.thread_name,
@@ -1107,7 +1362,6 @@ pub fn discover_codex_history_for_root(project_root: &Path) -> Result<Vec<CodexH
         }
     }
 
-    discovered.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
     Ok(discovered)
 }
 
@@ -1138,6 +1392,8 @@ fn append_codex_args(
             codex_config_key_segment(&server_name)
         ));
     }
+    command.arg("-c");
+    command.arg("check_for_update_on_startup=false");
     command.arg("-c");
     command.arg(format!(
         "mcp_servers.topside.command={}",
@@ -1311,6 +1567,62 @@ fn parse_datetime_value(value: Option<&Value>) -> Result<DateTime<Utc>> {
         .with_context(|| format!("invalid RFC3339 datetime: {value}"))
 }
 
+fn discover_codex_history_from_thread_store(
+    canonical_root: &Path,
+    codex_home: &Path,
+) -> Result<Vec<CodexHistorySession>> {
+    let db_path = codex_home.join("state_5.sqlite");
+    if !db_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let connection = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .with_context(|| format!("failed opening {}", db_path.display()))?;
+    let mut statement = connection.prepare(
+        "SELECT id, cwd, created_at, updated_at
+         FROM threads
+         WHERE archived = 0 AND source != 'exec'",
+    )?;
+
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+        ))
+    })?;
+
+    let mut discovered = Vec::new();
+    for row in rows {
+        let (codex_session_id, cwd, created_at, updated_at) = row?;
+        let canonical_cwd = match PathBuf::from(cwd).canonicalize() {
+            Ok(cwd) => cwd,
+            Err(_) => continue,
+        };
+        if canonical_cwd != canonical_root && !canonical_cwd.starts_with(canonical_root) {
+            continue;
+        }
+        discovered.push(CodexHistorySession {
+            codex_session_id,
+            thread_name: String::new(),
+            cwd: canonical_cwd,
+            started_at: parse_unix_timestamp(created_at)
+                .context("thread store entry missing created_at")?,
+            updated_at: parse_unix_timestamp(updated_at)
+                .context("thread store entry missing updated_at")?,
+        });
+    }
+
+    Ok(discovered)
+}
+
+fn parse_unix_timestamp(value: i64) -> Result<DateTime<Utc>> {
+    Utc.timestamp_opt(value, 0)
+        .single()
+        .with_context(|| format!("invalid unix timestamp: {value}"))
+}
+
 fn sort_sessions(sessions: &mut [CodexSessionRecord]) {
     sessions.sort_by(|left, right| {
         session_sort_weight(&left.status)
@@ -1438,6 +1750,7 @@ mod tests {
     use std::sync::{Mutex, MutexGuard, OnceLock};
 
     use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
+    use rusqlite::{Connection, params};
     use tempfile::TempDir;
 
     use super::*;
@@ -1659,6 +1972,69 @@ mod tests {
             discovered[0].codex_session_id,
             "019bfd79-5282-7551-95ce-cb61664a2993"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn discover_codex_history_falls_back_to_thread_store() -> Result<()> {
+        let temp = TempDir::new()?;
+        let codex_home = temp.path().join(".codex");
+        let project_root = temp.path().join("project");
+        fs::create_dir_all(&codex_home)?;
+        fs::create_dir_all(&project_root)?;
+
+        let connection = Connection::open(codex_home.join("state_5.sqlite"))?;
+        connection.execute_batch(
+            "CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                rollout_path TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                model_provider TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                title TEXT NOT NULL,
+                sandbox_policy TEXT NOT NULL,
+                approval_mode TEXT NOT NULL,
+                tokens_used INTEGER NOT NULL DEFAULT 0,
+                has_user_event INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0,
+                archived_at INTEGER,
+                git_sha TEXT,
+                git_branch TEXT,
+                git_origin_url TEXT,
+                cli_version TEXT NOT NULL DEFAULT '',
+                first_user_message TEXT NOT NULL DEFAULT '',
+                agent_nickname TEXT,
+                agent_role TEXT,
+                memory_mode TEXT NOT NULL DEFAULT 'enabled'
+            );",
+        )?;
+        connection.execute(
+            "INSERT INTO threads (
+                id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+                sandbox_policy, approval_mode, tokens_used, has_user_event, archived, cli_version,
+                first_user_message, memory_mode
+            ) VALUES (?1, ?2, ?3, ?4, 'cli', 'openai', ?5, '', '{}', 'on-request', 0, 0, 0, '0.111.0', '', 'enabled')",
+            params![
+                "019bfd79-5282-7551-95ce-cb61664a2993",
+                "/tmp/rollout.jsonl",
+                1_762_308_000_i64,
+                1_762_308_009_i64,
+                project_root.to_string_lossy().to_string(),
+            ],
+        )?;
+
+        let _env = ScopedEnvVar::set("TOPSIDE_CODEX_HOME", &codex_home);
+        let discovered = discover_codex_history_for_root(&project_root)?;
+
+        assert_eq!(discovered.len(), 1);
+        assert_eq!(
+            discovered[0].codex_session_id,
+            "019bfd79-5282-7551-95ce-cb61664a2993"
+        );
+        assert!(discovered[0].thread_name.is_empty());
+        assert_eq!(discovered[0].cwd, project_root.canonicalize()?);
         Ok(())
     }
 
@@ -1922,6 +2298,140 @@ mod tests {
     }
 
     #[test]
+    fn attach_discovered_session_id_recovers_missing_thread_id_from_history() -> Result<()> {
+        let temp = TempDir::new()?;
+        let workspace_root = temp.path().to_path_buf();
+        let config = AppConfig::default_for_workspace(workspace_root.clone());
+        let service = Arc::new(AppService::bootstrap(config)?);
+        let manager = CodexSessionManager::new(service)?;
+
+        let project_root = temp.path().join("project");
+        fs::create_dir_all(&project_root)?;
+
+        let codex_home = temp.path().join(".codex");
+        fs::create_dir_all(codex_home.join("sessions/2026/03/09"))?;
+        fs::write(
+            codex_home.join("session_index.jsonl"),
+            r#"{"id":"019bfd79-5282-7551-95ce-cb61664a2993","thread_name":"Recovered Session","updated_at":"2026-03-09T01:06:02Z"}"#,
+        )?;
+        fs::write(
+            codex_home.join("sessions/2026/03/09/rollout-2026-03-09T01-06-02-019bfd79-5282-7551-95ce-cb61664a2993.jsonl"),
+            format!(
+                r#"{{"timestamp":"2026-03-09T01:06:02Z","type":"session_meta","payload":{{"id":"019bfd79-5282-7551-95ce-cb61664a2993","timestamp":"2026-03-09T01:06:02Z","cwd":"{}"}}}}"#,
+                project_root.to_string_lossy()
+            ),
+        )?;
+
+        let _home_env = ScopedEnvVar::set("TOPSIDE_CODEX_HOME", &codex_home);
+
+        let started_at = Utc.with_ymd_and_hms(2026, 3, 9, 1, 6, 0).unwrap();
+        let record = manager.store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "New Codex session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Resumable,
+            cwd: project_root.to_string_lossy().to_string(),
+            codex_session_id: None,
+            started_at,
+            last_seen_at: started_at,
+            ended_at: Some(started_at),
+            summary: build_summary_stub(None, None, started_at, "Resumable"),
+        })?;
+
+        let recovered = manager.attach_discovered_session_id(&record)?;
+
+        assert_eq!(recovered.status, CodexSessionStatus::Resumable);
+        assert_eq!(
+            recovered.codex_session_id.as_deref(),
+            Some("019bfd79-5282-7551-95ce-cb61664a2993")
+        );
+        assert_eq!(recovered.title, "Recovered Session");
+        Ok(())
+    }
+
+    #[test]
+    fn attach_discovered_session_id_recovers_missing_thread_id_from_thread_store() -> Result<()> {
+        let temp = TempDir::new()?;
+        let workspace_root = temp.path().to_path_buf();
+        let config = AppConfig::default_for_workspace(workspace_root.clone());
+        let service = Arc::new(AppService::bootstrap(config)?);
+        let manager = CodexSessionManager::new(service)?;
+
+        let project_root = temp.path().join("project");
+        fs::create_dir_all(&project_root)?;
+
+        let codex_home = temp.path().join(".codex");
+        fs::create_dir_all(&codex_home)?;
+        let connection = Connection::open(codex_home.join("state_5.sqlite"))?;
+        let started_at = Utc.with_ymd_and_hms(2025, 11, 6, 0, 26, 38).unwrap();
+        connection.execute_batch(
+            "CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                rollout_path TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                model_provider TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                title TEXT NOT NULL,
+                sandbox_policy TEXT NOT NULL,
+                approval_mode TEXT NOT NULL,
+                tokens_used INTEGER NOT NULL DEFAULT 0,
+                has_user_event INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0,
+                archived_at INTEGER,
+                git_sha TEXT,
+                git_branch TEXT,
+                git_origin_url TEXT,
+                cli_version TEXT NOT NULL DEFAULT '',
+                first_user_message TEXT NOT NULL DEFAULT '',
+                agent_nickname TEXT,
+                agent_role TEXT,
+                memory_mode TEXT NOT NULL DEFAULT 'enabled'
+            );",
+        )?;
+        connection.execute(
+            "INSERT INTO threads (
+                id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+                sandbox_policy, approval_mode, tokens_used, has_user_event, archived, cli_version,
+                first_user_message, memory_mode
+            ) VALUES (?1, ?2, ?3, ?4, 'cli', 'openai', ?5, '', '{}', 'on-request', 0, 0, 0, '0.111.0', '', 'enabled')",
+            params![
+                "019bfd79-5282-7551-95ce-cb61664a2993",
+                "/tmp/rollout.jsonl",
+                started_at.timestamp(),
+                started_at.timestamp() + 2,
+                project_root.to_string_lossy().to_string(),
+            ],
+        )?;
+
+        let _home_env = ScopedEnvVar::set("TOPSIDE_CODEX_HOME", &codex_home);
+        let record = manager.store.create_session(NewCodexSession {
+            project_id: "prj_1".to_string(),
+            task_id: None,
+            title: "New Codex session".to_string(),
+            origin: CodexSessionOrigin::Topside,
+            status: CodexSessionStatus::Resumable,
+            cwd: project_root.to_string_lossy().to_string(),
+            codex_session_id: None,
+            started_at,
+            last_seen_at: started_at,
+            ended_at: Some(started_at),
+            summary: build_summary_stub(None, None, started_at, "Resumable"),
+        })?;
+
+        let recovered = manager.attach_discovered_session_id(&record)?;
+
+        assert_eq!(
+            recovered.codex_session_id.as_deref(),
+            Some("019bfd79-5282-7551-95ce-cb61664a2993")
+        );
+        assert_eq!(recovered.title, "New Codex session");
+        Ok(())
+    }
+
+    #[test]
     fn build_codex_command_uses_supported_interactive_flags() {
         let project_root = PathBuf::from("/tmp/project");
         let workspace_root = PathBuf::from("/tmp/workspace");
@@ -1944,6 +2454,10 @@ mod tests {
                 .any(|pair| pair == ["resume", "019bfd79-5282-7551-95ce-cb61664a2993"])
         );
         assert!(argv.contains(&"-C".to_string()));
+        assert!(
+            argv.iter()
+                .any(|value| value == "check_for_update_on_startup=false")
+        );
         assert!(!argv.iter().any(|value| value == "--skip-git-repo-check"));
         assert_eq!(
             command

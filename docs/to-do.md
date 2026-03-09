@@ -1,7 +1,7 @@
 ## Section: Phase 3 - Sync Animation Test
 ## Codex Integration
 - [x] Sample task: verify new task sync animation appears in to-do pane
-- [ ] Continue to refine UI and UX
+- [x] Continue to refine UI and UX
 - [x] Sample task: create a task from agent prompt and confirm row animation timing
 - [x] Update project documentation
 - [x] Sample task: test multiple synced tasks arriving together
@@ -16,7 +16,7 @@
 - [ ] Add ability to hotswap Notes pane for Codex pane
 - [x] Do a pass on pane headers and buttons for consistent typecase
 - [x] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
-- [ ] Remove redundant codex session info
+- [x] Remove redundant codex session info
 - [x] Center headers in their borders
 - [ ] Establish UX flow for setting up codex if not already done
 - [x] Resolve pane names

@@ -8,6 +8,7 @@ use anyhow::Result;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
 use futures::{SinkExt, StreamExt};
+use rusqlite::{Connection, params};
 use serde_json::json;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
@@ -15,7 +16,9 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tower::util::ServiceExt;
 
 use topside::codex::CodexSessionManager;
+use topside::codex::CodexSessionPatch;
 use topside::codex::CodexSessionRecord;
+use topside::codex::CodexSessionStore;
 use topside::http::{WebState, router};
 use topside::ports::{
     PortManager, PortManagerError, PortSession, TerminatePortResult, UnsupportedPortManager,
@@ -123,14 +126,22 @@ impl MockCodexEnv {
 set -eu
 cwd=""
 prev=""
+saw_disable_update="0"
 for arg in "$@"; do
   if [ "$prev" = "-C" ]; then
     cwd="$arg"
+  fi
+  if [ "$arg" = "check_for_update_on_startup=false" ]; then
+    saw_disable_update="1"
   fi
   prev="$arg"
 done
 if [ -z "$cwd" ]; then
   cwd="$(pwd)"
+fi
+if [ "$saw_disable_update" != "1" ]; then
+  echo "mock-codex: missing check_for_update_on_startup=false" >&2
+  exit 64
 fi
 ts="$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")"
 session_id="$(uuidgen | tr 'A-Z' 'a-z')"
@@ -191,6 +202,57 @@ impl Drop for MockCodexEnv {
 
 fn desktop_request(builder: axum::http::request::Builder) -> axum::http::request::Builder {
     builder.header("x-topside-desktop", "true")
+}
+
+fn write_mock_codex_thread_store_entry(
+    codex_home: &std::path::Path,
+    session_id: &str,
+    cwd: &std::path::Path,
+    created_at: i64,
+    updated_at: i64,
+) -> Result<()> {
+    let connection = Connection::open(codex_home.join("state_5.sqlite"))?;
+    connection.execute_batch(
+        "CREATE TABLE IF NOT EXISTS threads (
+            id TEXT PRIMARY KEY,
+            rollout_path TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            model_provider TEXT NOT NULL,
+            cwd TEXT NOT NULL,
+            title TEXT NOT NULL,
+            sandbox_policy TEXT NOT NULL,
+            approval_mode TEXT NOT NULL,
+            tokens_used INTEGER NOT NULL DEFAULT 0,
+            has_user_event INTEGER NOT NULL DEFAULT 0,
+            archived INTEGER NOT NULL DEFAULT 0,
+            archived_at INTEGER,
+            git_sha TEXT,
+            git_branch TEXT,
+            git_origin_url TEXT,
+            cli_version TEXT NOT NULL DEFAULT '',
+            first_user_message TEXT NOT NULL DEFAULT '',
+            agent_nickname TEXT,
+            agent_role TEXT,
+            memory_mode TEXT NOT NULL DEFAULT 'enabled'
+        );",
+    )?;
+    connection.execute(
+        "INSERT OR REPLACE INTO threads (
+            id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+            sandbox_policy, approval_mode, tokens_used, has_user_event, archived, cli_version,
+            first_user_message, memory_mode
+        ) VALUES (?1, ?2, ?3, ?4, 'cli', 'openai', ?5, '', '{}', 'on-request', 0, 0, 0, '0.111.0', '', 'enabled')",
+        params![
+            session_id,
+            format!("/tmp/{session_id}.jsonl"),
+            created_at,
+            updated_at,
+            cwd.to_string_lossy().to_string(),
+        ],
+    )?;
+    Ok(())
 }
 
 async fn wait_for_codex_session<F>(
@@ -1547,6 +1609,323 @@ async fn codex_session_terminate_endpoint_marks_session_resumable() -> Result<()
     .await?;
     assert_eq!(terminated.id, session_id);
     assert!(terminated.ended_at.is_some());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn project_workspace_reconciles_missing_codex_session_ids_on_reload() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Reload Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let session_id = create_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let created = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" && session.codex_session_id.is_some()
+    })
+    .await?;
+    let attached_codex_id = created
+        .codex_session_id
+        .clone()
+        .expect("attached codex session id");
+
+    let terminate_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/terminate")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(terminate_response.status(), StatusCode::OK);
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "resumable" && session.ended_at.is_some()
+    })
+    .await?;
+
+    let store = CodexSessionStore::new(service.config.clone());
+    store.update_session(
+        &session_id,
+        CodexSessionPatch {
+            title: Some("New Codex session".to_string()),
+            codex_session_id: Some(None),
+            ..Default::default()
+        },
+    )?;
+
+    let reloaded = service.load_project_workspace(&project.id)?;
+    let repaired = reloaded
+        .codex_sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .cloned()
+        .expect("session present after reload");
+    assert_eq!(
+        repaired.codex_session_id.as_deref(),
+        Some(attached_codex_id.as_str())
+    );
+    assert_eq!(repaired.title, "Mock Codex Session");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn project_workspace_reconciles_missing_codex_session_ids_from_thread_store() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex SQLite Reload Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let session_id = create_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let created = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" && session.codex_session_id.is_some()
+    })
+    .await?;
+    let attached_codex_id = created
+        .codex_session_id
+        .clone()
+        .expect("attached codex session id");
+
+    let terminate_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/terminate")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(terminate_response.status(), StatusCode::OK);
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "resumable" && session.ended_at.is_some()
+    })
+    .await?;
+
+    let store = CodexSessionStore::new(service.config.clone());
+    store.update_session(
+        &session_id,
+        CodexSessionPatch {
+            title: Some("New Codex session".to_string()),
+            codex_session_id: Some(None),
+            ..Default::default()
+        },
+    )?;
+
+    let codex_home = PathBuf::from(std::env::var("TOPSIDE_CODEX_HOME").expect("codex home"));
+    let session_index = codex_home.join("session_index.jsonl");
+    if session_index.exists() {
+        std::fs::remove_file(session_index)?;
+    }
+    let sessions_dir = codex_home.join("sessions");
+    if sessions_dir.exists() {
+        std::fs::remove_dir_all(sessions_dir)?;
+    }
+    write_mock_codex_thread_store_entry(
+        &codex_home,
+        &attached_codex_id,
+        repo_root.path(),
+        created.started_at.timestamp(),
+        created.started_at.timestamp() + 2,
+    )?;
+
+    let reloaded = service.load_project_workspace(&project.id)?;
+    let repaired = reloaded
+        .codex_sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .cloned()
+        .expect("session present after reload");
+    assert_eq!(
+        repaired.codex_session_id.as_deref(),
+        Some(attached_codex_id.as_str())
+    );
+    assert_eq!(repaired.title, "New Codex session");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn codex_session_restart_endpoint_relaunches_same_session() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Restart Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let http_app = router(state.clone());
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router(state))
+            .await
+            .expect("serve test router");
+    });
+
+    let create_response = http_app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let session_id = create_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let created = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" && session.codex_session_id.is_some()
+    })
+    .await?;
+    assert!(created.codex_session_id.is_some());
+
+    let restart_response = http_app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/restart")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(restart_response.status(), StatusCode::OK);
+    let restart_body = to_bytes(restart_response.into_body(), usize::MAX).await?;
+    let restart_json: serde_json::Value = serde_json::from_slice(&restart_body)?;
+    assert_eq!(restart_json["message"], json!("Codex session restarted"));
+    assert_eq!(restart_json["opened_session_id"], json!(session_id));
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live"
+    })
+    .await?;
+
+    let socket_url = format!(
+        "ws://{}/api/codex-sessions/{}/pty?desktop=true",
+        addr, session_id
+    );
+    let (mut socket, _response) = connect_async(&socket_url).await?;
+
+    let restarted_output = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let Some(message) = socket.next().await else {
+                anyhow::bail!("websocket closed before restart output")
+            };
+            match message? {
+                Message::Text(text) => {
+                    let payload: serde_json::Value = serde_json::from_str(text.as_ref())?;
+                    if payload["type"] == "output" {
+                        let data = payload["data"].as_str().unwrap_or_default().to_string();
+                        if data.contains("mock-codex:") {
+                            return Ok::<String, anyhow::Error>(data);
+                        }
+                    }
+                }
+                Message::Binary(_) | Message::Ping(_) | Message::Pong(_) => {}
+                Message::Close(_) => anyhow::bail!("websocket closed before restart output"),
+                _ => {}
+            }
+        }
+    })
+    .await??;
+    assert!(restarted_output.contains("mock-codex:"));
+
+    let _ = socket.close(None).await;
+    server.abort();
 
     Ok(())
 }

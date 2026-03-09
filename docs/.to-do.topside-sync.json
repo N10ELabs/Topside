@@ -24,7 +24,7 @@
       "title": "Continue to refine UI and UX",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK64HMY5G43KS2DAPV2KTNG4"
@@ -159,7 +159,7 @@
       "title": "Remove redundant codex session info",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK64MK1X1HS5JED4TDZ3GNM4"

@@ -4330,6 +4330,8 @@
       codexPendingPrompt: null,
       codexTerminalPrompt: null,
       codexTerminalTails: {},
+      codexSessionAutoRestarted: {},
+      codexRestartingSessions: {},
       codexSocket: null,
       codexSocketSessionId: null,
       codexTerminal: null,
@@ -9393,6 +9395,8 @@
       delete state.codexSessionTitleEdits[sessionId];
       delete state.codexSessionSummaryEdits[sessionId];
       delete state.codexPromptEdits[sessionId];
+      delete state.codexSessionAutoRestarted[sessionId];
+      delete state.codexRestartingSessions[sessionId];
       if (state.codexPendingPrompt?.sessionId === sessionId) {
         state.codexPendingPrompt = null;
       }
@@ -9630,11 +9634,75 @@
       return sent;
     }
 
+    async function restartCodexSession(sessionId, options = {}) {
+      const normalizedSessionId = normalizeSessionId(sessionId);
+      if (!normalizedSessionId || !state.selectedProjectId) return;
+      if (state.codexRestartingSessions[normalizedSessionId]) return;
+      const automatic = options.automatic === true;
+      state.codexRestartingSessions[normalizedSessionId] = true;
+      disconnectCodexSocket(state.openCodexSessionId === normalizedSessionId);
+      clearCodexTerminalPrompt(normalizedSessionId);
+      state.codexHeadNotice = automatic
+        ? "Restarting Codex after update..."
+        : "Restarting Codex session...";
+      state.codexMessage = "";
+      render();
+      const response = await fetchJson(
+        `/api/codex-sessions/${encodeURIComponent(normalizedSessionId)}/restart`,
+        { method: "POST" },
+        "codex"
+      );
+      delete state.codexRestartingSessions[normalizedSessionId];
+      if (!response) {
+        delete state.codexSessionAutoRestarted[normalizedSessionId];
+        state.codexHeadNotice = "";
+        state.codexMessage = state.codexMessage || (
+          automatic
+            ? "Failed to restart Codex after updating."
+            : "Failed to restart Codex session."
+        );
+        render();
+        return;
+      }
+      applyWorkspace(response.workspace);
+      state.openCodexSessionId = response.opened_session_id || normalizedSessionId;
+      state.codexHeadNotice = automatic
+        ? "Codex restarted after update."
+        : (response.message || "Codex session restarted.");
+      state.codexMessage = "";
+      render();
+    }
+
+    function codexTerminalTailNeedsRestart(sessionId) {
+      const tail = String(state.codexTerminalTails[sessionId] || "");
+      return tail.includes("update ran successfully!")
+        && tail.includes("please restart codex");
+    }
+
+    function beginCodexSessionAutoRestart(sessionId) {
+      if (
+        !codexTerminalTailNeedsRestart(sessionId)
+        || state.codexRestartingSessions[sessionId]
+        || state.codexSessionAutoRestarted[sessionId]
+      ) {
+        return false;
+      }
+      state.codexSessionAutoRestarted[sessionId] = true;
+      if (state.codexTerminalPrompt?.sessionId === sessionId) {
+        state.codexTerminalPrompt = null;
+      }
+      return true;
+    }
+
     function recordCodexTerminalOutput(sessionId, chunk) {
+      const effect = {
+        shouldRender: false,
+        autoRestart: false,
+      };
       const stripped = stripTerminalControlSequences(chunk)
         .replace(/\s+/g, " ")
         .trim();
-      if (!stripped) return false;
+      if (!stripped) return effect;
 
       const nextTail = `${state.codexTerminalTails[sessionId] || ""} ${stripped}`
         .slice(-4000)
@@ -9653,18 +9721,28 @@
           sessionId,
           kind: "update_available",
         };
-        return changed;
+        effect.shouldRender = changed;
+        return effect;
       }
 
-      if (
-        state.codexTerminalPrompt?.sessionId === sessionId
-        && (nextTail.includes("openai codex") || nextTail.includes("starting mcp servers"))
-      ) {
+      if (codexTerminalTailNeedsRestart(sessionId)) {
+        if (beginCodexSessionAutoRestart(sessionId)) {
+          effect.shouldRender = true;
+          effect.autoRestart = true;
+        }
+        return effect;
+      }
+
+      if (nextTail.includes("openai codex") || nextTail.includes("starting mcp servers")) {
+        const changed = state.codexTerminalPrompt?.sessionId === sessionId
+          || Boolean(state.codexSessionAutoRestarted[sessionId]);
         state.codexTerminalPrompt = null;
-        return true;
+        delete state.codexSessionAutoRestarted[sessionId];
+        effect.shouldRender = changed;
+        return effect;
       }
 
-      return false;
+      return effect;
     }
 
     function handleCodexTerminalPromptAction(action) {
@@ -9706,11 +9784,6 @@
       const draft = getCodexPromptValue(session).trim();
       if (!draft) {
         focusCodexTerminal();
-        return;
-      }
-      if (session.status === "resumable" && !session.resume_available) {
-        state.codexMessage = "This Codex session is still waiting for a resumable Codex id.";
-        render();
         return;
       }
       state.codexPromptEdits[normalizedSessionId] = "";
@@ -9934,13 +10007,23 @@
         if (payload?.type === "output" && state.codexTerminal) {
           const output = normalizeCodexTerminalOutput(String(payload.data || ""));
           state.codexTerminal.write(output);
-          if (recordCodexTerminalOutput(session.id, output)) {
+          const outputEffect = recordCodexTerminalOutput(session.id, output);
+          if (outputEffect.autoRestart) {
+            void restartCodexSession(session.id, { automatic: true });
+          }
+          if (outputEffect.shouldRender) {
             renderCodexPane();
           }
           return;
         }
         if (payload?.type === "status") {
-          syncCurrentWorkspaceCodexSessionState(session.id, { status: String(payload.status || "resumable") });
+          const nextStatus = String(payload.status || "resumable");
+          if (nextStatus === "resumable" && beginCodexSessionAutoRestart(session.id)) {
+            void restartCodexSession(session.id, { automatic: true });
+            renderCodexPane();
+            return;
+          }
+          syncCurrentWorkspaceCodexSessionState(session.id, { status: nextStatus });
           renderCodexPane();
           return;
         }
@@ -9962,6 +10045,11 @@
         if (state.codexSocket !== socket) return;
         state.codexSocket = null;
         state.codexSocketSessionId = null;
+        if (beginCodexSessionAutoRestart(session.id)) {
+          void restartCodexSession(session.id, { automatic: true });
+          renderCodexPane();
+          return;
+        }
         if (state.openCodexSessionId === session.id && state.rightPaneMode === "codex") {
           syncCurrentWorkspaceCodexSessionState(session.id, { status: "resumable" });
         }
@@ -10000,11 +10088,6 @@
       }
 
       if (session.status === "resumable") {
-        if (!session.resume_available) {
-          state.codexMessage = "This Codex session is still waiting for a resumable Codex id.";
-          render();
-          return;
-        }
         if (resumeIfNeeded) {
           const response = await fetchJson(
             `/api/codex-sessions/${encodeURIComponent(session.id)}/resume`,
@@ -10204,7 +10287,7 @@
       codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
 
       codexNewButton.disabled = !supportsCodex;
-      codexResumeButton.disabled = !(activeSession && activeSession.resume_available && activeSession.status === "resumable");
+      codexResumeButton.disabled = !(activeSession && activeSession.status === "resumable");
       codexEndButton.disabled = !activeSession;
       codexTerminalHelper.hidden = true;
       codexTerminalHelper.innerHTML = "";
@@ -10304,7 +10387,7 @@
           >${escapeHtml(getCodexSessionSummaryValue(activeSession))}</textarea>
           <div class="codex-editor-actions">
             <button class="text-btn" type="button" data-codex-save="${escapeAttribute(activeSession.id)}">Save</button>
-            ${activeSession.resume_available && activeSession.status === "resumable"
+            ${activeSession.status === "resumable"
               ? `<button class="text-btn" type="button" data-codex-inline-resume="${escapeAttribute(activeSession.id)}">Resume</button>`
               : ""}
             <button class="text-btn danger-btn" type="button" data-codex-inline-archive="${escapeAttribute(activeSession.id)}">Archive Session</button>
@@ -10314,49 +10397,15 @@
         codexTerminalSessionLabel.textContent = activeSession.title || "Codex session";
         codexTerminalMeta.textContent = `${codexStatusLabel(activeSession.status)} • ${pathLeaf(activeSession.cwd || project.source_locator || "")}`;
         renderCodexComposerState(activeSession);
+        setCodexTerminalEmptyMarkup("");
 
         if (activeSession.status === "live" || activeSession.status === "launching") {
-          const hasTerminalOutput = Boolean((state.codexTerminalTails[activeSession.id] || "").trim());
-          setCodexTerminalEmptyMarkup(
-            hasTerminalOutput
-              ? ""
-              : `
-                <div class="codex-terminal-empty-card">
-                  <div class="codex-terminal-empty-title">${escapeHtml(
-                    activeSession.status === "launching"
-                      ? "Launching Codex session"
-                      : "Connecting Codex terminal"
-                  )}</div>
-                  <div class="codex-panel-copy">${escapeHtml(
-                    activeSession.status === "launching"
-                      ? "Topside is waiting for the first terminal output from this session. This can take a few seconds."
-                      : "Topside is reconnecting to this live Codex session."
-                  )}</div>
-                </div>
-              `
-          );
           window.requestAnimationFrame(() => {
             attachCodexSocket(activeSession);
             focusCodexTerminal();
           });
         } else {
-          setCodexTerminalEmptyMarkup(`
-            <div class="codex-terminal-empty-card">
-              <div class="codex-terminal-empty-title">${escapeHtml(activeSession.title || "Codex session")}</div>
-              <div class="codex-panel-copy">${escapeHtml(
-                activeSession.resume_available
-                  ? "This session is resumable. Resume it to reopen the embedded Codex chat, or send a message below and Topside will reopen it for you."
-                  : "This session is still waiting for a resumable Codex id, so Topside cannot reopen the chat yet."
-              )}</div>
-              <div class="codex-terminal-empty-actions">
-                ${activeSession.resume_available
-                  ? `<button class="text-btn" type="button" data-codex-empty-resume="${escapeAttribute(activeSession.id)}">Resume Session</button>`
-                  : ""}
-                <button class="text-btn" type="button" data-codex-empty-new>New Session</button>
-              </div>
-            </div>
-          `);
-          disconnectCodexSocket();
+          disconnectCodexSocket(true);
         }
       }
 

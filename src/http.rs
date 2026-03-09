@@ -117,6 +117,10 @@ pub fn router(state: Arc<WebState>) -> Router {
             post(api_resume_codex_session),
         )
         .route(
+            "/api/codex-sessions/{id}/restart",
+            post(api_restart_codex_session),
+        )
+        .route(
             "/api/codex-sessions/{id}/terminate",
             post(api_terminate_codex_session),
         )
@@ -1227,6 +1231,28 @@ async fn api_resume_codex_session(
     }))
 }
 
+async fn api_restart_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .codex_manager
+        .restart_session(&id)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
+        opened_session_id: Some(session.id),
+        message: Some("Codex session restarted".to_string()),
+    }))
+}
+
 async fn api_terminate_codex_session(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
@@ -1737,7 +1763,8 @@ fn map_codex_session_payload(
         ended_at_iso: session.ended_at.as_ref().map(chrono::DateTime::to_rfc3339),
         ended_at_label: session.ended_at.map(format_timestamp),
         summary: session.summary,
-        resume_available: session.codex_session_id.is_some(),
+        resume_available: session.codex_session_id.is_some()
+            || status == CodexSessionStatus::Resumable,
     }
 }
 

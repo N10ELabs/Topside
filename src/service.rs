@@ -8,10 +8,14 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use thiserror::Error;
+use tracing::warn;
 use ulid::Ulid;
 
 use crate::activity::ActivityDraft;
-use crate::codex::{CodexSessionCounts, CodexSessionPatch, CodexSessionRecord, CodexSessionStore};
+use crate::codex::{
+    CodexSessionCounts, CodexSessionPatch, CodexSessionRecord, CodexSessionStore,
+    reconcile_project_codex_history,
+};
 use crate::config::AppConfig;
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::db::{Db, StoredEntityRecord};
@@ -215,7 +219,17 @@ impl AppService {
     }
 
     pub fn list_codex_sessions(&self, project_id: &str) -> Result<Vec<CodexSessionRecord>> {
-        self.codex_session_store().list_project_sessions(project_id)
+        let store = self.codex_session_store();
+        if let Ok(project_root) = self.local_project_source_root(project_id) {
+            if let Err(error) = reconcile_project_codex_history(&store, project_id, &project_root) {
+                warn!(
+                    error = %error,
+                    project_id,
+                    "failed reconciling codex session history for project"
+                );
+            }
+        }
+        store.list_project_sessions(project_id)
     }
 
     pub fn list_all_codex_sessions(&self) -> Result<Vec<CodexSessionRecord>> {
