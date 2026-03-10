@@ -484,7 +484,7 @@ impl DesktopMenu {
         &self,
         event: &MenuEvent,
         browser_url: &str,
-        workspace_root: &PathBuf,
+        workspace_root: &Path,
         webview: &WebView,
         zoom_level: &mut f64,
     ) {

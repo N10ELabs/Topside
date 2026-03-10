@@ -205,7 +205,6 @@ fn parse_checkbox(line: &str) -> Option<(bool, &str)> {
 
 fn normalize_title(value: &str) -> String {
     value
-        .trim()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")

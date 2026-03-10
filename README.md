@@ -52,6 +52,13 @@ This is the main "Topside + Codex CLI" path today. The stronger integration is s
 
 ## Install
 
+From Homebrew on macOS:
+
+```bash
+brew tap N10ELabs/Topside https://github.com/N10ELabs/Topside
+brew install N10ELabs/Topside/topside
+```
+
 From source:
 
 ```bash
@@ -62,11 +69,14 @@ Quick start:
 
 ```bash
 topside init /path/to/workspace
+topside --workspace /path/to/workspace doctor
 topside --workspace /path/to/workspace serve
 topside --workspace /path/to/workspace open
 ```
 
 `serve` runs the local browser UI on `http://127.0.0.1:7410` by default. `open` launches the same local UI inside the native macOS shell and is the mode that exposes live Codex session controls.
+
+If you want embedded Codex sessions, install the `codex` CLI first. `open` and live session management are macOS-only.
 
 ## CLI
 
@@ -132,12 +142,19 @@ If you are scanning the tree for implementation entry points, start with:
 - MCP compatibility surface: [docs/MCP.md](docs/MCP.md)
 - performance harness: [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
 - roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+- release process: [docs/RELEASE.md](docs/RELEASE.md)
 
 ## macOS Packaging
 
 Use `topside bundle-app` to create a local `Topside.app` bundle. Prefix with `--workspace <PATH>` if you want the app to embed a default workspace, and pass `--icon` with a `.icns` file if you want a custom icon.
 
-Use `./scripts/package-macos-release.sh` to build the release binary, generate `dist/Topside.app`, and package it into `dist/topside-macos.dmg`. Pass `--sign-identity` if you want the script to codesign the `.app` and `.dmg`.
+Use `./scripts/package-macos-release.sh` to build the release binary, generate `dist/Topside.app`, and package:
+
+- `dist/topside-macos-<arch>.tar.gz`
+- `dist/topside-macos-<arch>.dmg`
+- `dist/checksums.txt`
+
+Pass `--sign-identity` if you want the script to codesign the `.app` and `.dmg`.
 
 ## License
 

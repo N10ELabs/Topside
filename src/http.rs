@@ -1947,7 +1947,7 @@ fn canonicalize_local_source(raw_locator: &str) -> Result<PathBuf, String> {
     Ok(canonical)
 }
 
-fn derive_title_from_local_path(path: &PathBuf) -> String {
+fn derive_title_from_local_path(path: &std::path::Path) -> String {
     path.file_name()
         .and_then(|value| value.to_str())
         .map(ToString::to_string)

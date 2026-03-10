@@ -79,6 +79,21 @@ pub struct RestoreEntityRequest {
     pub expected_revision: String,
 }
 
+type ManagedTaskSyncDefaults = (
+    Option<TaskSyncKind>,
+    Option<String>,
+    Option<String>,
+    Option<bool>,
+);
+
+struct NoteWriteContext {
+    before_revision: Option<String>,
+    archived: bool,
+    actor: Actor,
+    action: &'static str,
+    summary: &'static str,
+}
+
 #[derive(Clone)]
 pub struct AppService {
     pub config: AppConfig,
@@ -757,11 +772,13 @@ impl AppService {
                 updated_at: now,
                 revision: String::new(),
             },
-            None,
-            false,
-            actor,
-            "create_note",
-            "Created note",
+            NoteWriteContext {
+                before_revision: None,
+                archived: false,
+                actor,
+                action: "create_note",
+                summary: "Created note",
+            },
         )?;
 
         self.ensure_note_sync_watcher(&id)?;
@@ -902,11 +919,13 @@ impl AppService {
                 updated_at: now,
                 revision: String::new(),
             },
-            None,
-            false,
-            actor,
-            "link_note_to_repo_file",
-            "Linked note to repo markdown file",
+            NoteWriteContext {
+                before_revision: None,
+                archived: false,
+                actor,
+                action: "link_note_to_repo_file",
+                summary: "Linked note to repo markdown file",
+            },
         )?;
 
         self.ensure_note_sync_watcher(&id)?;
@@ -1173,11 +1192,13 @@ impl AppService {
             &record.path,
             body,
             frontmatter,
-            Some(record.revision.clone()),
-            record.archived,
-            actor,
-            "update_note",
-            "Updated note",
+            NoteWriteContext {
+                before_revision: Some(record.revision.clone()),
+                archived: record.archived,
+                actor,
+                action: "update_note",
+                summary: "Updated note",
+            },
         )?;
 
         if let EntityFrontmatter::Note(note) = &snapshot.frontmatter {
@@ -2314,15 +2335,7 @@ impl AppService {
         &self,
         project_id: &str,
         title: &str,
-    ) -> Result<
-        (
-            Option<TaskSyncKind>,
-            Option<String>,
-            Option<String>,
-            Option<bool>,
-        ),
-        anyhow::Error,
-    > {
+    ) -> Result<ManagedTaskSyncDefaults, anyhow::Error> {
         let project = self
             .list_projects(UNBOUNDED_QUERY_LIMIT, false)?
             .into_iter()
@@ -2372,11 +2385,7 @@ impl AppService {
         path: &Path,
         body: String,
         frontmatter: NoteFrontmatter,
-        before_revision: Option<String>,
-        archived: bool,
-        actor: Actor,
-        action: &'static str,
-        summary: &'static str,
+        context: NoteWriteContext,
     ) -> Result<EntitySnapshot, ServiceError> {
         let mut entity = EntityFrontmatter::Note(frontmatter);
         let rendered = render_entity_markdown(&mut entity, &body).map_err(ServiceError::Other)?;
@@ -2385,20 +2394,26 @@ impl AppService {
         let revision = indexed.revision.clone();
 
         self.record_entity_activity(
-            actor,
+            context.actor,
             EntityActivityMeta {
-                action,
+                action: context.action,
                 entity_type: EntityType::Note,
                 entity_id: entity.id(),
                 path,
-                before_revision,
+                before_revision: context.before_revision,
                 after_revision: Some(revision.clone()),
-                summary,
+                summary: context.summary,
             },
         )
         .map_err(ServiceError::Other)?;
 
-        Ok(snapshot_from_parts(path, body, entity, revision, archived))
+        Ok(snapshot_from_parts(
+            path,
+            body,
+            entity,
+            revision,
+            context.archived,
+        ))
     }
 
     fn find_synced_note_id(
@@ -2793,11 +2808,13 @@ impl AppService {
             &record.path,
             raw,
             frontmatter,
-            Some(current_revision),
-            record.archived,
-            Actor::agent("note-sync"),
-            action,
-            summary,
+            NoteWriteContext {
+                before_revision: Some(current_revision),
+                archived: record.archived,
+                actor: Actor::agent("note-sync"),
+                action,
+                summary,
+            },
         )?;
         self.ensure_note_sync_watcher(note_id)?;
         Ok(snapshot)
@@ -2867,11 +2884,13 @@ impl AppService {
             &record.path,
             body,
             frontmatter,
-            Some(current_revision),
-            record.archived,
-            Actor::agent("note-sync"),
-            action,
-            summary,
+            NoteWriteContext {
+                before_revision: Some(current_revision),
+                archived: record.archived,
+                actor: Actor::agent("note-sync"),
+                action,
+                summary,
+            },
         )?;
         self.ensure_note_sync_watcher(note_id)?;
         Ok(snapshot)
@@ -2893,11 +2912,13 @@ impl AppService {
             &record.path,
             body,
             frontmatter,
-            Some(current_revision),
-            record.archived,
-            Actor::agent("note-sync"),
-            "note_sync_conflict",
-            "Linked note sync entered conflict",
+            NoteWriteContext {
+                before_revision: Some(current_revision),
+                archived: record.archived,
+                actor: Actor::agent("note-sync"),
+                action: "note_sync_conflict",
+                summary: "Linked note sync entered conflict",
+            },
         )?;
         Ok(())
     }

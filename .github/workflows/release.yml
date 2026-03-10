@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build-macos:
     runs-on: macos-latest
@@ -16,32 +19,73 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Package
-        run: |
-          ./scripts/package-macos-release.sh --output-dir dist
-          cp target/release/topside dist/topside
-          tar -czf dist/topside-macos-universal.tar.gz -C dist topside
+        run: ./scripts/package-macos-release.sh --output-dir dist
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: topside-macos
           path: |
-            dist/topside-macos-universal.tar.gz
-            dist/topside-macos.dmg
+            dist/topside-macos-*.tar.gz
+            dist/topside-macos-*.dmg
+            dist/checksums.txt
 
   publish:
     needs: build-macos
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: topside-macos
           path: dist
 
+      - name: Render Homebrew formula
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./scripts/render-homebrew-formula.sh \
+            --repo "${GITHUB_REPOSITORY}" \
+            --version "$version" \
+            --output dist/topside.rb
+
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/topside-macos-universal.tar.gz
-            dist/topside-macos.dmg
+            dist/topside-macos-*.tar.gz
+            dist/topside-macos-*.dmg
+            dist/checksums.txt
+            dist/topside.rb
+
+  update-homebrew-formula:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Render Homebrew formula
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./scripts/render-homebrew-formula.sh \
+            --repo "${GITHUB_REPOSITORY}" \
+            --version "$version" \
+            --output Formula/topside.rb
+
+      - name: Commit formula update
+        run: |
+          if git diff --quiet -- Formula/topside.rb; then
+            echo "Formula already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/topside.rb
+          git commit -m "chore: update Homebrew formula for ${GITHUB_REF_NAME}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"

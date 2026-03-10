@@ -43,35 +43,46 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    #[command(about = "Initialize a Topside workspace")]
     Init {
         #[arg(value_name = "PATH")]
         path: Option<PathBuf>,
     },
+    #[command(about = "Serve the local browser UI")]
     Serve,
+    #[command(about = "Open the native macOS desktop shell")]
     Open,
+    #[command(about = "Build a macOS app bundle")]
     BundleApp {
         #[arg(long, value_name = "DIR")]
         output_dir: Option<PathBuf>,
         #[arg(long, value_name = "FILE")]
         icon: Option<PathBuf>,
     },
+    #[command(about = "Run the development supervisor")]
     Dev,
+    #[command(about = "Rebuild the workspace search index")]
     Reindex,
+    #[command(about = "Import markdown files into the workspace")]
     Import {
         #[arg(value_name = "SOURCE_PATH")]
         path: PathBuf,
     },
+    #[command(about = "Run workspace health checks")]
     Doctor,
+    #[command(about = "Benchmark search and read performance")]
     Bench {
         #[arg(long, default_value_t = 200)]
         iterations: usize,
         #[arg(long, default_value = "task")]
         query: String,
     },
+    #[command(about = "Seed a synthetic benchmark corpus")]
     SeedBench {
         #[arg(long, default_value_t = 5_000)]
         count: usize,
     },
+    #[command(about = "Run the protocol-compatibility MCP server")]
     Mcp,
 }
 
@@ -124,6 +135,20 @@ fn cmd_init(path: Option<PathBuf>) -> Result<()> {
     );
     println!("Config: {}", path.display());
     println!("Codename: {}", config.codename);
+    println!("Next steps:");
+    println!(
+        "  topside --workspace \"{}\" doctor",
+        workspace_root.display()
+    );
+    println!(
+        "  topside --workspace \"{}\" serve",
+        workspace_root.display()
+    );
+    #[cfg(target_os = "macos")]
+    println!(
+        "  topside --workspace \"{}\" open",
+        workspace_root.display()
+    );
     Ok(())
 }
 

@@ -5,7 +5,7 @@ edition = "2024"
 default-run = "topside"
 description = "Topside is a local-first project context hub for builders"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/anthonymarti/topside"
+repository = "https://github.com/N10ELabs/Topside"
 
 [dependencies]
 anyhow = "1.0"

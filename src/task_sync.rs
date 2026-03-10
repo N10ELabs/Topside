@@ -362,12 +362,9 @@ fn take_matching_sidecar_entry(
     available: &mut [Option<ManagedTodoRenderEntry>],
     predicate: impl Fn(&ManagedTodoRenderEntry) -> bool,
 ) -> Option<ManagedTodoRenderEntry> {
-    let index = available.iter().position(|entry| {
-        entry
-            .as_ref()
-            .map(|candidate| predicate(candidate))
-            .unwrap_or(false)
-    })?;
+    let index = available
+        .iter()
+        .position(|entry| entry.as_ref().is_some_and(&predicate))?;
     available[index].take()
 }
 
@@ -384,7 +381,6 @@ fn same_entry_kind(left: &ManagedTodoEntryKind, right: &ManagedTodoEntryKind) ->
 
 fn normalize_entry_title(value: &str) -> String {
     value
-        .trim()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")

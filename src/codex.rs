@@ -1677,10 +1677,10 @@ fn append_codex_args(
     ));
     if let Some(session_id) = resume_session_id {
         command.arg("resume");
-        command.arg(session_id.to_string());
+        command.arg(session_id);
     }
     if let Some(prompt) = prompt {
-        command.arg(prompt.to_string());
+        command.arg(prompt);
     }
 }
 

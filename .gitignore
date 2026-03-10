@@ -1,5 +1,6 @@
 /target
 /.n10e
+/.topside
 /.dev-workspace
 /.codex/environments
 *.n10e-sync.json

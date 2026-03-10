@@ -18,7 +18,7 @@ usage() {
 Usage: scripts/package-macos-release.sh [--output-dir DIR] [--workspace PATH] [--icon FILE.icns] [--sign-identity NAME]
 
 Builds the release binary, creates a macOS app bundle via `topside bundle-app`,
-and packages the bundle into a compressed .dmg.
+then writes an architecture-specific CLI tarball, compressed .dmg, and checksums file.
 
 Options:
   --output-dir DIR       Destination directory (default: ./dist)
@@ -88,12 +88,18 @@ fi
 
 "${BUNDLE_CMD[@]}"
 
+ARCH="$(uname -m)"
 APP_BUNDLE="$OUTPUT_DIR/Topside.app"
-DMG_PATH="$OUTPUT_DIR/topside-macos.dmg"
+ARCHIVE_PATH="$OUTPUT_DIR/topside-macos-${ARCH}.tar.gz"
+DMG_PATH="$OUTPUT_DIR/topside-macos-${ARCH}.dmg"
+CHECKSUMS_PATH="$OUTPUT_DIR/checksums.txt"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 fi
+
+rm -f "$ARCHIVE_PATH"
+tar -czf "$ARCHIVE_PATH" -C "$ROOT_DIR/target/release" topside
 
 rm -f "$DMG_PATH"
 hdiutil create -volname "Topside" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
@@ -102,5 +108,9 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
   codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
 fi
 
+shasum -a 256 "$ARCHIVE_PATH" "$DMG_PATH" > "$CHECKSUMS_PATH"
+
 echo "Created macOS app bundle at $APP_BUNDLE"
+echo "Created CLI archive at $ARCHIVE_PATH"
 echo "Created macOS disk image at $DMG_PATH"
+echo "Created checksums file at $CHECKSUMS_PATH"
