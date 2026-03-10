@@ -177,7 +177,7 @@
       "title": "Establish UX flow for setting up codex if not already done",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK64N2R1C6WW9Q2B29BB2RR3"
@@ -195,7 +195,7 @@
       "title": "Verify Topside is getting codex from correct file source",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK64NS6N509D0RFVGRWCDS3N"

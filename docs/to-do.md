@@ -18,9 +18,9 @@
 - [x] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
 - [x] Remove redundant codex session info
 - [x] Center headers in their borders
-- [ ] Establish UX flow for setting up codex if not already done
+- [x] Establish UX flow for setting up codex if not already done
 - [x] Resolve pane names
-- [ ] Verify Topside is getting codex from correct file source
+- [x] Verify Topside is getting codex from correct file source
 - [x] Review terminal implementation and decide whether current stack is best fit
 ## Phase 7 - Hub as Interactive Codebase
 - [ ] Project selection should initialize to-do.md in project workspace. Needs more work
