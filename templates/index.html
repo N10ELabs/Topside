@@ -39,6 +39,8 @@
       --glass-blur: 14px;
       --glass-shell-blur: 24px;
       --glass-shell-radius: 20px;
+      --sidebar-pane-width: 192px;
+      --sidebar-pane-width-collapsed: 72px;
       --pane-head-height: 58px;
       --pane-head-pad-y: 11px;
       --pane-control-size: 34px;
@@ -226,7 +228,12 @@
       height: 100%;
       display: grid;
       gap: 10px;
-      grid-template-columns: 192px minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: var(--sidebar-pane-width) minmax(0, 1fr) minmax(0, 1fr);
+      transition: grid-template-columns 180ms ease;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed {
+      grid-template-columns: var(--sidebar-pane-width-collapsed) minmax(0, 1fr) minmax(0, 1fr);
     }
 
     .todo-stack {
@@ -460,6 +467,29 @@
       color: var(--text);
       background: rgba(16, 33, 46, 0.84);
       outline: none;
+    }
+
+    .sidebar-collapse-btn {
+      width: var(--pane-control-size-compact);
+      height: var(--pane-control-size-compact);
+      border-radius: 10px;
+    }
+
+    .sidebar-collapse-btn svg {
+      transition: transform 180ms ease;
+    }
+
+    .sidebar-collapse-btn[aria-pressed="true"] {
+      color: var(--text);
+      background: rgba(16, 33, 46, 0.84);
+    }
+
+    .sidebar-collapse-btn[aria-pressed="true"] svg {
+      transform: rotate(180deg);
+    }
+
+    html[data-layout-mode="one"] .sidebar-collapse-btn {
+      display: none;
     }
 
     .pane-changelog .pane-head:hover .pane-title-toggle,
@@ -1495,6 +1525,54 @@
       width: 100%;
     }
 
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .pane-head {
+      justify-content: center;
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .pane-head-main {
+      display: none;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .pane-head-actions {
+      margin-left: 0;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .pane-body {
+      padding-left: 8px;
+      padding-right: 8px;
+      align-items: center;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .project-card {
+      min-height: 46px;
+      padding: 0;
+      justify-content: center;
+      gap: 0;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-row.has-codex .project-card {
+      padding-left: 0;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-card-main,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-add-card .project-card-title,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-label,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-actions-btn,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-codex-toggle,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-codex-children {
+      display: none;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-btn,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-launch-btn {
+      min-height: 40px;
+      padding: 0;
+      justify-content: center;
+      gap: 0;
+    }
+
     .archive-menu-head {
       display: flex;
       align-items: baseline;
@@ -1839,7 +1917,7 @@
     }
 
     .task-row {
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto auto;
       cursor: grab;
     }
 
@@ -1923,7 +2001,7 @@
     }
 
     .task-row.is-heading {
-      grid-template-columns: minmax(0, 1fr) auto auto auto;
+      grid-template-columns: minmax(0, 1fr) auto auto auto auto;
     }
 
     .task-draft.is-heading {
@@ -2290,6 +2368,97 @@
       background: rgba(16, 33, 46, 0.84);
       transform: translateY(-1px);
       outline: none;
+    }
+
+    .task-codex-btn {
+      min-width: 28px;
+      height: 22px;
+      padding: 0 9px;
+      border: 1px solid rgba(56, 189, 248, 0.42);
+      border-radius: 999px;
+      background: rgba(10, 25, 35, 0.82);
+      color: rgba(189, 230, 248, 0.96);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease, opacity 120ms ease;
+    }
+
+    .task-row:hover .task-codex-btn,
+    .task-row:focus-within .task-codex-btn,
+    .task-codex-btn:hover,
+    .task-codex-btn:focus-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-codex-btn:hover,
+    .task-codex-btn:focus-visible {
+      background: rgba(16, 33, 46, 0.92);
+      border-color: rgba(125, 211, 252, 0.7);
+      color: #f0fbff;
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .task-codex-btn.is-active,
+    .task-codex-btn.is-pending {
+      width: 22px;
+      min-width: 22px;
+      padding: 0;
+      border-color: rgba(56, 189, 248, 0.34);
+      color: var(--accent);
+      gap: 0;
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .task-codex-btn.is-pending {
+      cursor: wait;
+      opacity: 0.9;
+    }
+
+    .task-codex-btn:disabled {
+      transform: none;
+    }
+
+    .task-codex-spinner {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1.5px solid rgba(56, 189, 248, 0.18);
+      border-top-color: currentColor;
+      border-right-color: currentColor;
+      animation: task-codex-spin 900ms linear infinite;
+    }
+
+    @keyframes task-codex-spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .task-codex-btn svg {
+      width: 11px;
+      height: 11px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: 0 0 auto;
     }
 
     .task-input:focus {
@@ -3856,10 +4025,14 @@
     }
 
     html[data-layout-mode="two"] .layout {
-      grid-template-columns: 192px 1fr;
+      grid-template-columns: var(--sidebar-pane-width) 1fr;
       grid-template-areas:
         "projects todo"
         "notes notes";
+    }
+
+    html[data-layout-mode="two"] .layout.sidebar-collapsed {
+      grid-template-columns: var(--sidebar-pane-width-collapsed) 1fr;
     }
 
     html[data-layout-mode="two"] .pane-projects { grid-area: projects; }
@@ -3924,6 +4097,13 @@
           <div class="pane-head-main">
             <span class="pane-title">Projects</span>
           </div>
+          <div class="pane-head-actions">
+            <button class="icon-btn subtle sidebar-collapse-btn" id="sidebar-collapse-toggle" type="button" aria-label="Collapse project sidebar" title="Collapse project sidebar" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 6-6 6 6 6"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="pane-body">
           <div id="project-tray"></div>
@@ -3937,7 +4117,7 @@
                   <path d="M5 8v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"></path>
                   <path d="M10 12h4"></path>
                 </svg>
-                <span>Archive</span>
+                <span class="sidebar-footer-label">Archive</span>
               </button>
               <button class="text-btn sidebar-footer-btn" id="ports-menu-toggle" type="button" aria-label="Open ports" title="Open ports">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -3947,14 +4127,14 @@
                   <path d="M5 4h14"></path>
                   <path d="M5 20h14"></path>
                 </svg>
-                <span>Ports</span>
+                <span class="sidebar-footer-label">Ports</span>
               </button>
               <button class="text-btn archive-launch-btn" id="settings-menu-toggle" type="button" aria-label="Open settings" title="Open settings">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="3"></circle>
                   <path d="M19.5 12a1.4 1.4 0 0 0 .02.26l1.54 1.2a1 1 0 0 1 .2 1.32l-1.45 2.5a1 1 0 0 1-1.26.43l-1.82-.73a7.8 7.8 0 0 1-1.35.78l-.28 1.93a1 1 0 0 1-.99.86h-2.9a1 1 0 0 1-.99-.86l-.28-1.93a7.8 7.8 0 0 1-1.35-.78l-1.82.73a1 1 0 0 1-1.26-.43l-1.45-2.5a1 1 0 0 1 .2-1.32l1.54-1.2a1.4 1.4 0 0 0 0-.52L2.94 11.06a1 1 0 0 1-.2-1.32l1.45-2.5a1 1 0 0 1 1.26-.43l1.82.73c.42-.32.88-.58 1.35-.78l.28-1.93a1 1 0 0 1 .99-.86h2.9a1 1 0 0 1 .99.86l.28 1.93c.47.2.93.46 1.35.78l1.82-.73a1 1 0 0 1 1.26.43l1.45 2.5a1 1 0 0 1-.2 1.32l-1.54 1.2a1.4 1.4 0 0 0-.02.26z"></path>
                 </svg>
-                <span>Settings</span>
+                <span class="sidebar-footer-label">Settings</span>
               </button>
             </div>
           </div>
@@ -4267,6 +4447,8 @@
     const legacyTaskSectionCollapseKey = "n10e-task-sections-collapsed";
     const doneTaskSectionCollapseKey = "topside-done-task-sections-collapsed";
     const legacyDoneTaskSectionCollapseKey = "n10e-done-task-sections-collapsed";
+    const sidebarCollapsedKey = "topside-project-sidebar-collapsed";
+    const legacySidebarCollapsedKey = "n10e-project-sidebar-collapsed";
     const taskPrioritySortKey = "topside-task-priority-sort";
     const legacyTaskPrioritySortKey = "n10e-task-priority-sort";
     const noteBodyHeightsKey = "topside-note-body-heights";
@@ -4290,6 +4472,7 @@
       changelogCollapsed: readStorageItem(changelogCollapseKey, legacyChangelogCollapseKey) === "true",
       collapsedTaskSections: loadCollapsedTaskSections(),
       collapsedDoneTaskSections: loadCollapsedDoneTaskSections(),
+      sidebarCollapsed: readStorageItem(sidebarCollapsedKey, legacySidebarCollapsedKey) === "true",
       sortTasksByPriority: readStorageItem(taskPrioritySortKey, legacyTaskPrioritySortKey) === "true",
       openNoteId: initialState.workspace?.suggested_open_note_id || null,
       projectTrayMode: null,
@@ -4330,6 +4513,7 @@
       codexPendingPrompt: null,
       codexTerminalPrompt: null,
       codexTerminalTails: {},
+      codexAssigningTaskIds: {},
       codexSessionAutoRestarted: {},
       codexRestartingSessions: {},
       codexSocket: null,
@@ -4416,6 +4600,18 @@
       }
     }
 
+    function saveSidebarCollapsedPreference() {
+      try {
+        localStorage.setItem(sidebarCollapsedKey, state.sidebarCollapsed ? "true" : "false");
+      } catch (_error) {
+        // Ignore storage failures and keep the in-memory state active.
+      }
+    }
+
+    function shouldCollapseProjectSidebar() {
+      return Boolean(state.sidebarCollapsed && state.projectTrayMode !== "new" && state.projectTrayMode !== "local");
+    }
+
     function persistNoteBodyHeights() {
       try {
         localStorage.setItem(noteBodyHeightsKey, JSON.stringify(state.noteBodyHeights || {}));
@@ -4453,6 +4649,7 @@
     const archiveMenuToggle = document.getElementById("archive-menu-toggle");
     const portsMenuToggle = document.getElementById("ports-menu-toggle");
     const settingsMenuToggle = document.getElementById("settings-menu-toggle");
+    const sidebarCollapseToggle = document.getElementById("sidebar-collapse-toggle");
     const archivePane = document.getElementById("archive-pane");
     const archivePaneTitle = archivePane.querySelector(".pane-title");
     const archiveStatus = document.getElementById("archive-status");
@@ -5094,6 +5291,14 @@
       render();
     });
 
+    sidebarCollapseToggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (sidebarCollapseToggle.disabled) return;
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      saveSidebarCollapsedPreference();
+      render();
+    });
+
     document.querySelectorAll("[data-note-mode]").forEach((button) => {
       button.addEventListener("click", async () => {
         const nextMode = button.dataset.noteMode;
@@ -5169,6 +5374,12 @@
       window.setTimeout(() => {
         flushPendingRemoteUiState();
       }, 0);
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      const codexTaskAction = event.target.closest("[data-task-codex-send-id], [data-task-codex-open-id]");
+      if (!codexTaskAction) return;
+      event.preventDefault();
     });
 
     document.addEventListener("click", async (event) => {
@@ -5278,6 +5489,22 @@
         event.preventDefault();
         event.stopPropagation();
         await toggleTask(taskGroupCompleteButton.dataset.taskGroupCompleteId, "done");
+        return;
+      }
+
+      const taskCodexSendButton = event.target.closest("[data-task-codex-send-id]");
+      if (taskCodexSendButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await assignTaskToCodexSession(taskCodexSendButton.dataset.taskCodexSendId);
+        return;
+      }
+
+      const taskCodexOpenButton = event.target.closest("[data-task-codex-open-id]");
+      if (taskCodexOpenButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        await openCodexSession(taskCodexOpenButton.dataset.taskCodexOpenId, { resumeIfNeeded: true });
         return;
       }
 
@@ -6106,6 +6333,22 @@
       portsMenuToggle.setAttribute("aria-pressed", state.portViewerOpen ? "true" : "false");
       portsMenuToggle.title = state.portViewerOpen ? "Close ports" : "Open ports";
       portsMenuToggle.setAttribute("aria-label", state.portViewerOpen ? "Close ports" : "Open ports");
+    }
+
+    function renderSidebarCollapseToggle() {
+      const sidebarLockedOpen = state.projectTrayMode === "new" || state.projectTrayMode === "local";
+      const sidebarCollapsed = shouldCollapseProjectSidebar();
+      sidebarCollapseToggle.disabled = sidebarLockedOpen;
+      sidebarCollapseToggle.setAttribute("aria-pressed", sidebarCollapsed ? "true" : "false");
+
+      const label = sidebarLockedOpen
+        ? "Finish adding a project before collapsing the sidebar"
+        : sidebarCollapsed
+          ? "Expand project sidebar"
+          : "Collapse project sidebar";
+
+      sidebarCollapseToggle.title = label;
+      sidebarCollapseToggle.setAttribute("aria-label", label);
     }
 
     function renderArchiveMenu() {
@@ -7416,6 +7659,8 @@
         "[data-task-id]",
         "[data-task-check-id]",
         "[data-task-priority-id]",
+        "[data-task-codex-send-id]",
+        "[data-task-codex-open-id]",
         "[data-task-delete-id]",
         "[data-task-section-toggle-id]",
         "[data-task-section-copy-id]",
@@ -8508,6 +8753,9 @@
     function renderActiveTaskRow(task, sectionState = null) {
       const title = state.taskEdits[task.id] ?? task.title;
       const isHeading = isMarkdownTaskHeading(title);
+      const supportsCodex = projectSupportsCodex(state.workspace?.project);
+      const activeCodexSession = !isHeading && supportsCodex ? getActiveTaskCodexSession(task.id) : null;
+      const codexAssignmentPending = !activeCodexSession && !isHeading && supportsCodex && isTaskCodexAssignmentPending(task.id);
       const priorityTone = isHeading ? "none" : taskPriorityTone(task);
       const priorityLabel = priorityTone === "p1"
         ? "P1"
@@ -8564,6 +8812,50 @@
             <span aria-hidden="true">${priorityBadge}</span>
           </button>
         `;
+      const codexControl = isHeading || !supportsCodex
+        ? ""
+        : activeCodexSession
+          ? `
+            <button
+              class="task-codex-btn is-active"
+              type="button"
+              draggable="false"
+              data-task-codex-open-id="${activeCodexSession.id}"
+              aria-label="Open active Codex session"
+              title="Open active Codex session"
+            >
+              <span class="task-codex-spinner" aria-hidden="true"></span>
+            </button>
+          `
+          : codexAssignmentPending
+            ? `
+              <button
+                class="task-codex-btn is-pending"
+                type="button"
+                draggable="false"
+                aria-label="Sending task to Codex"
+                title="Sending task to Codex"
+                disabled
+              >
+                <span class="task-codex-spinner" aria-hidden="true"></span>
+              </button>
+            `
+            : `
+              <button
+                class="task-codex-btn"
+                type="button"
+                draggable="false"
+                data-task-codex-send-id="${task.id}"
+                aria-label="Send task to Codex"
+                title="Send task to Codex"
+              >
+                <span>Codex</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h12"></path>
+                  <path d="m13 6 6 6-6 6"></path>
+                </svg>
+              </button>
+            `;
       const leadingControl = isHeading
         ? (canCollapse
           ? `
@@ -8602,6 +8894,7 @@
           ${completeControl}
           ${copyControl}
           ${priorityControl}
+          ${codexControl}
           <button class="task-delete-btn" type="button" draggable="false" data-task-delete-id="${task.id}" aria-label="Delete task" title="Delete task">×</button>
         </div>
       `;
@@ -9060,12 +9353,14 @@
 
     function render(options = {}) {
       const scrollState = options.preserveShellScroll ? captureShellScrollState() : null;
+      layout.classList.toggle("sidebar-collapsed", shouldCollapseProjectSidebar());
       layout.classList.toggle("empty-app", state.projects.length === 0);
       layout.classList.toggle("project-starter", state.projectTrayMode === "chooser" && !state.archiveMenuOpen);
       layout.classList.toggle("archive-view", state.archiveMenuOpen);
       layout.classList.toggle("codex-view", state.rightPaneMode === "codex" && !state.archiveMenuOpen);
       renderProjectTray();
       renderProjects();
+      renderSidebarCollapseToggle();
       renderPortMenu();
       renderArchiveMenu();
       renderArchivePane();
@@ -9348,6 +9643,18 @@
       if (!sessions.length) return null;
       return sessions.find((session) => session.id === state.openCodexSessionId)
         || getDefaultCodexSession(sessions);
+    }
+
+    function getActiveTaskCodexSession(taskId, projectId = state.selectedProjectId) {
+      if (!taskId || !projectId) return null;
+      return getProjectCodexSessions(projectId).find((session) => (
+        session.task_id === taskId
+        && (session.status === "live" || session.status === "launching")
+      )) || null;
+    }
+
+    function isTaskCodexAssignmentPending(taskId) {
+      return Boolean(taskId && state.codexAssigningTaskIds[taskId]);
     }
 
     function setProjectCodexSessions(projectId, sessions) {
@@ -10020,11 +10327,11 @@
           const nextStatus = String(payload.status || "resumable");
           if (nextStatus === "resumable" && beginCodexSessionAutoRestart(session.id)) {
             void restartCodexSession(session.id, { automatic: true });
-            renderCodexPane();
+            render();
             return;
           }
           syncCurrentWorkspaceCodexSessionState(session.id, { status: nextStatus });
-          renderCodexPane();
+          render();
           return;
         }
         if (payload?.type === "error") {
@@ -10047,13 +10354,13 @@
         state.codexSocketSessionId = null;
         if (beginCodexSessionAutoRestart(session.id)) {
           void restartCodexSession(session.id, { automatic: true });
-          renderCodexPane();
+          render();
           return;
         }
         if (state.openCodexSessionId === session.id && state.rightPaneMode === "codex") {
           syncCurrentWorkspaceCodexSessionState(session.id, { status: "resumable" });
         }
-        renderCodexPane();
+        render();
       });
 
       socket.addEventListener("error", () => {
@@ -10062,7 +10369,7 @@
           session.id,
           "The embedded Codex terminal disconnected. Resume the session to reopen chat."
         );
-        renderCodexPane();
+        render();
       });
     }
 
@@ -10109,8 +10416,70 @@
       render();
     }
 
+    async function assignTaskToCodexSession(taskId, options = {}) {
+      const normalizedTaskId = normalizeSessionId(taskId);
+      const openPane = options.openPane === true;
+      if (!normalizedTaskId || !state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) {
+        return;
+      }
+      if (isTaskCodexAssignmentPending(normalizedTaskId)) return;
+      const task = findTask(normalizedTaskId);
+      if (!task) return;
+
+      const activeSession = getActiveTaskCodexSession(normalizedTaskId);
+      if (activeSession) {
+        if (openPane) {
+          await openCodexSession(activeSession.id, { resumeIfNeeded: true });
+        }
+        return;
+      }
+
+      closeArchiveMenu({ render: false });
+      closePortViewer({ render: false });
+      state.projectTrayMode = null;
+      state.codexAssigningTaskIds[normalizedTaskId] = true;
+      render();
+
+      const response = await fetchJson(
+        `/api/tasks/${encodeURIComponent(normalizedTaskId)}/assign-codex-session`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            expected_revision: task.revision
+          })
+        },
+        options.errorChannel || "task"
+      );
+
+      delete state.codexAssigningTaskIds[normalizedTaskId];
+      if (!response) {
+        render();
+        return;
+      }
+
+      applyWorkspace(response.workspace);
+      if (openPane) {
+        state.openCodexSessionId = response.opened_session_id || state.openCodexSessionId;
+        setRightPaneMode("codex");
+      }
+      render();
+    }
+
     async function createCodexSession() {
       if (!state.selectedProjectId || !projectSupportsCodex(state.workspace?.project)) return;
+      const selectedTask = getSelectedActiveTask();
+      const selectedTaskTitle = selectedTask
+        ? (state.taskEdits[selectedTask.id] ?? selectedTask.title ?? "")
+        : "";
+      if (selectedTask && !isMarkdownTaskHeading(selectedTaskTitle)) {
+        const activeSession = getActiveTaskCodexSession(selectedTask.id);
+        if (activeSession) {
+          await openCodexSession(activeSession.id, { resumeIfNeeded: true });
+          return;
+        }
+        await assignTaskToCodexSession(selectedTask.id, { errorChannel: "codex", openPane: true });
+        return;
+      }
       closeArchiveMenu({ render: false });
       closePortViewer({ render: false });
       state.projectTrayMode = null;
@@ -10118,9 +10487,7 @@
         `/api/projects/${encodeURIComponent(state.selectedProjectId)}/codex-sessions`,
         {
           method: "POST",
-          body: JSON.stringify({
-            task_id: state.selectedTaskId || null
-          })
+          body: JSON.stringify({})
         },
         "codex"
       );
@@ -10862,6 +11229,8 @@
           class="project-card project-select project-add-card"
           type="button"
           data-project-add
+          aria-label="Add project"
+          title="Add project"
         >
           <span class="project-add-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">
@@ -10899,6 +11268,8 @@
               class="project-card project-select ${highlightSelectedProject && project.id === state.selectedProjectId ? "active" : ""}"
               type="button"
               data-project-select-id="${project.id}"
+              aria-label="Select ${escapeAttribute(project.title)}"
+              title="${escapeAttribute(project.title)}"
             >
               ${renderProjectIconBadge(project.icon)}
               <span class="project-card-main">

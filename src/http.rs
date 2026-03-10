@@ -90,6 +90,10 @@ pub fn router(state: Arc<WebState>) -> Router {
         )
         .route("/api/tasks", post(api_create_task))
         .route("/api/tasks/archive", post(api_archive_tasks))
+        .route(
+            "/api/tasks/{id}/assign-codex-session",
+            post(api_assign_task_codex_session),
+        )
         .route("/api/tasks/{id}", patch(api_update_task))
         .route("/api/tasks/{id}/archive", post(api_archive_task))
         .route("/api/tasks/reorder", post(api_reorder_tasks))
@@ -355,6 +359,11 @@ struct UpdateTaskRequest {
     title: Option<String>,
     status: Option<String>,
     priority: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssignTaskCodexSessionRequest {
+    expected_revision: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -918,6 +927,30 @@ async fn api_update_task(
             .map_err(internal_api_err)?,
         created_task_id: None,
         archive: None,
+    }))
+}
+
+async fn api_assign_task_codex_session(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Json(request): Json<AssignTaskCodexSessionRequest>,
+) -> ApiResult<CodexSessionMutationResponse> {
+    require_desktop_client(&headers)?;
+    let session = state
+        .codex_manager
+        .assign_task_to_new_session(&id, &request.expected_revision)
+        .map_err(map_service_err_json)?;
+    let workspace = state
+        .service
+        .load_project_workspace(&session.project_id)
+        .map_err(internal_api_err)?;
+
+    Ok(Json(CodexSessionMutationResponse {
+        workspace: map_workspace_payload(&state.service, &state.codex_manager, workspace)
+            .map_err(internal_api_err)?,
+        opened_session_id: Some(session.id),
+        message: None,
     }))
 }
 

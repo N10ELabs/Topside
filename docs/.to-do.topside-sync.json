@@ -87,7 +87,7 @@
       "title": "Create ability to assign task to new codex session",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK64KAVMJN9MZYEFSX78ETMX"
@@ -261,7 +261,7 @@
       "sync_key": "tsk_01KJXK6Y72ETJPWGJTC4XRJYPD"
     },
     {
-      "title": "Add collapsible sidebar button, leaves only icons exposed",
+      "title": "Add collapsible sidebar button for the projects/settings pane, leaves only icons exposed",
       "kind": {
         "Task": {
           "completed": false

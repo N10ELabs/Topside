@@ -102,7 +102,9 @@ fn build_test_state(
 
 fn codex_env_lock() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
 }
 
 struct MockCodexEnv {
@@ -127,6 +129,7 @@ set -eu
 cwd=""
 prev=""
 saw_disable_update="0"
+arg_log=""
 for arg in "$@"; do
   if [ "$prev" = "-C" ]; then
     cwd="$arg"
@@ -134,6 +137,7 @@ for arg in "$@"; do
   if [ "$arg" = "check_for_update_on_startup=false" ]; then
     saw_disable_update="1"
   fi
+  arg_log="${arg_log}${arg}\n--ARG-END--\n"
   prev="$arg"
 done
 if [ -z "$cwd" ]; then
@@ -143,6 +147,7 @@ if [ "$saw_disable_update" != "1" ]; then
   echo "mock-codex: missing check_for_update_on_startup=false" >&2
   exit 64
 fi
+printf '%b' "$arg_log" >> "${TOPSIDE_CODEX_HOME}/arg-log.txt"
 ts="$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")"
 session_id="$(uuidgen | tr 'A-Z' 'a-z')"
 session_dir="${TOPSIDE_CODEX_HOME}/sessions/$(date -u +%Y/%m/%d)"
@@ -150,7 +155,13 @@ mkdir -p "$session_dir"
 printf '{"id":"%s","thread_name":"Mock Codex Session","updated_at":"%s"}\n' "$session_id" "$ts" >> "${TOPSIDE_CODEX_HOME}/session_index.jsonl"
 printf '{"type":"session_meta","timestamp":"%s","payload":{"id":"%s","cwd":"%s","timestamp":"%s"}}\n' "$ts" "$session_id" "$cwd" "$ts" > "$session_dir/$session_id.jsonl"
 printf 'mock-codex:%s\r\n' "$session_id"
-cat
+while IFS= read -r line; do
+  clean_line="$(printf '%s' "$line" | tr -d '\r')"
+  if [ "$clean_line" = "__TOPSIDE_EXIT__" ]; then
+    exit 0
+  fi
+  printf '%s\r\n' "$clean_line"
+done
 "#,
         )?;
         #[cfg(unix)]
@@ -300,6 +311,35 @@ async fn wait_for_codex_session_absent(
     }
 
     anyhow::bail!("timed out waiting for codex session {session_id} to disappear")
+}
+
+async fn wait_for_task<F>(
+    service: &AppService,
+    project_id: &str,
+    task_id: &str,
+    mut predicate: F,
+) -> Result<topside::types::TaskItem>
+where
+    F: FnMut(&topside::types::TaskItem) -> bool,
+{
+    for _ in 0..80 {
+        let tasks = service.list_tasks(&TaskFilters {
+            status: None,
+            priority: None,
+            project_id: Some(project_id.to_string()),
+            assignee: None,
+            include_archived: false,
+            limit: None,
+        })?;
+        if let Some(task) = tasks.into_iter().find(|task| task.id == task_id) {
+            if predicate(&task) {
+                return Ok(task);
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    anyhow::bail!("timed out waiting for task {task_id}")
 }
 
 #[tokio::test]
@@ -1530,6 +1570,539 @@ async fn codex_session_create_and_websocket_stream_work_with_mock_cli() -> Resul
 
     let _ = socket.close(None).await;
     server.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assign_codex_session_creates_linked_session_updates_task_and_sends_prompt()
+-> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Assignment Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Fix flaky auth redirect".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)?;
+    let session_id = payload["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let session = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.task_id.as_deref() == Some(task.id.as_str())
+            && (session.status.as_str() == "launching" || session.status.as_str() == "live")
+    })
+    .await?;
+    assert_eq!(session.task_id.as_deref(), Some(task.id.as_str()));
+
+    let updated_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:codex" && task.status == TaskStatus::InProgress
+    })
+    .await?;
+    assert_eq!(updated_task.assignee, "agent:codex");
+    assert_eq!(updated_task.status, TaskStatus::InProgress);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assign_codex_session_reuses_existing_active_session() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Reuse Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Patch the command palette".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let first_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(first_response.status(), StatusCode::OK);
+    let first_body = to_bytes(first_response.into_body(), usize::MAX).await?;
+    let first_json: serde_json::Value = serde_json::from_slice(&first_body)?;
+    let first_session_id = first_json["opened_session_id"]
+        .as_str()
+        .expect("first opened session id")
+        .to_string();
+
+    wait_for_codex_session(&service, &project.id, &first_session_id, |session| {
+        session.status.as_str() == "launching" || session.status.as_str() == "live"
+    })
+    .await?;
+
+    let refreshed_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:codex"
+    })
+    .await?;
+
+    let second_response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": refreshed_task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(second_response.status(), StatusCode::OK);
+    let second_body = to_bytes(second_response.into_body(), usize::MAX).await?;
+    let second_json: serde_json::Value = serde_json::from_slice(&second_body)?;
+    assert_eq!(second_json["opened_session_id"], json!(first_session_id));
+    assert_eq!(
+        second_json["workspace"]["codex_sessions"]
+            .as_array()
+            .expect("workspace sessions")
+            .len(),
+        1
+    );
+    assert_eq!(
+        service
+            .load_project_workspace(&project.id)?
+            .codex_sessions
+            .len(),
+        1
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assign_codex_session_rejects_stale_revision_without_creating_session() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Conflict Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Refine sync conflict wording".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": "stale-revision" }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    assert!(
+        service
+            .load_project_workspace(&project.id)?
+            .codex_sessions
+            .is_empty()
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assignment_terminate_and_resume_release_and_reacquire_assignee() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Assignment Lifecycle Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Tighten project handoff copy".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let assign_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(assign_response.status(), StatusCode::OK);
+    let assign_body = to_bytes(assign_response.into_body(), usize::MAX).await?;
+    let assign_json: serde_json::Value = serde_json::from_slice(&assign_body)?;
+    let session_id = assign_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    let created = wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" && session.codex_session_id.is_some()
+    })
+    .await?;
+    assert!(created.codex_session_id.is_some());
+
+    let terminate_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/terminate")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(terminate_response.status(), StatusCode::OK);
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "resumable"
+    })
+    .await?;
+    let released_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:unassigned"
+    })
+    .await?;
+    assert_eq!(released_task.status, TaskStatus::InProgress);
+
+    let resume_response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/resume")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(resume_response.status(), StatusCode::OK);
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live"
+    })
+    .await?;
+    let reacquired_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:codex"
+    })
+    .await?;
+    assert_eq!(reacquired_task.status, TaskStatus::InProgress);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assignment_archive_releases_task_assignee() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Archive Assignment Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Simplify sync status copy".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let assign_response = app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(assign_response.status(), StatusCode::OK);
+    let assign_body = to_bytes(assign_response.into_body(), usize::MAX).await?;
+    let assign_json: serde_json::Value = serde_json::from_slice(&assign_body)?;
+    let session_id = assign_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" || session.status.as_str() == "launching"
+    })
+    .await?;
+
+    let archive_response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{session_id}/archive")),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(archive_response.status(), StatusCode::OK);
+
+    wait_for_codex_session_absent(&service, &project.id, &session_id).await?;
+    let released_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:unassigned"
+    })
+    .await?;
+    assert_eq!(released_task.status, TaskStatus::InProgress);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn task_assignment_natural_exit_releases_task_assignee() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Exit Assignment Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+    let task = service.create_task(
+        CreateTaskPayload {
+            title: "Clean up archive fallback labels".to_string(),
+            project_id: project.id.clone(),
+            status: None,
+            priority: None,
+            assignee: None,
+            due_at: None,
+            sort_order: None,
+            sync_kind: None,
+            sync_path: None,
+            sync_key: None,
+            sync_managed: None,
+            tags: None,
+            body: Some(String::new()),
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state.clone());
+
+    let assign_response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/tasks/{}/assign-codex-session", task.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(
+                json!({ "expected_revision": task.revision }).to_string(),
+            ))?,
+        )
+        .await?;
+    assert_eq!(assign_response.status(), StatusCode::OK);
+    let assign_body = to_bytes(assign_response.into_body(), usize::MAX).await?;
+    let assign_json: serde_json::Value = serde_json::from_slice(&assign_body)?;
+    let session_id = assign_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "live" || session.status.as_str() == "launching"
+    })
+    .await?;
+
+    state
+        .codex_manager
+        .send_input(&session_id, "__TOPSIDE_EXIT__\r")?;
+
+    wait_for_codex_session(&service, &project.id, &session_id, |session| {
+        session.status.as_str() == "resumable"
+    })
+    .await?;
+    let released_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:unassigned"
+    })
+    .await?;
+    assert_eq!(released_task.status, TaskStatus::InProgress);
 
     Ok(())
 }

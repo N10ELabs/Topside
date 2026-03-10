@@ -8,7 +8,7 @@
 - [x] Add port viewer/killer
 - [x] Move archive into a settings tab. Needs more formatting
 - [x] When a task is dragged out of Topside, ensure the task content is pasted and not the taskID
-- [ ] Create ability to assign task to new codex session
+- [x] Create ability to assign task to new codex session
 - [x] Sample task: confirm section collapse/expand animation runs at 150ms
 - [x] Allow custom icons per project
 - [x] Adjust changing section header heights with expand vs collapse
@@ -29,7 +29,7 @@
 ## Section: Phase 6 - Visual Polish and Functionality
 ## UI Polish
 - [x] to-do pane, collapse all expand all toggle
-- [ ] Add collapsible sidebar button, leaves only icons exposed
+- [ ] Add collapsible sidebar button for the projects/settings pane, leaves only icons exposed
 - [x] Update task placeholder text
 - [ ] Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)
 - [x] Ensure copied changelog is in document view

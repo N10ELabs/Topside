@@ -297,56 +297,13 @@ impl AppService {
         Ok("New Codex session".to_string())
     }
 
-    pub fn build_codex_context_pack(
+    pub fn build_codex_execute_prompt(
         &self,
-        project_id: &str,
-        task_id: Option<&str>,
+        _project_id: &str,
+        _task_id: &str,
+        task_title: &str,
     ) -> Result<String, ServiceError> {
-        let workspace = self
-            .load_project_workspace(project_id)
-            .map_err(ServiceError::Other)?;
-        let project_root = self.local_project_source_root(project_id)?;
-        let selected_task = task_id.and_then(|task_id| {
-            workspace
-                .active_tasks
-                .iter()
-                .find(|task| task.id == task_id)
-                .or_else(|| workspace.done_tasks.iter().find(|task| task.id == task_id))
-        });
-        let mut lines = Vec::new();
-        lines.push(format!(
-            "You are working inside the Topside project \"{}\".",
-            workspace.project.title
-        ));
-        lines.push(format!("Project repo cwd: {}", project_root.display()));
-        lines.push("Use the injected MCP server named \"topside\" when you need shared project context or task/note updates.".to_string());
-        lines.push(String::new());
-        if let Some(task) = selected_task {
-            lines.push("Selected task:".to_string());
-            lines.push(format!("- {} [{}]", task.title, task.status.as_str()));
-            lines.push(String::new());
-        }
-        if !workspace.active_tasks.is_empty() {
-            lines.push("Top active tasks:".to_string());
-            for task in workspace.active_tasks.iter().take(8) {
-                let linked = task_id.is_some_and(|selected| selected == task.id);
-                lines.push(crate::codex::summarize_task_for_context(
-                    &task.title,
-                    task.status.clone(),
-                    linked,
-                ));
-            }
-            lines.push(String::new());
-        }
-        if !workspace.notes.is_empty() {
-            lines.push("Relevant notes:".to_string());
-            for note in workspace.notes.iter().take(6) {
-                lines.push(format!("- {}", note.title));
-            }
-            lines.push(String::new());
-        }
-        lines.push("Start by orienting on the selected task if one is linked, then continue the work in this repository.".to_string());
-        Ok(lines.join("\n"))
+        Ok(format!("Execute the following task: {task_title}"))
     }
 
     pub fn create_task_after(
@@ -4005,5 +3962,61 @@ fn snapshot_from_parts(
         frontmatter,
         revision,
         archived,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::TempDir;
+
+    use super::*;
+
+    #[test]
+    fn build_codex_execute_prompt_is_task_only() -> Result<()> {
+        let workspace = TempDir::new()?;
+        let repo_root = TempDir::new()?;
+        let config = AppConfig::default_for_workspace(workspace.path().to_path_buf());
+        config.ensure_workspace_dirs()?;
+        let service = AppService::bootstrap(config)?;
+
+        let project = service.create_project(
+            CreateProjectPayload {
+                title: "Codex Assignment Project".to_string(),
+                owner: None,
+                source_kind: Some(crate::types::ProjectSourceKind::Local),
+                source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+                icon: None,
+                tags: None,
+                body: None,
+            },
+            Actor::human("tester"),
+        )?;
+        let task = service.create_task(
+            CreateTaskPayload {
+                title: "Fix flaky auth redirect".to_string(),
+                project_id: project.id.clone(),
+                status: None,
+                priority: None,
+                assignee: None,
+                due_at: None,
+                sort_order: None,
+                sync_kind: None,
+                sync_path: None,
+                sync_key: None,
+                sync_managed: None,
+                tags: None,
+                body: Some(String::new()),
+            },
+            Actor::human("tester"),
+        )?;
+
+        let prompt = service.build_codex_execute_prompt(&project.id, &task.id, &task.title)?;
+
+        assert_eq!(
+            prompt,
+            "Execute the following task: Fix flaky auth redirect"
+        );
+
+        Ok(())
     }
 }

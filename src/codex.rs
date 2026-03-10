@@ -21,15 +21,18 @@ use walkdir::WalkDir;
 use crate::config::AppConfig;
 use crate::markdown::split_frontmatter;
 use crate::service::{AppService, ServiceError};
-use crate::types::TaskStatus;
+use crate::task_sync::is_heading_title;
+use crate::types::{Actor, EntityFrontmatter, TaskPatch, TaskStatus};
 
 const CODEX_SESSION_TYPE: &str = "codex_session";
-const OUTPUT_BACKLOG_CHUNKS: usize = 256;
+const OUTPUT_BACKLOG_BYTES: usize = 4 * 1024 * 1024;
 const DEFAULT_PTY_ROWS: u16 = 30;
 const DEFAULT_PTY_COLS: u16 = 110;
 const CODEX_RECONCILE_TIMEOUT: Duration = Duration::from_secs(12);
 const CODEX_RECONCILE_POLL_INTERVAL: Duration = Duration::from_millis(600);
 const CODEX_HISTORY_MATCH_GRACE_SECONDS: i64 = 2;
+const TASK_ASSIGNEE_CODEX: &str = "agent:codex";
+const TASK_ASSIGNEE_UNASSIGNED: &str = "agent:unassigned";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -148,6 +151,15 @@ pub struct CodexHistorySession {
     pub cwd: PathBuf,
     pub started_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+struct AssignableTaskState {
+    project_id: String,
+    title: String,
+    status: TaskStatus,
+    assignee: String,
+    revision: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -451,6 +463,15 @@ impl CodexSessionManager {
         project_id: &str,
         task_id: Option<String>,
     ) -> Result<CodexSessionRecord, ServiceError> {
+        self.create_project_session_with_prompt(project_id, task_id, None)
+    }
+
+    pub fn create_project_session_with_prompt(
+        &self,
+        project_id: &str,
+        task_id: Option<String>,
+        prompt: Option<String>,
+    ) -> Result<CodexSessionRecord, ServiceError> {
         let cwd = self.service.local_project_source_root(project_id)?;
         let title = self
             .service
@@ -473,12 +494,81 @@ impl CodexSessionManager {
             })
             .map_err(ServiceError::Other)?;
 
-        self.spawn_runtime(&record, None, None, false)?;
+        self.spawn_runtime(&record, prompt, None, false)?;
         self.spawn_codex_session_reconciler(record.id.clone(), cwd);
         self.store
             .get_session(&record.id)
             .map_err(ServiceError::Other)?
             .with_context(|| format!("codex session {} missing after launch", record.id))
+            .map_err(ServiceError::Other)
+    }
+
+    pub fn assign_task_to_new_session(
+        &self,
+        task_id: &str,
+        expected_revision: &str,
+    ) -> Result<CodexSessionRecord, ServiceError> {
+        let task = load_assignable_task_state(&self.service, task_id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("task {task_id} not found"))
+            .map_err(ServiceError::Other)?;
+
+        if task.revision != expected_revision {
+            return Err(ServiceError::Conflict {
+                expected: expected_revision.to_string(),
+                current: task.revision,
+            });
+        }
+        if task.status == TaskStatus::Done {
+            return Err(anyhow::anyhow!("completed tasks cannot be sent to Codex").into());
+        }
+        if is_heading_title(&task.title) {
+            return Err(anyhow::anyhow!("section headings cannot be sent to Codex").into());
+        }
+
+        self.service.local_project_source_root(&task.project_id)?;
+
+        if let Some(existing) = find_active_task_session(&self.store, &task.project_id, task_id)
+            .map_err(ServiceError::Other)?
+        {
+            return Ok(existing);
+        }
+
+        let prompt =
+            self.service
+                .build_codex_execute_prompt(&task.project_id, task_id, &task.title)?;
+        let session = self.create_project_session_with_prompt(
+            &task.project_id,
+            Some(task_id.to_string()),
+            Some(prompt),
+        )?;
+
+        let update_result = self.service.update_task(
+            task_id,
+            TaskPatch {
+                assignee: Some(TASK_ASSIGNEE_CODEX.to_string()),
+                status: Some(TaskStatus::InProgress),
+                ..Default::default()
+            },
+            expected_revision,
+            Actor::human("operator"),
+        );
+        if let Err(error) = update_result {
+            if let Err(rollback_error) = self.archive_session(&session.id) {
+                warn!(
+                    error = %rollback_error,
+                    session_id = %session.id,
+                    task_id,
+                    "failed rolling back codex session after task assignment failure"
+                );
+            }
+            return Err(error);
+        }
+
+        self.store
+            .get_session(&session.id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("codex session {} missing after assignment", session.id))
             .map_err(ServiceError::Other)
     }
 
@@ -512,7 +602,8 @@ impl CodexSessionManager {
             })
             .map_err(ServiceError::Other)?;
         self.spawn_runtime(&record, None, Some(codex_session_id.as_str()), true)?;
-        self.store
+        let session = self
+            .store
             .update_session(
                 &record.id,
                 CodexSessionPatch {
@@ -522,7 +613,15 @@ impl CodexSessionManager {
                     ..Default::default()
                 },
             )
-            .map_err(ServiceError::Other)
+            .map_err(ServiceError::Other)?;
+        if let Err(error) = reacquire_linked_task_assignment(&self.service, &session) {
+            warn!(
+                error = %error,
+                session_id,
+                "failed reacquiring linked task assignment on resume"
+            );
+        }
+        Ok(session)
     }
 
     fn attach_discovered_session_id(
@@ -583,7 +682,8 @@ impl CodexSessionManager {
             .with_context(|| format!("codex session {session_id} is not live"))
             .map_err(ServiceError::Other)?;
         let now = Utc::now();
-        self.store
+        let session = self
+            .store
             .update_session(
                 session_id,
                 CodexSessionPatch {
@@ -597,7 +697,17 @@ impl CodexSessionManager {
         runtime.push_message(CodexTerminalServerMessage::Status {
             status: CodexSessionStatus::Resumable.as_str().to_string(),
         });
-        runtime.terminate().map_err(ServiceError::Other)
+        runtime.terminate().map_err(ServiceError::Other)?;
+        if let Err(error) =
+            release_linked_task_assignment_if_idle(&self.service, &self.store, &session)
+        {
+            warn!(
+                error = %error,
+                session_id,
+                "failed releasing linked task assignment on terminate"
+            );
+        }
+        Ok(())
     }
 
     pub fn restart_session(&self, session_id: &str) -> Result<CodexSessionRecord, ServiceError> {
@@ -661,11 +771,20 @@ impl CodexSessionManager {
             self.spawn_codex_session_reconciler(record.id.clone(), PathBuf::from(&record.cwd));
         }
 
-        self.store
+        let restarted = self
+            .store
             .get_session(&record.id)
             .map_err(ServiceError::Other)?
             .with_context(|| format!("codex session {} missing after restart", record.id))
-            .map_err(ServiceError::Other)
+            .map_err(ServiceError::Other)?;
+        if let Err(error) = reacquire_linked_task_assignment(&self.service, &restarted) {
+            warn!(
+                error = %error,
+                session_id,
+                "failed reacquiring linked task assignment on restart"
+            );
+        }
+        Ok(restarted)
     }
 
     pub fn archive_session(&self, session_id: &str) -> Result<(), ServiceError> {
@@ -711,7 +830,17 @@ impl CodexSessionManager {
 
         self.store
             .archive_session(session_id)
-            .map_err(ServiceError::Other)
+            .map_err(ServiceError::Other)?;
+        if let Err(error) =
+            release_linked_task_assignment_if_idle(&self.service, &self.store, &record)
+        {
+            warn!(
+                error = %error,
+                session_id,
+                "failed releasing linked task assignment on archive"
+            );
+        }
+        Ok(())
     }
 
     pub fn subscribe(
@@ -866,6 +995,7 @@ impl CodexSessionManager {
     fn spawn_exit_watcher(&self, session_id: String, runtime: Arc<LiveCodexSession>) {
         let runtimes = Arc::clone(&self.runtimes);
         let store = self.store.clone();
+        let service = Arc::clone(&self.service);
         std::thread::spawn(move || {
             let wait_result = runtime.wait();
             let ended_at = Utc::now();
@@ -903,6 +1033,16 @@ impl CodexSessionManager {
                     return;
                 }
                 warn!(error = %error, session_id, "failed persisting codex session exit");
+            } else if let Ok(Some(session)) = store.get_session(&session_id) {
+                if let Err(error) =
+                    release_linked_task_assignment_if_idle(&service, &store, &session)
+                {
+                    warn!(
+                        error = %error,
+                        session_id,
+                        "failed releasing linked task assignment after session exit"
+                    );
+                }
             }
             runtime.push_message(CodexTerminalServerMessage::Status {
                 status: CodexSessionStatus::Resumable.as_str().to_string(),
@@ -1078,7 +1218,7 @@ struct LiveCodexSession {
     child: Arc<Mutex<Box<dyn Child + Send>>>,
     killer: Arc<Mutex<Box<dyn ChildKiller + Send + Sync>>>,
     tx: broadcast::Sender<CodexTerminalServerMessage>,
-    backlog: Arc<Mutex<VecDeque<String>>>,
+    backlog: Arc<Mutex<TerminalBacklog>>,
 }
 
 impl LiveCodexSession {
@@ -1095,7 +1235,7 @@ impl LiveCodexSession {
             child: Arc::new(Mutex::new(child)),
             killer: Arc::new(Mutex::new(killer)),
             tx,
-            backlog: Arc::new(Mutex::new(VecDeque::new())),
+            backlog: Arc::new(Mutex::new(TerminalBacklog::default())),
         }
     }
 
@@ -1107,9 +1247,7 @@ impl LiveCodexSession {
         self.backlog
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
-            .iter()
-            .cloned()
-            .collect()
+            .to_vec()
     }
 
     fn push_output(&self, data: String) {
@@ -1118,10 +1256,7 @@ impl LiveCodexSession {
                 .backlog
                 .lock()
                 .unwrap_or_else(|poison| poison.into_inner());
-            backlog.push_back(data.clone());
-            while backlog.len() > OUTPUT_BACKLOG_CHUNKS {
-                backlog.pop_front();
-            }
+            backlog.push(data.clone());
         }
         let _ = self.tx.send(CodexTerminalServerMessage::Output { data });
     }
@@ -1171,6 +1306,28 @@ impl LiveCodexSession {
             .wait()
             .context("failed waiting on codex session")?;
         Ok(())
+    }
+}
+
+#[derive(Default)]
+struct TerminalBacklog {
+    chunks: VecDeque<String>,
+    byte_len: usize,
+}
+
+impl TerminalBacklog {
+    fn to_vec(&self) -> Vec<String> {
+        self.chunks.iter().cloned().collect()
+    }
+
+    fn push(&mut self, data: String) {
+        self.byte_len += data.len();
+        self.chunks.push_back(data);
+        while self.byte_len > OUTPUT_BACKLOG_BYTES && self.chunks.len() > 1 {
+            if let Some(removed) = self.chunks.pop_front() {
+                self.byte_len = self.byte_len.saturating_sub(removed.len());
+            }
+        }
     }
 }
 
@@ -1263,6 +1420,112 @@ pub fn build_summary_stub(
     lines.push(String::new());
     lines.push("Summary pending.".to_string());
     lines.join("\n")
+}
+
+fn is_active_codex_status(status: &CodexSessionStatus) -> bool {
+    matches!(
+        status,
+        CodexSessionStatus::Launching | CodexSessionStatus::Live
+    )
+}
+
+fn load_assignable_task_state(
+    service: &AppService,
+    task_id: &str,
+) -> Result<Option<AssignableTaskState>> {
+    let Some((_record, parsed)) = service.db.parse_entity_from_disk(task_id)? else {
+        return Ok(None);
+    };
+    let revision = parsed.revision;
+    match parsed.frontmatter {
+        EntityFrontmatter::Task(task) => Ok(Some(AssignableTaskState {
+            project_id: task.project_id,
+            title: task.title,
+            status: task.status,
+            assignee: task.assignee,
+            revision,
+        })),
+        _ => anyhow::bail!("entity {task_id} is not a task"),
+    }
+}
+
+fn find_active_task_session(
+    store: &CodexSessionStore,
+    project_id: &str,
+    task_id: &str,
+) -> Result<Option<CodexSessionRecord>> {
+    Ok(store
+        .list_project_sessions(project_id)?
+        .into_iter()
+        .find(|session| {
+            session.task_id.as_deref() == Some(task_id) && is_active_codex_status(&session.status)
+        }))
+}
+
+fn reacquire_linked_task_assignment(
+    service: &AppService,
+    session: &CodexSessionRecord,
+) -> Result<()> {
+    let Some(task_id) = session.task_id.as_deref() else {
+        return Ok(());
+    };
+    let Some(task) = load_assignable_task_state(service, task_id)? else {
+        return Ok(());
+    };
+    if task.status == TaskStatus::Done || task.assignee == TASK_ASSIGNEE_CODEX {
+        return Ok(());
+    }
+
+    service.update_task(
+        task_id,
+        TaskPatch {
+            assignee: Some(TASK_ASSIGNEE_CODEX.to_string()),
+            ..Default::default()
+        },
+        &task.revision,
+        Actor::agent("topside"),
+    )?;
+    Ok(())
+}
+
+fn release_linked_task_assignment_if_idle(
+    service: &AppService,
+    store: &CodexSessionStore,
+    session: &CodexSessionRecord,
+) -> Result<()> {
+    let Some(task_id) = session.task_id.as_deref() else {
+        return Ok(());
+    };
+
+    let has_other_active_assignment = store
+        .list_project_sessions(&session.project_id)?
+        .into_iter()
+        .any(|candidate| {
+            candidate.id != session.id
+                && candidate.task_id.as_deref() == Some(task_id)
+                && is_active_codex_status(&candidate.status)
+        });
+    if has_other_active_assignment {
+        return Ok(());
+    }
+
+    let Some(task) = load_assignable_task_state(service, task_id)? else {
+        return Ok(());
+    };
+    if task.assignee == TASK_ASSIGNEE_UNASSIGNED {
+        return Ok(());
+    }
+
+    service.update_task(
+        task_id,
+        TaskPatch {
+            assignee: Some(TASK_ASSIGNEE_UNASSIGNED.to_string()),
+            ..Default::default()
+        },
+        &task.revision,
+        Actor::agent("topside"),
+    )?;
+    Ok(())
 }
 
 fn select_codex_launch_history_candidate<'a>(
@@ -2458,6 +2721,10 @@ mod tests {
             argv.iter()
                 .any(|value| value == "check_for_update_on_startup=false")
         );
+        assert!(
+            argv.iter()
+                .any(|value| value == "Investigate the failing session")
+        );
         assert!(!argv.iter().any(|value| value == "--skip-git-repo-check"));
         assert_eq!(
             command
@@ -2523,5 +2790,22 @@ command = "other"
                 .any(|value| value.contains("mcp_servers.topside.command"))
         );
         Ok(())
+    }
+
+    #[test]
+    fn terminal_backlog_retains_recent_output_within_byte_limit() {
+        let chunk = "x".repeat((OUTPUT_BACKLOG_BYTES / 2).max(1));
+        let mut backlog = TerminalBacklog::default();
+
+        backlog.push("first".to_string());
+        backlog.push(chunk.clone());
+        backlog.push(chunk.clone());
+        backlog.push("tail".to_string());
+
+        let replay = backlog.to_vec();
+        assert!(!replay.iter().any(|item| item == "first"));
+        assert_eq!(replay.last().map(String::as_str), Some("tail"));
+        let replay_bytes = replay.iter().map(String::len).sum::<usize>();
+        assert!(replay_bytes <= OUTPUT_BACKLOG_BYTES + "tail".len());
     }
 }
