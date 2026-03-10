@@ -1,10 +1,11 @@
 # Topside
 
-<img src="Screenshot 2026-03-10 at 4.50.08 PM.png" alt="Topside" width="800" />
+<img src="Screenshot 2026-03-10 at 4.56.47 PM.png" alt="Topside" width="800" />
 
 Agentic Building Layer | Integrated with Codex | OSS | Rust
 
 It keeps project context in markdown on disk, indexes that context into SQLite for fast local retrieval, syncs selected repo files into a Topside workspace, and layers a focused browser/macOS desktop workbench on top. The current product is built for rapid local iteration with Codex: plan work, sync `docs/to-do.md`, link repo docs into notes, and launch or recover Codex sessions against the linked project from the Topside desktop shell.
+
 
 ## Current Status
 
