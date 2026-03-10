@@ -236,7 +236,7 @@
       "title": "Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK5F7BY7WMN68V2Y513C0QNX"
@@ -264,7 +264,7 @@
       "title": "Add collapsible sidebar button for the projects/settings pane, leaves only icons exposed",
       "kind": {
         "Task": {
-          "completed": false
+          "completed": true
         }
       },
       "sync_key": "tsk_01KK5JCAB1R29ZHRZWPJ5VRRX3"

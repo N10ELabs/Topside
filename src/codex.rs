@@ -153,6 +153,29 @@ pub struct CodexHistorySession {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CodexTranscriptRole {
+    User,
+    Assistant,
+}
+
+impl CodexTranscriptRole {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Assistant => "assistant",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CodexTranscriptMessage {
+    pub role: CodexTranscriptRole,
+    pub text: String,
+    pub timestamp: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone)]
 struct AssignableTaskState {
     project_id: String,
@@ -451,6 +474,25 @@ impl CodexSessionManager {
             .contains_key(session_id)
     }
 
+    pub fn load_session_transcript(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<CodexTranscriptMessage>, ServiceError> {
+        let record = self
+            .store
+            .get_session(session_id)
+            .map_err(ServiceError::Other)?
+            .with_context(|| format!("codex session {session_id} not found"))
+            .map_err(ServiceError::Other)?;
+        let record = self
+            .attach_discovered_session_id(&record)
+            .map_err(ServiceError::Other)?;
+        let Some(codex_session_id) = record.codex_session_id.as_deref() else {
+            return Ok(Vec::new());
+        };
+        load_codex_transcript_for_session_id(codex_session_id).map_err(ServiceError::Other)
+    }
+
     fn take_runtime(&self, session_id: &str) -> Option<Arc<LiveCodexSession>> {
         self.runtimes
             .lock()
@@ -614,13 +656,6 @@ impl CodexSessionManager {
                 },
             )
             .map_err(ServiceError::Other)?;
-        if let Err(error) = reacquire_linked_task_assignment(&self.service, &session) {
-            warn!(
-                error = %error,
-                session_id,
-                "failed reacquiring linked task assignment on resume"
-            );
-        }
         Ok(session)
     }
 
@@ -777,13 +812,6 @@ impl CodexSessionManager {
             .map_err(ServiceError::Other)?
             .with_context(|| format!("codex session {} missing after restart", record.id))
             .map_err(ServiceError::Other)?;
-        if let Err(error) = reacquire_linked_task_assignment(&self.service, &restarted) {
-            warn!(
-                error = %error,
-                session_id,
-                "failed reacquiring linked task assignment on restart"
-            );
-        }
         Ok(restarted)
     }
 
@@ -1462,32 +1490,6 @@ fn find_active_task_session(
         }))
 }
 
-fn reacquire_linked_task_assignment(
-    service: &AppService,
-    session: &CodexSessionRecord,
-) -> Result<()> {
-    let Some(task_id) = session.task_id.as_deref() else {
-        return Ok(());
-    };
-    let Some(task) = load_assignable_task_state(service, task_id)? else {
-        return Ok(());
-    };
-    if task.status == TaskStatus::Done || task.assignee == TASK_ASSIGNEE_CODEX {
-        return Ok(());
-    }
-
-    service.update_task(
-        task_id,
-        TaskPatch {
-            assignee: Some(TASK_ASSIGNEE_CODEX.to_string()),
-            ..Default::default()
-        },
-        &task.revision,
-        Actor::agent("topside"),
-    )?;
-    Ok(())
-}
-
 fn release_linked_task_assignment_if_idle(
     service: &AppService,
     store: &CodexSessionStore,
@@ -1765,6 +1767,124 @@ fn discover_session_file_map(sessions_root: &Path) -> Result<HashMap<String, Pat
         file_map.insert(session_id.as_str().to_string(), entry.path().to_path_buf());
     }
     Ok(file_map)
+}
+
+fn load_codex_transcript_for_session_id(
+    codex_session_id: &str,
+) -> Result<Vec<CodexTranscriptMessage>> {
+    let codex_home = codex_home_dir()?;
+    let Some(path) = find_rollout_path_for_codex_session_id(&codex_home, codex_session_id)? else {
+        return Ok(Vec::new());
+    };
+    parse_codex_rollout_transcript(&path)
+}
+
+fn find_rollout_path_for_codex_session_id(
+    codex_home: &Path,
+    codex_session_id: &str,
+) -> Result<Option<PathBuf>> {
+    let file_map = discover_session_file_map(&codex_home.join("sessions"))?;
+    Ok(file_map.get(codex_session_id).cloned())
+}
+
+fn parse_codex_rollout_transcript(path: &Path) -> Result<Vec<CodexTranscriptMessage>> {
+    let event_messages = parse_codex_rollout_messages(path, parse_codex_event_transcript_message)?;
+    if !event_messages.is_empty() {
+        return Ok(event_messages);
+    }
+    parse_codex_rollout_messages(path, parse_codex_response_transcript_message)
+}
+
+fn parse_codex_rollout_messages<F>(
+    path: &Path,
+    mut parser: F,
+) -> Result<Vec<CodexTranscriptMessage>>
+where
+    F: FnMut(&Value) -> Option<CodexTranscriptMessage>,
+{
+    let reader = BufReader::new(
+        fs::File::open(path).with_context(|| format!("failed opening {}", path.display()))?,
+    );
+    let mut messages = Vec::new();
+    for line in reader.lines() {
+        let line = line?;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_str(&line).context("invalid codex session json")?;
+        if let Some(message) = parser(&value) {
+            messages.push(message);
+        }
+    }
+    Ok(messages)
+}
+
+fn parse_codex_event_transcript_message(value: &Value) -> Option<CodexTranscriptMessage> {
+    if value.get("type").and_then(Value::as_str) != Some("event_msg") {
+        return None;
+    }
+    let payload = value.get("payload")?.as_object()?;
+    let role = match payload.get("type").and_then(Value::as_str)? {
+        "user_message" => CodexTranscriptRole::User,
+        "agent_message" => CodexTranscriptRole::Assistant,
+        _ => return None,
+    };
+    let text = payload.get("message").and_then(Value::as_str)?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(CodexTranscriptMessage {
+        role,
+        text: text.to_string(),
+        timestamp: parse_datetime_value(value.get("timestamp")).ok(),
+    })
+}
+
+fn parse_codex_response_transcript_message(value: &Value) -> Option<CodexTranscriptMessage> {
+    if value.get("type").and_then(Value::as_str) != Some("response_item") {
+        return None;
+    }
+    let payload = value.get("payload")?.as_object()?;
+    if payload.get("type").and_then(Value::as_str) != Some("message") {
+        return None;
+    }
+    let role = match payload.get("role").and_then(Value::as_str)? {
+        "user" => CodexTranscriptRole::User,
+        "assistant" => CodexTranscriptRole::Assistant,
+        _ => return None,
+    };
+    let content = payload.get("content")?.as_array()?;
+    let text = content
+        .iter()
+        .filter_map(|item| {
+            let item_type = item.get("type").and_then(Value::as_str)?;
+            match item_type {
+                "input_text" | "output_text" => item
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                    .map(ToString::to_string),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if text.is_empty() || is_bootstrap_transcript_message(&role, &text) {
+        return None;
+    }
+    Some(CodexTranscriptMessage {
+        role,
+        text,
+        timestamp: parse_datetime_value(value.get("timestamp")).ok(),
+    })
+}
+
+fn is_bootstrap_transcript_message(role: &CodexTranscriptRole, text: &str) -> bool {
+    matches!(role, CodexTranscriptRole::User)
+        && (text.starts_with("# AGENTS.md instructions")
+            || text.starts_with("<environment_context>")
+            || text.starts_with("<permissions instructions>"))
 }
 
 fn parse_session_index_entry(line: &str) -> Result<Option<SessionIndexEntry>> {
@@ -2789,6 +2909,57 @@ command = "other"
             argv.iter()
                 .any(|value| value.contains("mcp_servers.topside.command"))
         );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_codex_rollout_transcript_prefers_event_messages() -> Result<()> {
+        let temp = TempDir::new()?;
+        let rollout = temp.path().join("rollout.jsonl");
+        fs::write(
+            &rollout,
+            concat!(
+                "{\"timestamp\":\"2026-03-10T14:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"thread-1\",\"cwd\":\"/tmp/project\",\"timestamp\":\"2026-03-10T14:00:00Z\"}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:01Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"Execute the following task: Fix the thing\"}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:02Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"message\":\"I'm on it.\"}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"# AGENTS.md instructions for /tmp/project\"}]}}\n"
+            ),
+        )?;
+
+        let transcript = parse_codex_rollout_transcript(&rollout)?;
+
+        assert_eq!(transcript.len(), 2);
+        assert_eq!(transcript[0].role, CodexTranscriptRole::User);
+        assert_eq!(
+            transcript[0].text,
+            "Execute the following task: Fix the thing"
+        );
+        assert_eq!(transcript[1].role, CodexTranscriptRole::Assistant);
+        assert_eq!(transcript[1].text, "I'm on it.");
+        Ok(())
+    }
+
+    #[test]
+    fn parse_codex_rollout_transcript_falls_back_to_response_messages() -> Result<()> {
+        let temp = TempDir::new()?;
+        let rollout = temp.path().join("rollout.jsonl");
+        fs::write(
+            &rollout,
+            concat!(
+                "{\"timestamp\":\"2026-03-10T14:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"thread-1\",\"cwd\":\"/tmp/project\",\"timestamp\":\"2026-03-10T14:00:00Z\"}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:01Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"# AGENTS.md instructions for /tmp/project\"}]}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:02Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Investigate the failing build\"}]}}\n",
+                "{\"timestamp\":\"2026-03-10T14:00:03Z\",\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"I found the issue.\"}]}}\n"
+            ),
+        )?;
+
+        let transcript = parse_codex_rollout_transcript(&rollout)?;
+
+        assert_eq!(transcript.len(), 2);
+        assert_eq!(transcript[0].role, CodexTranscriptRole::User);
+        assert_eq!(transcript[0].text, "Investigate the failing build");
+        assert_eq!(transcript[1].role, CodexTranscriptRole::Assistant);
+        assert_eq!(transcript[1].text, "I found the issue.");
         Ok(())
     }
 

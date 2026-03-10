@@ -40,7 +40,7 @@
       --glass-shell-blur: 24px;
       --glass-shell-radius: 20px;
       --sidebar-pane-width: 192px;
-      --sidebar-pane-width-collapsed: 72px;
+      --sidebar-pane-width-collapsed: 50px;
       --pane-head-height: 58px;
       --pane-head-pad-y: 11px;
       --pane-control-size: 34px;
@@ -1540,20 +1540,71 @@
     }
 
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .pane-body {
-      padding-left: 8px;
-      padding-right: 8px;
+      padding-left: 12px;
+      padding-right: 12px;
       align-items: center;
+      gap: 10px;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-list,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-menu {
+      justify-items: center;
+      gap: 10px;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-row {
+      width: 100%;
+      display: grid;
+      justify-items: center;
     }
 
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .project-card {
-      min-height: 46px;
+      width: 48px;
+      min-width: 48px;
+      min-height: 48px;
       padding: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
       justify-content: center;
       gap: 0;
+      border-radius: 16px;
+      margin: 0 auto;
     }
 
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-row.has-codex .project-card {
       padding-left: 0;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .project-card:hover,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .project-card:focus-visible {
+      border: none;
+      background: rgba(16, 33, 46, 0.56);
+      box-shadow: none;
+      transform: translateY(-1px);
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .pane-projects .project-card.active {
+      border: none;
+      background: rgba(15, 32, 45, 0.92);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.24), 0 10px 18px rgba(2, 8, 14, 0.18);
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-card-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-card-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-add-icon {
+      width: 22px;
+      height: 22px;
+      background: rgba(56, 189, 248, 0.14);
     }
 
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .project-card-main,
@@ -1567,10 +1618,32 @@
 
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-btn,
     html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-launch-btn {
-      min-height: 40px;
+      width: 42px;
+      min-width: 42px;
+      min-height: 42px;
       padding: 0;
+      border: none;
+      background: transparent;
       justify-content: center;
       gap: 0;
+      border-radius: 14px;
+      box-shadow: none;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-btn:hover,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-btn:focus-visible,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-launch-btn:hover,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-launch-btn:focus-visible {
+      border: none;
+      background: rgba(16, 33, 46, 0.56);
+      box-shadow: none;
+    }
+
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .sidebar-footer-btn.active,
+    html:not([data-layout-mode="one"]) .layout.sidebar-collapsed .archive-launch-btn.active {
+      border: none;
+      background: rgba(15, 32, 45, 0.84);
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
     }
 
     .archive-menu-head {
@@ -2411,20 +2484,31 @@
     }
 
     .task-codex-btn.is-active,
-    .task-codex-btn.is-pending {
+    .task-codex-btn.is-pending,
+    .task-codex-btn.is-finished {
       width: 22px;
       min-width: 22px;
       padding: 0;
-      border-color: rgba(56, 189, 248, 0.34);
-      color: var(--accent);
       gap: 0;
       opacity: 1;
       pointer-events: auto;
     }
 
+    .task-codex-btn.is-active,
+    .task-codex-btn.is-pending {
+      border-color: rgba(56, 189, 248, 0.34);
+      color: var(--accent);
+    }
+
     .task-codex-btn.is-pending {
       cursor: wait;
       opacity: 0.9;
+    }
+
+    .task-codex-btn.is-finished {
+      border-color: rgba(134, 239, 172, 0.38);
+      color: #bbf7d0;
+      background: rgba(8, 28, 18, 0.88);
     }
 
     .task-codex-btn:disabled {
@@ -2459,6 +2543,12 @@
       stroke-linecap: round;
       stroke-linejoin: round;
       flex: 0 0 auto;
+    }
+
+    .task-codex-btn.is-finished svg {
+      width: 12px;
+      height: 12px;
+      stroke-width: 1.8;
     }
 
     .task-input:focus {
@@ -3089,17 +3179,17 @@
       box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
     }
 
-    .project-codex-status-dot.live {
+    .project-codex-status-dot.working {
       background: rgba(52, 211, 153, 0.96);
       box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18), 0 0 10px rgba(52, 211, 153, 0.28);
     }
 
-    .project-codex-status-dot.launching {
+    .project-codex-status-dot.waiting {
       background: rgba(251, 191, 36, 0.96);
       box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.18), 0 0 10px rgba(251, 191, 36, 0.2);
     }
 
-    .project-codex-status-dot.resumable {
+    .project-codex-status-dot.inactive {
       background: rgba(148, 163, 184, 0.92);
       box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
     }
@@ -3128,22 +3218,22 @@
       line-height: 1;
     }
 
-    .codex-status-pill.live {
+    .codex-status-pill.working {
       color: #d5ffe9;
       border-color: rgba(52, 211, 153, 0.28);
       background: rgba(16, 84, 52, 0.22);
     }
 
-    .codex-status-pill.launching {
+    .codex-status-pill.waiting {
       color: #fde68a;
       border-color: rgba(245, 158, 11, 0.3);
       background: rgba(120, 53, 15, 0.22);
     }
 
-    .codex-status-pill.resumable {
-      color: #d6f4ff;
-      border-color: rgba(56, 189, 248, 0.22);
-      background: rgba(14, 116, 144, 0.16);
+    .codex-status-pill.inactive {
+      color: #d7e3ec;
+      border-color: rgba(148, 163, 184, 0.22);
+      background: rgba(51, 65, 85, 0.18);
     }
 
     .codex-terminal-shell {
@@ -3218,6 +3308,101 @@
       display: grid;
       gap: 12px;
       justify-items: center;
+      text-align: center;
+    }
+
+    .codex-transcript-view {
+      grid-area: 1 / 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 18px;
+      background:
+        radial-gradient(circle at top, rgba(56, 189, 248, 0.08), transparent 44%),
+        #04090e;
+      display: grid;
+      align-content: start;
+      z-index: 1;
+    }
+
+    .codex-transcript-view[hidden] {
+      display: none !important;
+    }
+
+    .codex-transcript-card {
+      width: min(100%, 880px);
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+
+    .codex-transcript-banner {
+      display: grid;
+      gap: 6px;
+      padding: 12px 14px;
+      border: 1px solid rgba(147, 184, 207, 0.14);
+      border-radius: 14px;
+      background: rgba(9, 18, 25, 0.86);
+    }
+
+    .codex-transcript-list {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .codex-transcript-message {
+      display: grid;
+      gap: 6px;
+      max-width: min(100%, 760px);
+    }
+
+    .codex-transcript-message.user {
+      justify-self: end;
+    }
+
+    .codex-transcript-message.assistant {
+      justify-self: start;
+    }
+
+    .codex-transcript-message-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      font-family: "IBM Plex Mono", monospace;
+      color: var(--muted);
+    }
+
+    .codex-transcript-message.user .codex-transcript-message-meta {
+      justify-content: flex-end;
+    }
+
+    .codex-transcript-bubble {
+      padding: 12px 14px;
+      border: 1px solid rgba(147, 184, 207, 0.12);
+      border-radius: 16px;
+      background: rgba(10, 18, 25, 0.84);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.62;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .codex-transcript-message.user .codex-transcript-bubble {
+      border-color: rgba(56, 189, 248, 0.24);
+      background: rgba(12, 34, 48, 0.88);
+    }
+
+    .codex-transcript-message.assistant .codex-transcript-bubble {
+      border-color: rgba(148, 163, 184, 0.14);
+      background: rgba(8, 15, 21, 0.88);
+    }
+
+    .codex-transcript-refreshing {
+      color: var(--muted);
+      font-size: 11px;
+      font-family: "IBM Plex Mono", monospace;
       text-align: center;
     }
 
@@ -3359,8 +3544,6 @@
       max-height: min(34vh, 320px);
     }
 
-    .codex-terminal-helper,
-    .codex-composer,
     .codex-session-editor {
       display: none !important;
     }
@@ -4358,6 +4541,7 @@
                   </div>
                   <div class="codex-terminal-body">
                     <div id="codex-terminal-host" class="codex-terminal-host"></div>
+                    <div id="codex-transcript-view" class="codex-transcript-view" hidden></div>
                     <div id="codex-terminal-empty" class="empty-state codex-terminal-empty"></div>
                   </div>
                   <div id="codex-terminal-helper" class="codex-terminal-helper" hidden></div>
@@ -4510,6 +4694,8 @@
       codexSessionTitleEdits: {},
       codexSessionSummaryEdits: {},
       codexPromptEdits: {},
+      codexTranscriptsBySession: {},
+      codexLoadingTranscripts: {},
       codexPendingPrompt: null,
       codexTerminalPrompt: null,
       codexTerminalTails: {},
@@ -4702,6 +4888,7 @@
     const codexEndButton = document.getElementById("codex-end");
     const codexCloseButton = document.getElementById("codex-close");
     const codexTerminalHost = document.getElementById("codex-terminal-host");
+    const codexTranscriptView = document.getElementById("codex-transcript-view");
     const codexTerminalEmpty = document.getElementById("codex-terminal-empty");
     const codexTerminalHelper = document.getElementById("codex-terminal-helper");
     const codexTerminalSessionLabel = document.getElementById("codex-terminal-session-label");
@@ -5504,7 +5691,8 @@
       if (taskCodexOpenButton) {
         event.preventDefault();
         event.stopPropagation();
-        await openCodexSession(taskCodexOpenButton.dataset.taskCodexOpenId, { resumeIfNeeded: true });
+        const resumeIfNeeded = taskCodexOpenButton.dataset.taskCodexAutoResume !== "false";
+        await openCodexSession(taskCodexOpenButton.dataset.taskCodexOpenId, { resumeIfNeeded });
         return;
       }
 
@@ -7535,7 +7723,7 @@
 
       applySessionSnapshotToWorkspace(snapshot);
       if (state.rightPaneMode === "codex" && state.openCodexSessionId) {
-        await openCodexSession(state.openCodexSessionId, { resumeIfNeeded: true });
+        await openCodexSession(state.openCodexSessionId, { resumeIfNeeded: false });
       }
     }
 
@@ -8755,7 +8943,13 @@
       const isHeading = isMarkdownTaskHeading(title);
       const supportsCodex = projectSupportsCodex(state.workspace?.project);
       const activeCodexSession = !isHeading && supportsCodex ? getActiveTaskCodexSession(task.id) : null;
-      const codexAssignmentPending = !activeCodexSession && !isHeading && supportsCodex && isTaskCodexAssignmentPending(task.id);
+      const latestCodexSession = !isHeading && supportsCodex ? getLatestTaskCodexSession(task.id) : null;
+      const taskAssignedToCodex = task.assignee === "agent:codex";
+      const workingCodexSession = taskAssignedToCodex ? activeCodexSession : null;
+      const codexAssignmentPending = !workingCodexSession && !isHeading && supportsCodex && isTaskCodexAssignmentPending(task.id);
+      const finishedCodexSession = !workingCodexSession && !codexAssignmentPending && latestCodexSession
+        ? latestCodexSession
+        : null;
       const priorityTone = isHeading ? "none" : taskPriorityTone(task);
       const priorityLabel = priorityTone === "p1"
         ? "P1"
@@ -8814,13 +9008,14 @@
         `;
       const codexControl = isHeading || !supportsCodex
         ? ""
-        : activeCodexSession
+        : workingCodexSession
           ? `
             <button
               class="task-codex-btn is-active"
               type="button"
               draggable="false"
-              data-task-codex-open-id="${activeCodexSession.id}"
+              data-task-codex-open-id="${workingCodexSession.id}"
+              data-task-codex-auto-resume="true"
               aria-label="Open active Codex session"
               title="Open active Codex session"
             >
@@ -8840,6 +9035,23 @@
                 <span class="task-codex-spinner" aria-hidden="true"></span>
               </button>
             `
+            : finishedCodexSession
+              ? `
+                <button
+                  class="task-codex-btn is-finished"
+                  type="button"
+                  draggable="false"
+                  data-task-codex-open-id="${finishedCodexSession.id}"
+                  data-task-codex-auto-resume="false"
+                  aria-label="Open finished Codex session"
+                  title="Open finished Codex session"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 20V4"></path>
+                    <path d="M7 5h10l-2.8 3.5L17 12H7"></path>
+                  </svg>
+                </button>
+              `
             : `
               <button
                 class="task-codex-btn"
@@ -9653,6 +9865,11 @@
       )) || null;
     }
 
+    function getLatestTaskCodexSession(taskId, projectId = state.selectedProjectId) {
+      if (!taskId || !projectId) return null;
+      return getProjectCodexSessions(projectId).find((session) => session.task_id === taskId) || null;
+    }
+
     function isTaskCodexAssignmentPending(taskId) {
       return Boolean(taskId && state.codexAssigningTaskIds[taskId]);
     }
@@ -9699,6 +9916,8 @@
     function clearCodexSessionLocalState(sessionId) {
       if (!sessionId) return;
       delete state.codexTerminalTails[sessionId];
+      delete state.codexTranscriptsBySession[sessionId];
+      delete state.codexLoadingTranscripts[sessionId];
       delete state.codexSessionTitleEdits[sessionId];
       delete state.codexSessionSummaryEdits[sessionId];
       delete state.codexPromptEdits[sessionId];
@@ -9779,18 +9998,28 @@
       }
     }
 
-    function codexStatusLabel(status) {
-      if (status === "live") return "Running";
-      if (status === "launching") return "Launching";
-      return "Resumable";
+    function codexSessionTone(session) {
+      if (!session) return "inactive";
+      if (session.status === "live" || session.status === "launching") return "working";
+      if (session.resume_available) return "waiting";
+      return "inactive";
     }
 
-    function renderCodexStatusPill(status) {
-      const normalized = status === "live" || status === "launching" ? status : "resumable";
-      return `<span class="codex-status-pill ${normalized}">${escapeHtml(codexStatusLabel(normalized))}</span>`;
+    function codexStatusLabel(session) {
+      if (!session) return "";
+      if (session.status === "launching") return "Starting";
+      if (session.status === "live") return "Working";
+      if (codexSessionTone(session) === "waiting") return "Waiting";
+      return "Inactive";
+    }
+
+    function renderCodexStatusPill(session) {
+      const tone = codexSessionTone(session);
+      return `<span class="codex-status-pill ${tone}">${escapeHtml(codexStatusLabel(session))}</span>`;
     }
 
     function renderCodexSessionTab(session, activeSessionId) {
+      const tone = codexSessionTone(session);
       return `
         <button
           class="codex-session-tab ${activeSessionId === session.id ? "active" : ""}"
@@ -9798,7 +10027,7 @@
           data-codex-tab-id="${escapeAttribute(session.id)}"
         >
           <span class="codex-session-tab-head">
-            <span class="project-codex-status-dot ${escapeAttribute(session.status)}"></span>
+            <span class="project-codex-status-dot ${escapeAttribute(tone)}"></span>
             <span class="codex-session-tab-title">${escapeHtml(session.title || "Untitled session")}</span>
           </span>
           <span class="codex-session-tab-meta">
@@ -9841,8 +10070,108 @@
       syncCurrentWorkspaceCodexSessionState(sessionId, { status: "resumable" });
       restorePendingCodexPrompt(sessionId);
       clearCodexTerminalPrompt(sessionId);
-      state.codexMessage = message || "This Codex session is not attached right now. Resume it to reopen the embedded chat.";
+      state.codexMessage = message || "This Codex session is waiting. You can read the saved history here, and sending a prompt will resume it.";
       disconnectCodexSocket();
+    }
+
+    function getCodexTranscriptState(sessionId) {
+      return sessionId ? state.codexTranscriptsBySession[sessionId] || null : null;
+    }
+
+    function formatCodexTranscriptText(value) {
+      return escapeHtml(String(value || "")).replace(/\n/g, "<br>");
+    }
+
+    function renderCodexTranscriptMarkup(session) {
+      if (!session) return "";
+      const transcriptState = getCodexTranscriptState(session.id);
+      const messages = Array.isArray(transcriptState?.messages) ? transcriptState.messages : [];
+      const isLoading = Boolean(state.codexLoadingTranscripts[session.id]);
+      const waiting = codexSessionTone(session) === "waiting";
+      const bannerCopy = waiting
+        ? "Saved chat stays readable while Codex waits. Send a prompt below to resume this session."
+        : "Topside is showing the last saved chat history for this Codex session.";
+      const banner = `
+        <div class="codex-transcript-banner">
+          <div class="codex-session-editor-title">Saved chat history</div>
+          <div class="codex-panel-copy">${escapeHtml(bannerCopy)}</div>
+        </div>
+      `;
+      if (!messages.length) {
+        const emptyMessage = transcriptState?.emptyMessage
+          || (isLoading ? "Loading saved chat history..." : "No saved chat history yet for this session.");
+        return `
+          <div class="codex-transcript-card">
+            ${banner}
+            <div class="codex-terminal-empty-card">
+              <div class="codex-terminal-empty-title">History unavailable</div>
+              <div class="codex-panel-copy">${escapeHtml(emptyMessage)}</div>
+            </div>
+          </div>
+        `;
+      }
+      return `
+        <div class="codex-transcript-card">
+          ${banner}
+          <div class="codex-transcript-list">
+            ${messages.map((message) => {
+              const role = message.role === "user" ? "user" : "assistant";
+              const roleLabel = role === "user" ? "You" : "Codex";
+              const timestamp = message.timestamp_label
+                ? `<span class="codex-transcript-timestamp">${escapeHtml(message.timestamp_label)}</span>`
+                : "";
+              return `
+                <article class="codex-transcript-message ${role}">
+                  <div class="codex-transcript-message-meta">
+                    <span>${escapeHtml(roleLabel)}</span>
+                    ${timestamp}
+                  </div>
+                  <div class="codex-transcript-bubble">${formatCodexTranscriptText(message.text)}</div>
+                </article>
+              `;
+            }).join("")}
+          </div>
+          ${isLoading ? `<div class="codex-transcript-refreshing">Refreshing saved chat...</div>` : ""}
+        </div>
+      `;
+    }
+
+    async function ensureCodexTranscriptLoaded(session) {
+      if (!session || !session.id) return null;
+      const tone = codexSessionTone(session);
+      if (tone !== "waiting" && tone !== "inactive") return getCodexTranscriptState(session.id);
+      const cached = getCodexTranscriptState(session.id);
+      if (cached?.lastSeenAtIso === session.last_seen_at_iso) {
+        return cached;
+      }
+      if (state.codexLoadingTranscripts[session.id]) {
+        return cached;
+      }
+      state.codexLoadingTranscripts[session.id] = true;
+      renderCodexPane();
+      const response = await fetchJson(
+        `/api/codex-sessions/${encodeURIComponent(session.id)}/transcript`,
+        {},
+        "codex",
+        true
+      );
+      delete state.codexLoadingTranscripts[session.id];
+      if (!response) {
+        renderCodexPane();
+        return cached;
+      }
+      syncCurrentWorkspaceCodexSessionState(session.id, {
+        codex_session_id: response.codex_session_id || session.codex_session_id || null,
+        resume_available: Boolean(response.resume_available),
+      });
+      const nextState = {
+        lastSeenAtIso: session.last_seen_at_iso || "",
+        messages: Array.isArray(response.messages) ? response.messages : [],
+        emptyMessage: response.empty_message || "",
+      };
+      state.codexTranscriptsBySession[session.id] = nextState;
+      renderCodexPane();
+      return nextState;
     }
 
     function getCodexSessionTitleValue(session) {
@@ -10339,7 +10668,7 @@
           if (message.toLowerCase().includes("not live")) {
             markCodexSessionResumable(
               session.id,
-              "This Codex session is not attached right now. Resume it to reopen the embedded chat."
+              "This Codex session is waiting. You can read the saved history here, and sending a prompt will resume it."
             );
           } else {
             state.codexMessage = message;
@@ -10367,7 +10696,7 @@
         if (state.codexSocket !== socket) return;
         markCodexSessionResumable(
           session.id,
-          "The embedded Codex terminal disconnected. Resume the session to reopen chat."
+          "The embedded Codex terminal disconnected. Saved history is still available here, and sending a prompt will resume the session."
         );
         render();
       });
@@ -10592,14 +10921,45 @@
       codexTerminalEmpty.hidden = !markup;
     }
 
-    function renderCodexComposerState(_activeSession) {
+    function setCodexTranscriptMarkup(markup) {
+      if (!codexTranscriptView || !codexTerminalHost) return;
+      codexTranscriptView.innerHTML = markup || "";
+      codexTranscriptView.hidden = !markup;
+      codexTerminalHost.hidden = Boolean(markup);
+    }
+
+    function renderCodexComposerState(activeSession) {
       if (!codexComposer || !codexComposeInput || !codexComposeSend || !codexComposeHint) return;
-      codexComposer.hidden = true;
-      codexComposeInput.value = "";
-      codexComposeInput.disabled = true;
-      codexComposeSend.disabled = true;
-      codexComposeSend.textContent = "Send";
-      codexComposeHint.textContent = "";
+      if (!activeSession) {
+        codexComposer.hidden = true;
+        codexComposeInput.value = "";
+        codexComposeInput.disabled = true;
+        codexComposeSend.disabled = true;
+        codexComposeSend.textContent = "Send";
+        codexComposeHint.textContent = "";
+        return;
+      }
+      const tone = codexSessionTone(activeSession);
+      const waiting = tone === "waiting";
+      const inactive = tone === "inactive";
+      const hasPendingPrompt = state.codexPendingPrompt?.sessionId === activeSession.id;
+      codexComposer.hidden = false;
+      codexComposeInput.value = getCodexPromptValue(activeSession);
+      codexComposeInput.placeholder = waiting
+        ? "Prompt Codex to resume this session"
+        : "Ask Codex about this project";
+      codexComposeInput.disabled = inactive || state.codexRestartingSessions[activeSession.id] === true;
+      codexComposeSend.disabled = codexComposeInput.disabled
+        || !codexComposeInput.value.trim()
+        || hasPendingPrompt;
+      codexComposeSend.textContent = waiting ? "Resume & Send" : "Send";
+      if (inactive) {
+        codexComposeHint.textContent = "This session is not resumable yet. Topside will show saved history once Codex writes it locally.";
+      } else if (waiting) {
+        codexComposeHint.textContent = "Read the saved chat here. Sending a prompt resumes the session automatically.";
+      } else {
+        codexComposeHint.textContent = "Codex is live. Your prompt goes straight into the active session.";
+      }
     }
 
     function renderProjectCodexChildren(project) {
@@ -10651,10 +11011,10 @@
         : "";
       codexHeadCopy.textContent = codexHeaderNotice;
       codexHeadCopy.hidden = !codexHeaderNotice;
-      codexStatus.textContent = activeSession ? codexStatusLabel(activeSession.status) : "";
+      codexStatus.textContent = activeSession ? codexStatusLabel(activeSession) : "";
 
       codexNewButton.disabled = !supportsCodex;
-      codexResumeButton.disabled = !(activeSession && activeSession.status === "resumable");
+      codexResumeButton.disabled = !(activeSession && codexSessionTone(activeSession) === "waiting");
       codexEndButton.disabled = !activeSession;
       codexTerminalHelper.hidden = true;
       codexTerminalHelper.innerHTML = "";
@@ -10678,6 +11038,7 @@
         `;
         codexTerminalSessionLabel.textContent = "";
         codexTerminalMeta.textContent = "";
+        setCodexTranscriptMarkup("");
         setCodexTerminalEmptyMarkup(`
           <div class="codex-terminal-empty-card">
             <div class="codex-terminal-empty-title">Embedded Codex chat is unavailable</div>
@@ -10716,6 +11077,7 @@
         `;
         codexTerminalSessionLabel.textContent = project.title;
         codexTerminalMeta.textContent = pathLeaf(project.source_locator || "");
+        setCodexTranscriptMarkup("");
         setCodexTerminalEmptyMarkup(`
           <div class="codex-terminal-empty-card">
             <div class="codex-terminal-empty-title">Open a Codex chat for ${escapeHtml(project.title)}</div>
@@ -10731,7 +11093,7 @@
         codexSessionEditor.innerHTML = `
           <div class="codex-session-editor-head">
             <span class="codex-session-editor-title">Session details</span>
-            ${renderCodexStatusPill(activeSession.status)}
+            ${renderCodexStatusPill(activeSession)}
           </div>
           <input
             class="text-input"
@@ -10754,7 +11116,7 @@
           >${escapeHtml(getCodexSessionSummaryValue(activeSession))}</textarea>
           <div class="codex-editor-actions">
             <button class="text-btn" type="button" data-codex-save="${escapeAttribute(activeSession.id)}">Save</button>
-            ${activeSession.status === "resumable"
+            ${codexSessionTone(activeSession) === "waiting"
               ? `<button class="text-btn" type="button" data-codex-inline-resume="${escapeAttribute(activeSession.id)}">Resume</button>`
               : ""}
             <button class="text-btn danger-btn" type="button" data-codex-inline-archive="${escapeAttribute(activeSession.id)}">Archive Session</button>
@@ -10762,23 +11124,26 @@
         `;
 
         codexTerminalSessionLabel.textContent = activeSession.title || "Codex session";
-        codexTerminalMeta.textContent = `${codexStatusLabel(activeSession.status)} • ${pathLeaf(activeSession.cwd || project.source_locator || "")}`;
+        codexTerminalMeta.textContent = `${codexStatusLabel(activeSession)} • ${pathLeaf(activeSession.cwd || project.source_locator || "")}`;
         renderCodexComposerState(activeSession);
         setCodexTerminalEmptyMarkup("");
 
         if (activeSession.status === "live" || activeSession.status === "launching") {
+          setCodexTranscriptMarkup("");
           window.requestAnimationFrame(() => {
             attachCodexSocket(activeSession);
             focusCodexTerminal();
           });
         } else {
+          setCodexTranscriptMarkup(renderCodexTranscriptMarkup(activeSession));
           disconnectCodexSocket(true);
+          void ensureCodexTranscriptLoaded(activeSession);
         }
       }
 
       codexSessionTabs.querySelectorAll("[data-codex-tab-id]").forEach((button) => {
         button.addEventListener("click", async () => {
-          await openCodexSession(button.dataset.codexTabId, { resumeIfNeeded: true });
+          await openCodexSession(button.dataset.codexTabId, { resumeIfNeeded: false });
         });
       });
       codexSessionTabs.querySelectorAll("[data-codex-inline-new]").forEach((button) => {

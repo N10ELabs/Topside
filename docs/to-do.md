@@ -25,11 +25,11 @@
 ## Phase 7 - Hub as Interactive Codebase
 - [ ] Project selection should initialize to-do.md in project workspace. Needs more work
 - [x] Add ability to copy rich html or markdown
-- [ ] Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking
+- [x] Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking
 ## Section: Phase 6 - Visual Polish and Functionality
 ## UI Polish
 - [x] to-do pane, collapse all expand all toggle
-- [ ] Add collapsible sidebar button for the projects/settings pane, leaves only icons exposed
+- [x] Add collapsible sidebar button for the projects/settings pane, leaves only icons exposed
 - [x] Update task placeholder text
 - [ ] Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)
 - [x] Ensure copied changelog is in document view

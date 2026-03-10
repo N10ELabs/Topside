@@ -7,6 +7,7 @@ use std::time::Duration;
 use anyhow::Result;
 use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
+use chrono::Utc;
 use futures::{SinkExt, StreamExt};
 use rusqlite::{Connection, params};
 use serde_json::json;
@@ -15,10 +16,10 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tower::util::ServiceExt;
 
-use topside::codex::CodexSessionManager;
-use topside::codex::CodexSessionPatch;
-use topside::codex::CodexSessionRecord;
-use topside::codex::CodexSessionStore;
+use topside::codex::{
+    CodexSessionManager, CodexSessionOrigin, CodexSessionPatch, CodexSessionRecord,
+    CodexSessionStatus, CodexSessionStore, NewCodexSession,
+};
 use topside::http::{WebState, router};
 use topside::ports::{
     PortManager, PortManagerError, PortSession, TerminatePortResult, UnsupportedPortManager,
@@ -1823,7 +1824,7 @@ async fn task_assign_codex_session_rejects_stale_revision_without_creating_sessi
 }
 
 #[tokio::test]
-async fn task_assignment_terminate_and_resume_release_and_reacquire_assignee() -> Result<()> {
+async fn task_assignment_terminate_and_resume_keep_task_unassigned() -> Result<()> {
     let _env = MockCodexEnv::new()?;
     let (_tmp, service) = common::setup_service_workspace()?;
     let repo_root = TempDir::new()?;
@@ -1928,11 +1929,11 @@ async fn task_assignment_terminate_and_resume_release_and_reacquire_assignee() -
         session.status.as_str() == "live"
     })
     .await?;
-    let reacquired_task = wait_for_task(&service, &project.id, &task.id, |task| {
-        task.assignee == "agent:codex"
+    let resumed_task = wait_for_task(&service, &project.id, &task.id, |task| {
+        task.assignee == "agent:unassigned"
     })
     .await?;
-    assert_eq!(reacquired_task.status, TaskStatus::InProgress);
+    assert_eq!(resumed_task.status, TaskStatus::InProgress);
 
     Ok(())
 }
@@ -2706,6 +2707,66 @@ async fn system_port_terminate_endpoint_returns_refreshed_items_and_message() ->
     let (list_calls, terminate_calls) = port_manager.snapshot();
     assert_eq!(list_calls, 0);
     assert_eq!(terminate_calls, vec![(999, 3000)]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn codex_session_transcript_endpoint_returns_saved_history() -> Result<()> {
+    let _codex_env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let codex_home = PathBuf::from(std::env::var("TOPSIDE_CODEX_HOME")?);
+    let rollout_dir = codex_home.join("sessions/2026/03/10");
+    std::fs::create_dir_all(&rollout_dir)?;
+    std::fs::write(
+        rollout_dir.join("rollout-2026-03-10T14-00-00-019bfd79-5282-7551-95ce-cb61664a2993.jsonl"),
+        concat!(
+            "{\"timestamp\":\"2026-03-10T14:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"019bfd79-5282-7551-95ce-cb61664a2993\",\"cwd\":\"/tmp/project\",\"timestamp\":\"2026-03-10T14:00:00Z\"}}\n",
+            "{\"timestamp\":\"2026-03-10T14:00:01Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"Execute the following task: Fix the pane\"}}\n",
+            "{\"timestamp\":\"2026-03-10T14:00:02Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"message\":\"Working on it now.\"}}\n"
+        ),
+    )?;
+
+    let store = CodexSessionStore::new(service.config.clone());
+    let now = Utc::now();
+    let session = store.create_session(NewCodexSession {
+        project_id: "prj_test".to_string(),
+        task_id: None,
+        title: "Transcript test".to_string(),
+        origin: CodexSessionOrigin::Topside,
+        status: CodexSessionStatus::Resumable,
+        cwd: "/tmp/project".to_string(),
+        codex_session_id: Some("019bfd79-5282-7551-95ce-cb61664a2993".to_string()),
+        started_at: now,
+        last_seen_at: now,
+        ended_at: Some(now),
+        summary: "Saved test session".to_string(),
+    })?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let app = router(state);
+
+    let response = app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/codex-sessions/{}/transcript", session.id)),
+            )
+            .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let payload: serde_json::Value = serde_json::from_slice(&body)?;
+    assert_eq!(payload["messages"][0]["role"], json!("user"));
+    assert_eq!(
+        payload["messages"][0]["text"],
+        json!("Execute the following task: Fix the pane")
+    );
+    assert_eq!(payload["messages"][1]["role"], json!("assistant"));
+    assert_eq!(payload["messages"][1]["text"], json!("Working on it now."));
 
     Ok(())
 }

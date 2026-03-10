@@ -17,6 +17,7 @@ use tracing::warn;
 use crate::codex::{
     CodexSessionCounts, CodexSessionManager, CodexSessionPatch, CodexSessionRecord,
     CodexSessionStatus, CodexTerminalClientMessage, CodexTerminalServerMessage,
+    CodexTranscriptMessage, CodexTranscriptRole,
 };
 use crate::constants::UNBOUNDED_QUERY_LIMIT;
 use crate::markdown::render_markdown_html;
@@ -116,6 +117,10 @@ pub fn router(state: Arc<WebState>) -> Router {
         .route("/api/system/pick-directory", post(api_pick_directory))
         .route("/api/system/open-path", post(api_open_path))
         .route("/api/codex-sessions/{id}", patch(api_update_codex_session))
+        .route(
+            "/api/codex-sessions/{id}/transcript",
+            get(api_codex_session_transcript),
+        )
         .route(
             "/api/codex-sessions/{id}/resume",
             post(api_resume_codex_session),
@@ -296,6 +301,23 @@ struct CodexSessionMutationResponse {
     workspace: WorkspacePayload,
     opened_session_id: Option<String>,
     message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CodexTranscriptMessagePayload {
+    role: String,
+    text: String,
+    timestamp_iso: Option<String>,
+    timestamp_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct CodexTranscriptResponse {
+    messages: Vec<CodexTranscriptMessagePayload>,
+    resume_available: bool,
+    codex_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    empty_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1264,6 +1286,37 @@ async fn api_resume_codex_session(
     }))
 }
 
+async fn api_codex_session_transcript(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> ApiResult<CodexTranscriptResponse> {
+    require_desktop_client(&headers)?;
+    let messages = state
+        .codex_manager
+        .load_session_transcript(&id)
+        .map_err(map_service_err_json)?;
+    let session = state
+        .service
+        .get_codex_session(&id)
+        .map_err(internal_api_err)?
+        .ok_or_else(|| bad_request_json("codex session not found"))?;
+    let empty_message = if messages.is_empty() {
+        Some("No saved chat history yet for this session.".to_string())
+    } else {
+        None
+    };
+    Ok(Json(CodexTranscriptResponse {
+        messages: messages
+            .into_iter()
+            .map(map_codex_transcript_message_payload)
+            .collect(),
+        resume_available: session.codex_session_id.is_some(),
+        codex_session_id: session.codex_session_id,
+        empty_message,
+    }))
+}
+
 async fn api_restart_codex_session(
     Path(id): Path<String>,
     State(state): State<Arc<WebState>>,
@@ -1796,8 +1849,22 @@ fn map_codex_session_payload(
         ended_at_iso: session.ended_at.as_ref().map(chrono::DateTime::to_rfc3339),
         ended_at_label: session.ended_at.map(format_timestamp),
         summary: session.summary,
-        resume_available: session.codex_session_id.is_some()
-            || status == CodexSessionStatus::Resumable,
+        resume_available: session.codex_session_id.is_some(),
+    }
+}
+
+fn map_codex_transcript_message_payload(
+    message: CodexTranscriptMessage,
+) -> CodexTranscriptMessagePayload {
+    let role = match message.role {
+        CodexTranscriptRole::User => CodexTranscriptRole::User.as_str().to_string(),
+        CodexTranscriptRole::Assistant => CodexTranscriptRole::Assistant.as_str().to_string(),
+    };
+    CodexTranscriptMessagePayload {
+        role,
+        text: message.text,
+        timestamp_iso: message.timestamp.as_ref().map(chrono::DateTime::to_rfc3339),
+        timestamp_label: message.timestamp.map(format_timestamp),
     }
 }
 
