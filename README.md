@@ -1,6 +1,6 @@
 # Topside
 
-![Topside Screenshot](Screenshot 2026-03-10 at 4.45.14 PM.png)
+<img src="Screenshot 2026-03-10 at 4.45.14 PM.png" alt="Topside" width="420" />
 
 Agentic Building Layer | Integrated with Codex | OSS | Rust
 
