@@ -1471,6 +1471,7 @@ async fn codex_session_create_and_websocket_stream_work_with_mock_cli() -> Resul
     });
 
     let create_response = http_app
+        .clone()
         .oneshot(
             desktop_request(
                 Request::builder()
@@ -1568,6 +1569,117 @@ async fn codex_session_create_and_websocket_stream_work_with_mock_cli() -> Resul
     })
     .await??;
     assert!(echoed_output.contains("ping"));
+
+    let _ = socket.close(None).await;
+    server.abort();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn codex_session_input_endpoint_writes_to_live_runtime() -> Result<()> {
+    let _env = MockCodexEnv::new()?;
+    let (_tmp, service) = common::setup_service_workspace()?;
+    let repo_root = TempDir::new()?;
+    let project = service.create_project(
+        CreateProjectPayload {
+            title: "Codex Input Project".to_string(),
+            owner: None,
+            source_kind: Some(ProjectSourceKind::Local),
+            source_locator: Some(repo_root.path().to_string_lossy().to_string()),
+            icon: None,
+            tags: None,
+            body: None,
+        },
+        Actor::human("tester"),
+    )?;
+
+    let state = build_test_state(&service, None, Arc::new(UnsupportedPortManager))?;
+    let http_app = router(state.clone());
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router(state))
+            .await
+            .expect("serve test router");
+    });
+
+    let create_response = http_app
+        .clone()
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/projects/{}/codex-sessions", project.id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from("{}"))?,
+        )
+        .await?;
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let create_body = to_bytes(create_response.into_body(), usize::MAX).await?;
+    let create_json: serde_json::Value = serde_json::from_slice(&create_body)?;
+    let session_id = create_json["opened_session_id"]
+        .as_str()
+        .expect("opened session id")
+        .to_string();
+
+    for _ in 0..80 {
+        let workspace = service.load_project_workspace(&project.id)?;
+        let session = workspace
+            .codex_sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .cloned()
+            .expect("session persisted");
+        if session.status.as_str() == "live" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    let input_response = http_app
+        .oneshot(
+            desktop_request(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/codex-sessions/{}/input", session_id))
+                    .header(header::CONTENT_TYPE, "application/json"),
+            )
+            .body(Body::from(r#"{"data":"hello from endpoint\r"}"#))?,
+        )
+        .await?;
+    assert_eq!(input_response.status(), StatusCode::NO_CONTENT);
+
+    let socket_url = format!(
+        "ws://{}/api/codex-sessions/{}/pty?desktop=true",
+        addr, session_id
+    );
+    let (mut socket, _response) = connect_async(&socket_url).await?;
+
+    let echoed_output = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let Some(message) = socket.next().await else {
+                anyhow::bail!("websocket closed before endpoint echo output")
+            };
+            match message? {
+                Message::Text(text) => {
+                    let payload: serde_json::Value = serde_json::from_str(text.as_ref())?;
+                    if payload["type"] == "output" {
+                        let data = payload["data"].as_str().unwrap_or_default().to_string();
+                        if data.contains("hello from endpoint") {
+                            return Ok::<String, anyhow::Error>(data);
+                        }
+                    }
+                }
+                Message::Binary(_) | Message::Ping(_) | Message::Pong(_) => {}
+                Message::Close(_) => anyhow::bail!("websocket closed before endpoint echo output"),
+                _ => {}
+            }
+        }
+    })
+    .await??;
+    assert!(echoed_output.contains("hello from endpoint"));
 
     let _ = socket.close(None).await;
     server.abort();

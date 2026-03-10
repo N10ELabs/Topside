@@ -122,6 +122,10 @@ pub fn router(state: Arc<WebState>) -> Router {
             get(api_codex_session_transcript),
         )
         .route(
+            "/api/codex-sessions/{id}/input",
+            post(api_codex_session_input),
+        )
+        .route(
             "/api/codex-sessions/{id}/resume",
             post(api_resume_codex_session),
         )
@@ -318,6 +322,11 @@ struct CodexTranscriptResponse {
     codex_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     empty_message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexSessionInputRequest {
+    data: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -1315,6 +1324,20 @@ async fn api_codex_session_transcript(
         codex_session_id: session.codex_session_id,
         empty_message,
     }))
+}
+
+async fn api_codex_session_input(
+    Path(id): Path<String>,
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+    Json(request): Json<CodexSessionInputRequest>,
+) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    require_desktop_client(&headers)?;
+    state
+        .codex_manager
+        .send_input(&id, &request.data)
+        .map_err(map_service_err_json)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn api_restart_codex_session(

@@ -30,6 +30,15 @@
       "sync_key": "tsk_01KK64HMY5G43KS2DAPV2KTNG4"
     },
     {
+      "title": "Add ability to hotswap Notes pane for Codex pane",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK64M87RJJ43E8C8BVSSBX61"
+    },
+    {
       "title": "Sample task: create a task from agent prompt and confirm row animation timing",
       "kind": {
         "Task": {
@@ -48,6 +57,15 @@
       "sync_key": "tsk_01KK742BS741YB0DHQH2RS7V2A"
     },
     {
+      "title": "Add settings configuration for Codex default run conditions (model, reasoning, permissions, etc.)",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KKAQJ2AC027V5Q6MMQEM5XHF"
+    },
+    {
       "title": "Sample task: test multiple synced tasks arriving together",
       "kind": {
         "Task": {
@@ -55,6 +73,11 @@
         }
       },
       "sync_key": "tsk_01KJVE9GRET0XZMN4JQX7E33KC"
+    },
+    {
+      "title": "Phase 7 - Hub as Interactive Codebase",
+      "kind": "Section",
+      "sync_key": "sec_01KJXNQDGDJ7W1EV5WV4YRYDHE"
     },
     {
       "title": "Add port viewer/killer",
@@ -102,6 +125,15 @@
       "sync_key": "tsk_01KJXJW074FPX1Q88RKWFH6EYX"
     },
     {
+      "title": "Project selection should initialize to-do.md in project workspace. Needs more work",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK0163P2D8FYZX04KHM1KZNX"
+    },
+    {
       "title": "Allow custom icons per project",
       "kind": {
         "Task": {
@@ -129,13 +161,9 @@
       "sync_key": "tsk_01KJY222MBPN805X9GDHDZHA7W"
     },
     {
-      "title": "Add ability to hotswap Notes pane for Codex pane",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK64M87RJJ43E8C8BVSSBX61"
+      "title": "UI Polish",
+      "kind": "Section",
+      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "Do a pass on pane headers and buttons for consistent typecase",
@@ -174,6 +202,15 @@
       "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
     },
     {
+      "title": "Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK5JDXJYBT1BHG81QN5DDNX8"
+    },
+    {
       "title": "Establish UX flow for setting up codex if not already done",
       "kind": {
         "Task": {
@@ -192,6 +229,15 @@
       "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
     },
     {
+      "title": "Review YT Script #1",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
+    },
+    {
       "title": "Verify Topside is getting codex from correct file source",
       "kind": {
         "Task": {
@@ -199,6 +245,11 @@
         }
       },
       "sync_key": "tsk_01KK64NS6N509D0RFVGRWCDS3N"
+    },
+    {
+      "title": "Features for Later",
+      "kind": "Section",
+      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
     },
     {
       "title": "Review terminal implementation and decide whether current stack is best fit",
@@ -210,18 +261,13 @@
       "sync_key": "tsk_01KK76YABHYV179B5FXSKN1ATJ"
     },
     {
-      "title": "Phase 7 - Hub as Interactive Codebase",
-      "kind": "Section",
-      "sync_key": "sec_01KJXNQDGDJ7W1EV5WV4YRYDHE"
-    },
-    {
-      "title": "Project selection should initialize to-do.md in project workspace. Needs more work",
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK0163P2D8FYZX04KHM1KZNX"
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     },
     {
       "title": "Add ability to copy rich html or markdown",
@@ -245,11 +291,6 @@
       "title": "Section: Phase 6 - Visual Polish and Functionality",
       "kind": "Section",
       "sync_key": "sec_01KJXNQDFY1XXAFBNEV4RQS841"
-    },
-    {
-      "title": "UI Polish",
-      "kind": "Section",
-      "sync_key": "sec_01KJY0HBSGE6CBKZ22TYGXGRQ2"
     },
     {
       "title": "to-do pane, collapse all expand all toggle",
@@ -279,15 +320,6 @@
       "sync_key": "tsk_01KJXK6Y729WYHRKJ15F5RNM2E"
     },
     {
-      "title": "Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK5JDXJYBT1BHG81QN5DDNX8"
-    },
-    {
       "title": "Ensure copied changelog is in document view",
       "kind": {
         "Task": {
@@ -295,15 +327,6 @@
         }
       },
       "sync_key": "tsk_01KJXNQDG4W1B1X9D9R12MS2FX"
-    },
-    {
-      "title": "Review YT Script #1",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
     },
     {
       "title": "Add polished search bar in docs pane",
@@ -315,11 +338,6 @@
       "sync_key": "tsk_01KJXN9R6SFP4J2JF0AQAA6HWN"
     },
     {
-      "title": "Features for Later",
-      "kind": "Section",
-      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
-    },
-    {
       "title": "Add tasking priority",
       "kind": {
         "Task": {
@@ -327,15 +345,6 @@
         }
       },
       "sync_key": "tsk_01KJXN9R6SE0JE19GFP26GWKXE"
-    },
-    {
-      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     },
     {
       "title": "Visual animation when tasks are created or destroyed by agent in todo.md",
