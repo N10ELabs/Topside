@@ -30,13 +30,13 @@
       "sync_key": "tsk_01KK64HMY5G43KS2DAPV2KTNG4"
     },
     {
-      "title": "Add ability to hotswap Notes pane for Codex pane",
+      "title": "Add settings configuration for Codex default run conditions (model, reasoning, permissions, etc.)",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KK64M87RJJ43E8C8BVSSBX61"
+      "sync_key": "tsk_01KKAQJ2AC027V5Q6MMQEM5XHF"
     },
     {
       "title": "Sample task: create a task from agent prompt and confirm row animation timing",
@@ -57,13 +57,13 @@
       "sync_key": "tsk_01KK742BS741YB0DHQH2RS7V2A"
     },
     {
-      "title": "Add settings configuration for Codex default run conditions (model, reasoning, permissions, etc.)",
+      "title": "Prepare Topside for v0.1.0 release",
       "kind": {
         "Task": {
           "completed": false
         }
       },
-      "sync_key": "tsk_01KKAQJ2AC027V5Q6MMQEM5XHF"
+      "sync_key": "tsk_01KKATC0W3ZA6CBMPYNNZZ6TQJ"
     },
     {
       "title": "Sample task: test multiple synced tasks arriving together",
@@ -184,6 +184,11 @@
       "sync_key": "tsk_01KK07S6DXNW3FNW1QWW3K6V29"
     },
     {
+      "title": "Features for Later",
+      "kind": "Section",
+      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
+    },
+    {
       "title": "Remove redundant codex session info",
       "kind": {
         "Task": {
@@ -193,6 +198,15 @@
       "sync_key": "tsk_01KK64MK1X1HS5JED4TDZ3GNM4"
     },
     {
+      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
+      "kind": {
+        "Task": {
+          "completed": false
+        }
+      },
+      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
+    },
+    {
       "title": "Center headers in their borders",
       "kind": {
         "Task": {
@@ -200,15 +214,6 @@
         }
       },
       "sync_key": "tsk_01KK07XP8V1N103WMB644P0XFE"
-    },
-    {
-      "title": "Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK5JDXJYBT1BHG81QN5DDNX8"
     },
     {
       "title": "Establish UX flow for setting up codex if not already done",
@@ -229,15 +234,6 @@
       "sync_key": "tsk_01KJY0HHPZSNG30KSY4PA5VWEC"
     },
     {
-      "title": "Review YT Script #1",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KK01B9CJX75YBWM5HE991TES"
-    },
-    {
       "title": "Verify Topside is getting codex from correct file source",
       "kind": {
         "Task": {
@@ -247,11 +243,6 @@
       "sync_key": "tsk_01KK64NS6N509D0RFVGRWCDS3N"
     },
     {
-      "title": "Features for Later",
-      "kind": "Section",
-      "sync_key": "sec_01KK0KJX1TNJRNE22EGG9CM19Q"
-    },
-    {
       "title": "Review terminal implementation and decide whether current stack is best fit",
       "kind": {
         "Task": {
@@ -259,15 +250,6 @@
         }
       },
       "sync_key": "tsk_01KK76YABHYV179B5FXSKN1ATJ"
-    },
-    {
-      "title": "Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.",
-      "kind": {
-        "Task": {
-          "completed": false
-        }
-      },
-      "sync_key": "tsk_01KJXNQDEYS9G641EED6T6GWYY"
     },
     {
       "title": "Add ability to copy rich html or markdown",

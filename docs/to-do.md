@@ -2,10 +2,10 @@
 ## Codex Integration
 - [x] Sample task: verify new task sync animation appears in to-do pane
 - [x] Continue to refine UI and UX
-- [ ] Add ability to hotswap Notes pane for Codex pane
+- [ ] Add settings configuration for Codex default run conditions (model, reasoning, permissions, etc.)
 - [x] Sample task: create a task from agent prompt and confirm row animation timing
 - [x] Update project documentation
-- [ ] Add settings configuration for Codex default run conditions (model, reasoning, permissions, etc.)
+- [ ] Prepare Topside for v0.1.0 release
 - [x] Sample task: test multiple synced tasks arriving together
 ## Phase 7 - Hub as Interactive Codebase
 - [x] Add port viewer/killer
@@ -20,16 +20,14 @@
 ## UI Polish
 - [x] Do a pass on pane headers and buttons for consistent typecase
 - [x] Polish task creation completion (clicking outside of typed task will just finalize instead of making new line)
+## Features for Later
 - [x] Remove redundant codex session info
+- [ ] Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.
 - [x] Center headers in their borders
-- [ ] Add better text interactions for task editing (i.e. arrow navigation between tasks for human users)
 - [x] Establish UX flow for setting up codex if not already done
 - [x] Resolve pane names
-- [ ] Review YT Script #1
 - [x] Verify Topside is getting codex from correct file source
-## Features for Later
 - [x] Review terminal implementation and decide whether current stack is best fit
-- [ ] Project map: Scan a local codebase and automatically generate a clean project map from folders, key docs, and entry points. This is a great first impression because a raw repo instantly turns into something understandable.
 - [x] Add ability to copy rich html or markdown
 - [x] Make plans to integrate Topside as a hub for building on top of the Codex CLI. Gains ability to spin off multiple sessions based on tasking
 ## Section: Phase 6 - Visual Polish and Functionality
